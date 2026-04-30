@@ -76,13 +76,22 @@ function TabsTrigger({
 
 function TabsContent({
   className,
+  forceMount,
   ...props
-}: React.ComponentProps<typeof TabsPrimitive.Content>) {
+}: React.ComponentProps<typeof TabsPrimitive.Content> & {
+  forceMount?: boolean
+}) {
   return (
     <TabsPrimitive.Content
       data-slot="tabs-content"
-      className={cn("flex-1 text-sm outline-none", className)}
+      className={cn(
+        "flex-1 text-sm outline-none",
+        // When forceMount is used, hide inactive tabs with CSS instead of unmounting
+        forceMount && "data-[state=inactive]:hidden",
+        className
+      )}
       {...props}
+      forceMount={forceMount}
     />
   )
 }

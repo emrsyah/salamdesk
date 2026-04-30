@@ -26,7 +26,7 @@ export default function TicketsPage() {
     const selected = searchParams.get("selected")
 
     const handleTabChange = (value: string) => {
-        setQueryParam("tab", value)
+        setQueryParam("tab", value, { replace: true })
     }
 
     return (
@@ -78,7 +78,7 @@ export default function TicketsPage() {
 
                     {/* Tab Contents - Scrollable */}
                     <div className="flex-1 overflow-y-auto">
-                        <TabsContent value="inbox" className="p-0 m-0 border-none outline-none">
+                        <TabsContent value="inbox" forceMount className="p-0 m-0 border-none outline-none">
                             {/* Mock Ticket Item 1 */}
                             <div className="p-4 border-l-4 border-l-primary border-b cursor-pointer bg-muted/20 hover:bg-muted/50 transition-colors">
                                 <div className="flex justify-between items-start mb-1.5">
@@ -98,13 +98,13 @@ export default function TicketsPage() {
                             </div>
                         </TabsContent>
 
-                        <TabsContent value="waiting" className="p-0 m-0 border-none outline-none">
+                        <TabsContent value="waiting" forceMount className="p-0 m-0 border-none outline-none">
                             <div className="p-8 text-center text-sm text-muted-foreground">
                                 Tidak ada tiket menunggu.
                             </div>
                         </TabsContent>
 
-                        <TabsContent value="done" className="p-0 m-0 border-none outline-none">
+                        <TabsContent value="done" forceMount className="p-0 m-0 border-none outline-none">
                             <div className="p-8 text-center text-sm text-muted-foreground">
                                 Tidak ada tiket selesai.
                             </div>

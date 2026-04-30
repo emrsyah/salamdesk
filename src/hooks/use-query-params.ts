@@ -1,10 +1,14 @@
-import { useCallback } from "react"
+import { useCallback, useRef } from "react"
 import { useRouter, usePathname, useSearchParams } from "next/navigation"
 
 export function useQueryParams() {
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
+  // Use a ref to always read the latest searchParams without adding it as a dependency
+  // This prevents setQueryParams from being recreated on every URL change
+  const searchParamsRef = useRef(searchParams)
+  searchParamsRef.current = searchParams
 
   /**
    * Set multiple query parameters at once.
@@ -16,7 +20,7 @@ export function useQueryParams() {
       options?: { replace?: boolean; scroll?: boolean }
     ) => {
       // Create a new URLSearchParams object from the current search params
-      const current = new URLSearchParams(Array.from(searchParams.entries()))
+      const current = new URLSearchParams(Array.from(searchParamsRef.current.entries()))
 
       // Update or delete parameters
       for (const [key, value] of Object.entries(params)) {
@@ -38,7 +42,7 @@ export function useQueryParams() {
         router.push(url, { scroll: options?.scroll ?? false })
       }
     },
-    [pathname, router, searchParams]
+    [pathname, router]
   )
 
   /**
