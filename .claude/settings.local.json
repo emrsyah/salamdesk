@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\emirsyah\\\\Documents\\\\CODING\\\\salamdesk\\\\salamdesk\" -Force)",
+      "Bash(Format-Table Name, PSIsContainer)",
+      "Bash(rtk find *)",
+      "Bash(rtk ls *)",
+      "Bash(rtk tree *)",
+      "Bash(rtk tsc *)"
+    ]
+  }
+}

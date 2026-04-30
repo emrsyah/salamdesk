@@ -54,7 +54,7 @@ DB schemas are consolidated (not one file per table). Existing schema file mappi
 
 ---
 
-## Phase 1 — Foundation
+## Phase 1 — Foundation => ✅ Done
 
 _Goal: get the bare minimum working so a real ticket can be created and viewed._
 
