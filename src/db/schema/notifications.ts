@@ -6,7 +6,7 @@ import { notificationTypeEnum } from "./enums";
 
 export const notifications = pgTable("notifications", {
     id: uuid("id").primaryKey().defaultRandom(),
-    userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
     ticketId: text("ticket_id").references(() => tickets.id, { onDelete: "cascade" }),
     type: notificationTypeEnum("type").notNull(),
     message: text("message"),

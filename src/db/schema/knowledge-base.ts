@@ -10,7 +10,7 @@ export const knowledgeBase = pgTable("knowledge_base", {
     content: text("content").notNull(),
     moduleId: uuid("module_id").references(() => modules.id, { onDelete: "set null" }),
     tags: text("tags").array(),
-    createdById: uuid("created_by_id").references(() => users.id, { onDelete: "set null" }),
+    createdById: text("created_by_id").references(() => users.id, { onDelete: "set null" }),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
@@ -29,7 +29,7 @@ export const quickReplies = pgTable("quick_replies", {
     label: text("label").notNull(),
     content: text("content").notNull(),
     moduleId: uuid("module_id").references(() => modules.id, { onDelete: "set null" }),
-    createdById: uuid("created_by_id").references(() => users.id, { onDelete: "set null" }),
+    createdById: text("created_by_id").references(() => users.id, { onDelete: "set null" }),
     createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

@@ -15,7 +15,7 @@ export const modules = pgTable("modules", {
 });
 
 export const userModules = pgTable("user_modules", {
-    userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
     moduleId: uuid("module_id").notNull().references(() => modules.id, { onDelete: "cascade" }),
 });
 

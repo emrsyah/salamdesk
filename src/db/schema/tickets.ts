@@ -24,10 +24,10 @@ export const tickets = pgTable("tickets", {
     slaDeadlineAt: timestamp("sla_deadline_at"),
     moduleId: uuid("module_id").notNull().references(() => modules.id),
     source: ticketSourceEnum("source").notNull(),
-    assigneeId: uuid("assignee_id").references(() => users.id, { onDelete: "set null" }),
-    createdById: uuid("created_by_id").references(() => users.id, { onDelete: "set null" }),
+    assigneeId: text("assignee_id").references(() => users.id, { onDelete: "set null" }),
+    createdById: text("created_by_id").references(() => users.id, { onDelete: "set null" }),
     resolvedByType: resolvedByTypeEnum("resolved_by_type"),
-    resolvedById: uuid("resolved_by_id").references(() => users.id, { onDelete: "set null" }),
+    resolvedById: text("resolved_by_id").references(() => users.id, { onDelete: "set null" }),
     rootCause: rootCauseEnum("root_cause"),
     resolutionNote: text("resolution_note"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -38,7 +38,7 @@ export const tickets = pgTable("tickets", {
 export const ticketMessages = pgTable("ticket_messages", {
     id: uuid("id").primaryKey().defaultRandom(),
     ticketId: text("ticket_id").notNull().references(() => tickets.id, { onDelete: "cascade" }),
-    senderId: uuid("sender_id").references(() => users.id, { onDelete: "set null" }),
+    senderId: text("sender_id").references(() => users.id, { onDelete: "set null" }),
     senderType: senderTypeEnum("sender_type").notNull(),
     content: text("content").notNull(),
     isInternalNote: boolean("is_internal_note").default(false).notNull(),
@@ -49,8 +49,8 @@ export const ticketMessages = pgTable("ticket_messages", {
 export const ticketEscalations = pgTable("ticket_escalations", {
     id: uuid("id").primaryKey().defaultRandom(),
     ticketId: text("ticket_id").notNull().references(() => tickets.id, { onDelete: "cascade" }),
-    escalatedFromId: uuid("escalated_from_id").references(() => users.id, { onDelete: "set null" }),
-    escalatedToId: uuid("escalated_to_id").references(() => users.id, { onDelete: "set null" }),
+    escalatedFromId: text("escalated_from_id").references(() => users.id, { onDelete: "set null" }),
+    escalatedToId: text("escalated_to_id").references(() => users.id, { onDelete: "set null" }),
     reason: text("reason"),
     escalatedAt: timestamp("escalated_at").defaultNow().notNull(),
 });
@@ -72,6 +72,6 @@ export const ticketMessagesRelations = relations(ticketMessages, ({ one }) => ({
 
 export const ticketEscalationsRelations = relations(ticketEscalations, ({ one }) => ({
     ticket: one(tickets, { fields: [ticketEscalations.ticketId], references: [tickets.id] }),
-    escalatedFrom: one(users, { fields: [ticketEscalations.escalatedFromId], references: [users.id] }),
-    escalatedTo: one(users, { fields: [ticketEscalations.escalatedToId], references: [users.id] }),
+    escalatedFrom: one(users, { fields: [ticketEscalations.escalatedFromId], references: [users.id], relationName: "escalatedFrom" }),
+    escalatedTo: one(users, { fields: [ticketEscalations.escalatedToId], references: [users.id], relationName: "escalatedTo" }),
 }));
