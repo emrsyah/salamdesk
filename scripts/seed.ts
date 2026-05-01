@@ -1,6 +1,6 @@
 import "dotenv/config";
 import { db } from "@/db";
-import { modules, slaConfigs } from "@/db/schema/modules";
+import { modules, slaConfigs, userModules } from "@/db/schema/modules";
 import { users } from "@/db/schema/users";
 import { account } from "../auth-schema";
 import { eq } from "drizzle-orm";
@@ -73,16 +73,18 @@ async function seedUser(
 }
 
 async function seed() {
-  console.log("Seeding modules...");
+  console.log("🌱 Starting seed...\n");
+
+  console.log("📦 Seeding modules...");
   const inserted = await db
     .insert(modules)
     .values(MODULES)
     .onConflictDoNothing({ target: modules.slug })
     .returning({ id: modules.id, name: modules.name });
-  console.log(`  ${inserted.length} new module(s) seeded.`);
+  console.log(`✅ Created ${inserted.length} module(s)`);
 
   if (inserted.length > 0) {
-    console.log("Seeding SLA configs...");
+    console.log("⏱️  Seeding SLA configs...");
     const slaRows = inserted.flatMap((mod) =>
       (["low", "medium", "critical"] as const).map((priority) => ({
         moduleId: mod.id,
@@ -91,19 +93,40 @@ async function seed() {
       })),
     );
     await db.insert(slaConfigs).values(slaRows).onConflictDoNothing();
-    console.log(`  ${slaRows.length} SLA config(s) seeded.`);
+    console.log(`✅ Created ${slaRows.length} SLA config(s)`);
+  } else {
+    console.log("ℹ️  Modules already seeded, skipping SLA configs.");
   }
 
-  console.log("Seeding users...");
+  console.log("👤 Seeding users...");
   await seedUser("admin@salamdesk.com", "password123", "Admin SIMRS", "admin");
-  await seedUser("agent@salamdesk.com", "password123", "Agent Test", "agent");
 
-  console.log("\nDone!");
+  // Assign first 4 modules to agent for testing
+  const agent = await db.select({ id: users.id }).from(users).where(eq(users.email, "agent@salamdesk.com")).limit(1);
+  const agentUserId = agent[0]?.id;
+
+  if (agentUserId) {
+    const seededModules = await db.select().from(modules).limit(4);
+    const agentModulesToInsert = seededModules.map((module) => ({
+      userId: agentUserId,
+      moduleId: module.id,
+    }));
+
+    await db.insert(userModules).values(agentModulesToInsert);
+    console.log(`  ✅ Assigned ${agentModulesToInsert.length} modules to agent`);
+  } else {
+    console.log("  ⚠️  Could not find agent user to assign modules.");
+  }
+
+  console.log("\n🎉 Seed completed successfully!\n");
+  console.log("Login credentials:");
+  console.log(`  🦾 Admin: admin@salamdesk.com / password123`);
+  console.log(`  👤  Agent: agent@salamdesk.com / agent123`);
 }
 
 seed()
   .catch((e) => {
-    console.error(e);
+    console.error("\n❌ Seed failed:", e);
     process.exit(1);
   })
   .finally(() => process.exit(0));

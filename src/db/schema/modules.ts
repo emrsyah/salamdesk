@@ -35,3 +35,8 @@ export const modulesRelations = relations(modules, ({ many }) => ({
     quickReplies: many(quickReplies),
     userModules: many(userModules),
 }));
+
+export const userModulesRelations = relations(userModules, ({ one }) => ({
+    user: one(users, { fields: [userModules.userId], references: [users.id] }),
+    module: one(modules, { fields: [userModules.moduleId], references: [modules.id] }),
+}));

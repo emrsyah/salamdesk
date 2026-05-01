@@ -1,0 +1,131 @@
+import { db } from "@/db";
+import { tickets, ticketMessages } from "@/db/schema/tickets";
+import { slaConfigs } from "@/db/schema/modules";
+import { eq, and, desc, asc, inArray } from "drizzle-orm";
+import crypto from "node:crypto";
+
+export type TicketPriority = "low" | "medium" | "critical";
+export type TicketSource = "whatsapp" | "web" | "email" | "manual";
+
+type TicketWithRelations = {
+  with: {
+    module: { columns: { id: true as const, name: true as const, color: true as const } };
+    createdBy: { columns: { id: true as const, name: true as const, email: true as const } };
+    assignee: { columns: { id: true as const, name: true as const } };
+  };
+  orderBy: ReturnType<typeof desc>[];
+};
+
+const TICKETS_WITH = {
+  module: { columns: { id: true as const, name: true as const, color: true as const } };
+  createdBy: { columns: { id: true as const, name: true as const, email: true as const } };
+  assignee: { columns: { id: true as const, name: true as const } };
+};
+
+type TicketContext = {
+  userId: string;
+  role: string;
+  moduleIds?: string[];
+};
+
+export async function getTickets(ctx?: TicketContext) {
+  if (!ctx || ctx.role === "admin") {
+    return db.query.tickets.findMany({
+      with: TICKETS_WITH,
+      orderBy: [desc(tickets.createdAt)],
+    });
+  }
+
+  if (ctx.role === "reporter") {
+    return db.query.tickets.findMany({
+      where: eq(tickets.createdById, ctx.userId),
+      with: TICKETS_WITH,
+      orderBy: [desc(tickets.createdAt)],
+    });
+  }
+
+  if (ctx.role === "agent") {
+    const moduleIds = ctx.moduleIds ?? [];
+    if (moduleIds.length === 0) return [];
+    return db.query.tickets.findMany({
+      where: inArray(tickets.moduleId, moduleIds),
+      with: TICKETS_WITH,
+      orderBy: [desc(tickets.createdAt)],
+    });
+  }
+
+  if (ctx.role === "engineer") {
+    return db.query.tickets.findMany({
+      where: eq(tickets.assigneeId, ctx.userId),
+      with: TICKETS_WITH,
+      orderBy: [desc(tickets.createdAt)],
+    });
+  }
+
+  return [];
+}
+
+export async function getTicketById(id: string) {
+  return db.query.tickets.findFirst({
+    where: eq(tickets.id, id),
+    with: {
+      module: true,
+      createdBy: { columns: { id: true, name: true, email: true } },
+      assignee: { columns: { id: true, name: true } },
+      messages: {
+        with: { sender: { columns: { id: true, name: true } } },
+        orderBy: [asc(ticketMessages.createdAt)],
+      },
+    },
+  });
+}
+
+export async function createTicket(data: {
+  title: string;
+  description: string;
+  moduleId: string;
+  priority: TicketPriority;
+  source: TicketSource;
+  createdById?: string;
+}) {
+  const slaConfig = await db.query.slaConfigs.findFirst({
+    where: and(
+      eq(slaConfigs.moduleId, data.moduleId),
+      eq(slaConfigs.priority, data.priority),
+      eq(slaConfigs.isActive, true),
+    ),
+  });
+
+  const now = new Date();
+  const slaDeadlineAt = slaConfig
+    ? new Date(now.getTime() + slaConfig.resolutionTimeMinutes * 60 * 1000)
+    : null;
+
+  const id = crypto.randomUUID();
+
+  await db.insert(tickets).values({
+    id,
+    title: data.title,
+    description: data.description || null,
+    status: "open",
+    priority: data.priority,
+    slaStatus: "safe",
+    slaDeadlineAt,
+    moduleId: data.moduleId,
+    source: data.source,
+    createdById: data.createdById ?? null,
+  }).execute();
+
+  if (data.description) {
+    await db.insert(ticketMessages).values({
+      ticketId: id,
+      senderId: data.createdById ?? null,
+      senderType: "user",
+      content: data.description,
+      isInternalNote: false,
+      source: data.source,
+    }).execute();
+  }
+
+  return { id };
+}

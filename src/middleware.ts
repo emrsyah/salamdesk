@@ -25,6 +25,15 @@ export async function middleware(request: NextRequest) {
       loginUrl.searchParams.set("callbackUrl", pathname);
       return NextResponse.redirect(loginUrl);
     }
+
+    // Role-based access control for admin-only routes
+    if (pathname.startsWith("/app/users")) {
+      const userRole = (session.user as { role?: string })?.role;
+      if (userRole !== "admin") {
+        const ticketsUrl = new URL("/app/tickets", request.url);
+        return NextResponse.redirect(ticketsUrl);
+      }
+    }
   }
 
   return NextResponse.next();

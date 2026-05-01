@@ -7,8 +7,10 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { RiArrowLeftLine, RiUserAddLine } from "@remixicon/react";
 
-export default function LoginPage() {
+export default function RegisterPage() {
+  const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -21,13 +23,18 @@ export default function LoginPage() {
     setError("");
     setLoading(true);
 
-    const { error: err } = await authClient.signIn.email({
+    const { error: err } = await authClient.signUp.email({
       email,
       password,
+      name,
+      role: "reporter",
+      vendor: "",
+      isActive: true,
+      callbackURL: "/app/tickets",
     });
 
     if (err) {
-      setError("Invalid email or password.");
+      setError(err.message || "Something went wrong. Please try again.");
     } else {
       router.push("/app/tickets");
     }
@@ -43,13 +50,26 @@ export default function LoginPage() {
              <div className="absolute -inset-1 bg-linear-to-r from-primary to-primary/50 rounded-2xl blur-sm opacity-25" />
              <img src="/android-chrome-512x512.png" alt="SalamDesk Logo" className="relative size-16 rounded-2xl" />
           </div>
-          <h1 className="text-2xl font-semibold tracking-tight">Welcome back</h1>
-          <p className="text-sm text-muted-foreground">
-            Sign in to your account to continue
+          <h1 className="text-2xl font-semibold tracking-tight">Create an account</h1>
+          <p className="text-sm text-muted-foreground text-center">
+            Join SalamDesk and start managing your customer support more efficiently.
           </p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="name">Full Name</Label>
+            <Input
+              id="name"
+              type="text"
+              placeholder="John Doe"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              required
+              autoComplete="name"
+            />
+          </div>
+
           <div className="space-y-2">
             <Label htmlFor="email">Email</Label>
             <Input
@@ -68,11 +88,11 @@ export default function LoginPage() {
             <Input
               id="password"
               type="password"
-              placeholder="Enter your password"
+              placeholder="Create a strong password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
-              autoComplete="current-password"
+              autoComplete="new-password"
             />
           </div>
 
@@ -82,17 +102,34 @@ export default function LoginPage() {
             </div>
           )}
 
-          <Button type="submit" className="w-full" disabled={loading}>
-            {loading ? "Signing in..." : "Sign in"}
+          <Button type="submit" className="w-full gap-2" disabled={loading}>
+            {loading ? (
+              "Creating account..."
+            ) : (
+              <>
+                <RiUserAddLine className="size-4" />
+                Register
+              </>
+            )}
           </Button>
         </form>
 
-        <p className="text-center text-sm text-muted-foreground">
-          Don&apos;t have an account?{" "}
-          <Link href="/register" className="font-medium text-primary hover:underline underline-offset-4">
-            Sign up
+        <div className="text-center space-y-4">
+          <p className="text-sm text-muted-foreground">
+            Already have an account?{" "}
+            <Link href="/" className="font-medium text-primary hover:underline underline-offset-4">
+              Sign in
+            </Link>
+          </p>
+          
+          <Link 
+            href="/" 
+            className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <RiArrowLeftLine className="size-3" />
+            Back to login
           </Link>
-        </p>
+        </div>
       </div>
     </div>
   );

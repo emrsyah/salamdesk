@@ -1,25 +1,34 @@
-import { getTickets, getTicketById } from "@/services/ticket.service";
-import { getModules } from "@/services/module.service";
-import { TicketList } from "@/components/tickets/ticket-list";
-import { TicketDetail } from "@/components/tickets/ticket-detail";
+import { getSession } from "@/lib/auth/session";
+import { redirect } from "next/navigation";
+import { getCachedActiveModules, getCachedModulesByUserId, getCachedQuickReplies, getCachedEngineers } from "@/lib/cache";
+import { TicketInbox } from "@/components/tickets/ticket-inbox";
 
-export default async function TicketsPage(props: {
-  searchParams: Promise<Record<string, string | string[] | undefined>>;
-}) {
-  const searchParams = await props.searchParams;
-  const selectedId =
-    typeof searchParams.selected === "string" ? searchParams.selected : undefined;
+export default async function TicketsPage() {
+  const session = await getSession();
+  if (!session?.user) redirect("/");
 
-  const [allTickets, allModules, selectedTicket] = await Promise.all([
-    getTickets(),
-    getModules(),
-    selectedId ? getTicketById(selectedId) : Promise.resolve(null),
+  const user = session.user as typeof session.user & { role: string };
+
+  // Fetch stable, cacheable data server-side.
+  // The ticket list and ticket detail are fetched client-side in TicketInbox.
+  const allActiveModules = await getCachedActiveModules();
+
+  // For agents/engineers: only their assigned modules can be used to create tickets
+  let moduleOptions = allActiveModules;
+  if (user.role === "agent" || user.role === "engineer") {
+    moduleOptions = await getCachedModulesByUserId(user.id, { activeOnly: true });
+  }
+
+  const [quickReplies, engineers] = await Promise.all([
+    getCachedQuickReplies(),
+    getCachedEngineers(),
   ]);
 
   return (
-    <div className="flex h-full w-full bg-background overflow-hidden">
-      <TicketList tickets={allTickets} modules={allModules} />
-      <TicketDetail ticket={selectedTicket} />
-    </div>
+    <TicketInbox
+      modules={moduleOptions as any}
+      quickReplies={quickReplies as any}
+      engineers={engineers as any}
+    />
   );
 }

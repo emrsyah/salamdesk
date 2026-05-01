@@ -22,6 +22,7 @@ type Module = { id: string; name: string; color: string | null; slug: string };
 interface TicketListProps {
   tickets: TicketListEntry[];
   modules: Module[];
+  onTicketCreated?: () => void;
 }
 
 type Tab = "inbox" | "waiting" | "done";
@@ -38,7 +39,7 @@ const TAB_LABELS: Record<Tab, string> = {
   done: "Selesai",
 };
 
-export function TicketList({ tickets, modules }: TicketListProps) {
+export function TicketList({ tickets, modules, onTicketCreated }: TicketListProps) {
   const { searchParams, setQueryParam } = useQueryParams();
   const [search, setSearch] = useState("");
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -85,6 +86,7 @@ export function TicketList({ tickets, modules }: TicketListProps) {
         setFormError(result.error);
       } else {
         setSheetOpen(false);
+        onTicketCreated?.();
         if (result.ticketId) {
           setQueryParam("selected", result.ticketId, { replace: true });
         }

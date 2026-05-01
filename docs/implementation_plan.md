@@ -78,7 +78,7 @@ At the end of Phase 1 you should be able to manually create a ticket and see it 
 
 ---
 
-## Phase 2 — User Roles & Auth
+## Phase 2 — User Roles & Auth => ✅ Done
 
 _Goal: different people log in and see different things._
 
@@ -98,7 +98,7 @@ At the end of Phase 2 you have a working multi-role app with real login. Reporte
 
 ---
 
-## Phase 3 — Ticket Workflow
+## Phase 3 — Ticket Workflow => ✅ DONE
 
 _Goal: tickets can move through their full lifecycle with a real conversation thread._
 
