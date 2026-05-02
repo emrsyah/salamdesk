@@ -1,3 +1,5 @@
+<img width="1774" height="887" alt="salamdesk-headline" src="https://github.com/user-attachments/assets/038b3cc0-d3ac-416b-98ff-8c0b017dacd0" />
+
 # 🕊️ SalamDesk
 
 **SalamDesk** is an AI-powered, multichannel helpdesk system specifically engineered for healthcare environments (e.g., RSUD Karawang). It streamlines hospital operations by integrating WhatsApp messaging with automated AI triage, SLA management, and a robust Knowledge Base.
