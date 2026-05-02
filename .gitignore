@@ -37,3 +37,6 @@ pnpm-debug.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# WhatsApp Baileys auth state (contains session keys — do NOT commit)
+/wa_auth/

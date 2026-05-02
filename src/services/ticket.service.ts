@@ -1,7 +1,7 @@
 import { db } from "@/db";
 import { tickets, ticketMessages, ticketEscalations } from "@/db/schema/tickets";
 import { slaConfigs } from "@/db/schema/modules";
-import { eq, and, desc, asc, inArray } from "drizzle-orm";
+import { eq, and, desc, asc, inArray, isNull, isNotNull } from "drizzle-orm";
 import crypto from "node:crypto";
 
 export type TicketPriority = "low" | "medium" | "critical";
@@ -107,23 +107,27 @@ export async function getTicketById(id: string) {
 export async function createTicket(data: {
   title: string;
   description: string;
-  moduleId: string;
+  moduleId?: string | null;
   priority: TicketPriority;
   source: TicketSource;
   createdById?: string;
+  waPhone?: string | null;
 }) {
-  const slaConfig = await db.query.slaConfigs.findFirst({
-    where: and(
-      eq(slaConfigs.moduleId, data.moduleId),
-      eq(slaConfigs.priority, data.priority),
-      eq(slaConfigs.isActive, true),
-    ),
-  });
+  let slaDeadlineAt: Date | null = null;
 
-  const now = new Date();
-  const slaDeadlineAt = slaConfig
-    ? new Date(now.getTime() + slaConfig.resolutionTimeMinutes * 60 * 1000)
-    : null;
+  if (data.moduleId) {
+    const slaConfig = await db.query.slaConfigs.findFirst({
+      where: and(
+        eq(slaConfigs.moduleId, data.moduleId),
+        eq(slaConfigs.priority, data.priority),
+        eq(slaConfigs.isActive, true),
+      ),
+    });
+    if (slaConfig) {
+      const now = new Date();
+      slaDeadlineAt = new Date(now.getTime() + slaConfig.resolutionTimeMinutes * 60 * 1000);
+    }
+  }
 
   const id = crypto.randomUUID();
 
@@ -135,7 +139,8 @@ export async function createTicket(data: {
     priority: data.priority,
     slaStatus: "safe",
     slaDeadlineAt,
-    moduleId: data.moduleId,
+    moduleId: data.moduleId ?? null,
+    waPhone: data.waPhone ?? null,
     source: data.source,
     createdById: data.createdById ?? null,
   }).execute();
@@ -224,5 +229,42 @@ export async function escalateTicket(
         updatedAt: new Date(),
       })
       .where(eq(tickets.id, ticketId));
+  });
+}
+
+/**
+ * Find the most recent active (non-terminal) ticket for a WhatsApp phone number.
+ * Used by the bot worker to decide whether to append or create a new ticket.
+ * Terminal statuses: "resolved" | "closed"
+ */
+export async function findOpenTicketByWaPhone(phone: string) {
+  const results = await db.query.tickets.findMany({
+    where: eq(tickets.waPhone, phone),
+    orderBy: [desc(tickets.createdAt)],
+    columns: { id: true, status: true, waPhone: true },
+    limit: 1,
+  });
+
+  const ticket = results[0];
+  if (!ticket) return null;
+
+  // Only return if the ticket is still active
+  if (ticket.status === "resolved" || ticket.status === "closed") return null;
+
+  return ticket;
+}
+
+
+/**
+ * Get a ticket's source and waPhone for outbound reply routing.
+ */
+export async function getTicketForWaReply(ticketId: string) {
+  return db.query.tickets.findFirst({
+    where: eq(tickets.id, ticketId),
+    columns: {
+      id: true,
+      source: true,
+      waPhone: true,
+    },
   });
 }

@@ -16,11 +16,16 @@ export async function createTicketAction(formData: FormData) {
 
   const title = (formData.get("title") as string)?.trim();
   const description = (formData.get("description") as string)?.trim() ?? "";
-  const moduleId = formData.get("moduleId") as string;
+  const moduleId = (formData.get("moduleId") as string) || null;
   const priority = formData.get("priority") as "low" | "medium" | "critical";
 
-  if (!title || !moduleId || !priority) {
-    return { error: "Judul, modul, dan prioritas wajib diisi." };
+  if (!title || !priority) {
+    return { error: "Judul dan prioritas wajib diisi." };
+  }
+
+  // For web-created tickets, module is required (user picks from dropdown)
+  if (!moduleId) {
+    return { error: "Modul wajib diisi untuk tiket web." };
   }
 
   if (!["low", "medium", "critical"].includes(priority)) {
