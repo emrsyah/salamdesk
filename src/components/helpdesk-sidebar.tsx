@@ -24,6 +24,7 @@ import {
 import {
   RiBarChartBoxLine,
   RiBook3Line,
+  RiCodeSSlashLine,
   RiCommandLine,
   RiErrorWarningLine,
   RiHospitalLine,
@@ -66,6 +67,7 @@ const LAINNYA_ITEMS: NavItem[] = [
   { title: "Analytics", url: "/app/analytic", icon: <RiBarChartBoxLine />, isLainnya: true },
   { title: "Users", url: "/app/users", icon: <RiTeamLine />, isLainnya: true },
   { title: "WhatsApp", url: "/app/whatsapp", icon: <RiCommandLine />, isLainnya: true },
+  { title: "Developer API", url: "/app/settings/developer", icon: <RiCodeSSlashLine />, isLainnya: true },
 ];
 
 interface HelpdeskSidebarProps extends ComponentProps<typeof Sidebar> {
