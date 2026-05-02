@@ -65,6 +65,7 @@ const LAINNYA_ITEMS: NavItem[] = [
   { title: "Knowledge Base", url: "/app/knowledge", icon: <RiBook3Line />, isLainnya: true },
   { title: "Analytics", url: "/app/analytic", icon: <RiBarChartBoxLine />, isLainnya: true },
   { title: "Users", url: "/app/users", icon: <RiTeamLine />, isLainnya: true },
+  { title: "WhatsApp", url: "/app/whatsapp", icon: <RiCommandLine />, isLainnya: true },
 ];
 
 interface HelpdeskSidebarProps extends ComponentProps<typeof Sidebar> {

@@ -12,6 +12,12 @@ export const redisConnection =
     maxRetriesPerRequest: null,
   });
 
+redisConnection.on("error", (err) => {
+  // Catch unhandled error events to prevent application crashes
+  // Redis will still attempt to reconnect
+  console.error("[ioredis] Connection error:", err.message);
+});
+
 if (process.env.NODE_ENV !== "production") {
   globalForRedis.redis = redisConnection;
 }

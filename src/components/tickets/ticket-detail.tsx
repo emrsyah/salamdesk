@@ -1,6 +1,7 @@
 import { TicketDetailHeader } from "./ticket-detail-header";
 import { TicketMessageThread } from "./ticket-message-thread";
 import { TicketReplyBox } from "./ticket-reply-box";
+import { TicketAiSuggestion, type AiSuggestionData } from "./ticket-ai-suggestion";
 
 export type TicketDetailData = {
   id: string;
@@ -23,6 +24,8 @@ export type TicketDetailData = {
     createdAt: Date | string;
     sender: { id: string; name: string } | null;
   }[];
+  // AI triage data (optional — present after triage runs)
+  aiSuggestions?: AiSuggestionData[];
 };
 
 interface TicketDetailProps {
@@ -57,10 +60,26 @@ export function TicketDetail({ ticket, quickReplies, engineers, onMutated }: Tic
     );
   }
 
+  // Get the latest AI suggestion (if any)
+  const latestSuggestion = ticket.aiSuggestions?.[0] ?? null;
+
+  // Find the AI auto-reply message in the thread (if one was sent)
+  const aiReplyMessage = latestSuggestion
+    ? ticket.messages.find((m) => m.senderType === "ai_bot" && !m.isInternalNote)
+    : null;
+
   return (
     <div className="flex-1 flex flex-col h-full bg-background overflow-hidden">
       <TicketDetailHeader ticket={ticket} engineers={engineers} onMutated={onMutated} />
       <TicketMessageThread messages={ticket.messages} />
+      {/* AI suggestion card — rendered below the message thread, above reply box */}
+      {latestSuggestion && (
+        <TicketAiSuggestion
+          suggestion={latestSuggestion}
+          aiReply={aiReplyMessage?.content ?? null}
+          onFeedback={onMutated}
+        />
+      )}
       {ticket.status !== "closed" && ticket.status !== "resolved" && (
         <TicketReplyBox
           ticketId={ticket.id}

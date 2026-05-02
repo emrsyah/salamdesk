@@ -4,6 +4,7 @@ import {
   createTicket,
 } from "@/services/ticket.service";
 import { createMessage } from "@/services/message.service";
+import { aiTriageQueue } from "@/lib/queue";
 import type { WaInboundJob } from "@/lib/queue";
 
 /**
@@ -63,6 +64,10 @@ export async function processInboundWaMessage(job: WaInboundJob): Promise<{
   });
 
   console.log(`[BOT] Created ticket ${ticketId} for ${phone} (${pushName ?? "unknown"})`);
+
+  // Enqueue AI triage — classifies module, priority, and searches KB
+  await aiTriageQueue.add("triage", { ticketId });
+  console.log(`[BOT] Enqueued AI triage for ticket ${ticketId}`);
 
   return { action: "created", ticketId };
 }

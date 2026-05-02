@@ -18,6 +18,7 @@ import IORedis from "ioredis";
 import { Worker } from "bullmq";
 import { connectToWhatsApp, getSocket } from "@/lib/whatsapp";
 import { processInboundWaMessage } from "./bot";
+import { createTriageWorker } from "./triage.worker";
 import type { WaInboundJob, WaOutboundJob } from "@/lib/queue";
 
 // ---------------------------------------------------------------------------
@@ -27,6 +28,10 @@ const workerRedis = new IORedis(
   process.env.REDIS_URL ?? "redis://localhost:6379",
   { maxRetriesPerRequest: null },
 );
+
+workerRedis.on("error", (err) => {
+  console.error("[ioredis] Worker connection error:", err.message);
+});
 
 // ---------------------------------------------------------------------------
 // wa-inbound worker: processes incoming WhatsApp messages
@@ -79,6 +84,12 @@ outboundWorker.on("failed", (job, err) => {
 });
 
 // ---------------------------------------------------------------------------
+// ai-triage worker: classifies tickets with AI after creation
+// ---------------------------------------------------------------------------
+const triageWorker = createTriageWorker(workerRedis);
+console.log("[WORKER] AI triage worker started.");
+
+// ---------------------------------------------------------------------------
 // Boot WhatsApp connection
 // ---------------------------------------------------------------------------
 console.log("[WORKER] Starting SalamDesk worker process…");
@@ -97,6 +108,7 @@ async function shutdown() {
   await Promise.all([
     inboundWorker.close(),
     outboundWorker.close(),
+    triageWorker.close(),
     workerRedis.quit(),
   ]);
   process.exit(0);

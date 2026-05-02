@@ -116,7 +116,7 @@ At the end of Phase 3 the core helpdesk loop is complete. Agents can handle tick
 
 ---
 
-## Phase 4 — WhatsApp Integration
+## Phase 4 — WhatsApp Integration => ✅ DONE
 
 _Goal: reporters can create and reply to tickets by just sending a WhatsApp message — no web login needed._
 
@@ -133,7 +133,7 @@ This is the most technically involved phase. The webhook endpoint is the critica
 
 ---
 
-## Phase 5 — AI Triage
+## Phase 5 — AI Triage => ✅ DONE
 
 _Goal: the AI bot automatically classifies new tickets and tries to solve them before a human gets involved._
 

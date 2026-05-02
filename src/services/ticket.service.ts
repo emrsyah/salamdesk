@@ -1,5 +1,6 @@
 import { db } from "@/db";
 import { tickets, ticketMessages, ticketEscalations } from "@/db/schema/tickets";
+import { aiSuggestions } from "@/db/schema/knowledge-base";
 import { slaConfigs } from "@/db/schema/modules";
 import { eq, and, desc, asc, inArray, isNull, isNotNull } from "drizzle-orm";
 import crypto from "node:crypto";
@@ -100,6 +101,15 @@ export async function getTicketById(id: string) {
         with: { sender: { columns: { id: true, name: true } } },
         orderBy: [asc(ticketMessages.createdAt)],
       },
+      aiSuggestions: {
+        with: {
+          knowledgeBase: {
+            columns: { id: true, title: true, content: true },
+          },
+        },
+        orderBy: [desc(aiSuggestions.createdAt)],
+        limit: 1,
+      },
     },
   });
 }
@@ -187,6 +197,7 @@ export async function resolveTicket(
     resolutionNote?: string;
     rootCause?: any;
     resolvedById?: string;
+    resolvedKbIds?: string[];
   }
 ) {
   await db
@@ -196,6 +207,7 @@ export async function resolveTicket(
       resolutionNote: data.resolutionNote || null,
       rootCause: data.rootCause || null,
       resolvedById: data.resolvedById || null,
+      resolvedKbIds: data.resolvedKbIds || null,
       resolvedAt: new Date(),
       updatedAt: new Date(),
     })

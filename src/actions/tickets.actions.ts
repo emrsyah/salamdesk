@@ -1,6 +1,7 @@
 "use server";
 
 import { createTicket } from "@/services/ticket.service";
+import { aiTriageQueue } from "@/lib/queue";
 import { auth } from "@/lib/auth/auth";
 import { headers } from "next/headers";
 
@@ -42,6 +43,10 @@ export async function createTicketAction(formData: FormData) {
       createdById: session?.user?.id,
     });
 
+    // Enqueue AI triage — will skip module classification (already set)
+    // but will reassess priority and search KB for a helpful reply
+    await aiTriageQueue.add("triage", { ticketId: ticket.id });
+
     return { success: true, ticketId: ticket.id };
   } catch (err) {
     console.error("createTicketAction error:", err);
@@ -82,6 +87,7 @@ export async function resolveTicketAction(
   data: {
     resolutionNote?: string;
     rootCause?: any;
+    resolvedKbIds?: string[];
   }
 ) {
   const session = await auth.api.getSession({ headers: await headers() });

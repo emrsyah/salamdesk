@@ -1,4 +1,4 @@
-import { pgTable, text, uuid, boolean, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, text, uuid, boolean, timestamp, numeric } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { users } from "./users";
 import { modules } from "./modules";
@@ -29,8 +29,12 @@ export const tickets = pgTable("tickets", {
     createdById: text("created_by_id").references(() => users.id, { onDelete: "set null" }),
     resolvedByType: resolvedByTypeEnum("resolved_by_type"),
     resolvedById: text("resolved_by_id").references(() => users.id, { onDelete: "set null" }),
+    resolvedKbIds: text("resolved_kb_ids").array(),
     rootCause: rootCauseEnum("root_cause"),
     resolutionNote: text("resolution_note"),
+    // AI triage fields
+    moduleConfidence: numeric("module_confidence", { precision: 4, scale: 2 }),
+    moduleSetBy: text("module_set_by"), // "user" | "ai" | "system"
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
     resolvedAt: timestamp("resolved_at"),

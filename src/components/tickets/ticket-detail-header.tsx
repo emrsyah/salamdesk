@@ -83,6 +83,9 @@ export function TicketDetailHeader({ ticket, engineers = [], onMutated }: Ticket
   const [resolutionNote, setResolutionNote] = useState("");
   const [escalationReason, setEscalationReason] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  
+  const [kbArticles, setKbArticles] = useState<{ id: string; title: string }[]>([]);
+  const [selectedKbIds, setSelectedKbIds] = useState<string[]>([]);
 
   const shortId = `#${ticket.id.slice(0, 8).toUpperCase()}`;
 
@@ -99,14 +102,29 @@ export function TicketDetailHeader({ ticket, engineers = [], onMutated }: Ticket
     }
   }
 
+  async function handleResolveOpenChange(open: boolean) {
+    setIsResolveOpen(open);
+    if (open && kbArticles.length === 0) {
+      try {
+        const { getAllKbArticlesAction } = await import("@/actions/knowledge.actions");
+        const articles = await getAllKbArticlesAction();
+        setKbArticles(articles);
+      } catch (error) {
+        console.error("Failed to load KB articles", error);
+      }
+    }
+  }
+
   async function handleResolve() {
     setIsLoading(true);
     try {
       await resolveTicketAction(ticket.id, {
         resolutionNote,
+        resolvedKbIds: selectedKbIds.length > 0 ? selectedKbIds : undefined,
       });
       setIsResolveOpen(false);
       setResolutionNote("");
+      setSelectedKbIds([]);
       onMutated?.();
     } catch (error) {
       console.error(error);
@@ -248,7 +266,7 @@ export function TicketDetailHeader({ ticket, engineers = [], onMutated }: Ticket
           </Dialog>
 
           {/* Resolve Dialog */}
-          <Dialog open={isResolveOpen} onOpenChange={setIsResolveOpen}>
+          <Dialog open={isResolveOpen} onOpenChange={handleResolveOpenChange}>
             <DialogTrigger asChild>
               <Button variant="default" className="bg-yellow-400 text-yellow-950 hover:bg-yellow-500 gap-1.5 border-0">
                 <RiCheckLine className="size-4" /> Selesai
@@ -261,12 +279,45 @@ export function TicketDetailHeader({ ticket, engineers = [], onMutated }: Ticket
                   Berikan catatan penyelesaian agar reporter tahu apa yang sudah dilakukan.
                 </DialogDescription>
               </DialogHeader>
-              <div className="py-4">
-                <Textarea
-                  placeholder="Catatan penyelesaian..."
-                  value={resolutionNote}
-                  onChange={(e) => setResolutionNote(e.target.value)}
-                />
+              <div className="py-4 space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="resolutionNote" className="text-sm font-medium">Catatan Penyelesaian</Label>
+                  <Textarea
+                    id="resolutionNote"
+                    placeholder="Catatan penyelesaian..."
+                    value={resolutionNote}
+                    onChange={(e) => setResolutionNote(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">Artikel Knowledge Base yang Membantu (Opsional)</Label>
+                  <div className="max-h-40 overflow-y-auto border rounded-md p-2 space-y-2">
+                    {kbArticles.length === 0 ? (
+                      <div className="text-xs text-muted-foreground p-2">Memuat atau tidak ada artikel...</div>
+                    ) : (
+                      kbArticles.map((kb) => (
+                        <div key={kb.id} className="flex items-center space-x-2">
+                          <input
+                            type="checkbox"
+                            id={`kb-${kb.id}`}
+                            className="rounded border-gray-300 text-blue-600 shadow-sm focus:border-blue-300 focus:ring focus:ring-blue-200 focus:ring-opacity-50"
+                            checked={selectedKbIds.includes(kb.id)}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setSelectedKbIds((prev) => [...prev, kb.id]);
+                              } else {
+                                setSelectedKbIds((prev) => prev.filter((id) => id !== kb.id));
+                              }
+                            }}
+                          />
+                          <label htmlFor={`kb-${kb.id}`} className="text-sm cursor-pointer">
+                            {kb.title}
+                          </label>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
               </div>
               <DialogFooter>
                 <Button variant="outline" onClick={() => setIsResolveOpen(false)}>Batal</Button>

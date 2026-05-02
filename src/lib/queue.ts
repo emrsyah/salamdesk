@@ -27,6 +27,19 @@ export const waOutboundQueue = new Queue("wa-outbound", {
   },
 });
 
+/**
+ * AI triage jobs → processed by the worker to classify module/priority and search KB.
+ */
+export const aiTriageQueue = new Queue("ai-triage", {
+  connection: redisConnection,
+  defaultJobOptions: {
+    attempts: 2,
+    backoff: { type: "exponential", delay: 5000 },
+    removeOnComplete: 500,
+    removeOnFail: 200,
+  },
+});
+
 export type WaInboundJob = {
   phone: string; // e.g. "6281234567890"
   text: string;
@@ -37,4 +50,8 @@ export type WaInboundJob = {
 export type WaOutboundJob = {
   phone: string; // e.g. "6281234567890"
   text: string;
+};
+
+export type AiTriageJob = {
+  ticketId: string;
 };
