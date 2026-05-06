@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { validateApiKey } from "@/lib/api-keys/api-keys.service";
 import { db } from "@/db";
-import { tickets, users, modules } from "@/db/schema";
+import { tickets } from "@/db/schema/tickets";
+import { modules } from "@/db/schema/modules";
+import { users } from "@/db/schema/users";
 import { eq } from "drizzle-orm";
 import { nanoid } from "nanoid";
 

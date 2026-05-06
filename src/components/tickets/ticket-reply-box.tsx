@@ -4,7 +4,6 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { RiSendPlane2Line, RiLockLine, RiChatQuoteLine, RiListCheck } from "@remixicon/react";
-import { sendReplyAction } from "@/actions/messages.actions";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -33,6 +32,7 @@ export function TicketReplyBox({ ticketId, moduleId, quickReplies = [], onReplyS
 
     setIsLoading(true);
     try {
+      const { sendReplyAction } = await import("@/actions/messages.actions");
       await sendReplyAction({
         ticketId,
         content,

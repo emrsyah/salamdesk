@@ -1,5 +1,4 @@
-import { getKbGaps } from "@/services/knowledge.service";
-import { getAllModules } from "@/services/module.service";
+import { getCachedKbGaps, getCachedAllModules } from "@/lib/cache";
 import { getSession } from "@/lib/auth/session";
 import { redirect } from "next/navigation";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
@@ -15,8 +14,10 @@ export default async function KbGapsPage() {
     redirect("/");
   }
 
-  const gaps = await getKbGaps(50);
-  const modules = await getAllModules();
+  const [gaps, modules] = await Promise.all([
+    getCachedKbGaps(50),
+    getCachedAllModules(),
+  ]);
 
   return (
     <div className="p-8 max-w-5xl mx-auto space-y-6">

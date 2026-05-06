@@ -23,10 +23,10 @@ import {
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { useState } from "react";
-import { resolveTicketAction, updateTicketStatusAction } from "@/actions/tickets.actions";
-import { escalateTicketAction } from "@/actions/escalations.actions";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "../ui/label";
+import { formatTime } from "@/lib/utils";
+
 
 const STATUS_LABEL: Record<string, string> = {
   open: "Terbuka",
@@ -63,12 +63,6 @@ const SOURCE_LABEL: Record<string, string> = {
   manual: "Manual",
 };
 
-function formatTime(date: Date | string): string {
-  return new Intl.DateTimeFormat("id-ID", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(new Date(date));
-}
 
 interface TicketDetailHeaderProps {
   ticket: TicketDetailData;
@@ -118,6 +112,7 @@ export function TicketDetailHeader({ ticket, engineers = [], onMutated }: Ticket
   async function handleResolve() {
     setIsLoading(true);
     try {
+      const { resolveTicketAction } = await import("@/actions/tickets.actions");
       await resolveTicketAction(ticket.id, {
         resolutionNote,
         resolvedKbIds: selectedKbIds.length > 0 ? selectedKbIds : undefined,
@@ -136,6 +131,7 @@ export function TicketDetailHeader({ ticket, engineers = [], onMutated }: Ticket
   async function handleEscalate() {
     setIsLoading(true);
     try {
+      const { escalateTicketAction } = await import("@/actions/escalations.actions");
       await escalateTicketAction({
         ticketId: ticket.id,
         engineerId: selectedEngineerId,

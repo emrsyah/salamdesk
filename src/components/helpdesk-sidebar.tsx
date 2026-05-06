@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import type { ComponentProps } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { NavUser } from "@/components/nav-user";
@@ -85,9 +85,7 @@ export function HelpdeskSidebar({ user, modules, slaConfigs, ...props }: Helpdes
 
   const isTicketsPage = pathname.startsWith("/app/tickets");
 
-  const activeModules = modules.filter((m) => m.isActive);
-
-  const moduleNavItems: NavItem[] = activeModules.map((m) => ({
+  const moduleNavItems: NavItem[] = useMemo(() => modules.filter((m) => m.isActive).map((m) => ({
     title: m.name,
     url: `/app/tickets?module=${m.slug}`,
     icon: (
@@ -96,7 +94,8 @@ export function HelpdeskSidebar({ user, modules, slaConfigs, ...props }: Helpdes
         style={{ backgroundColor: m.color ?? "#94a3b8" }}
       />
     ),
-  }));
+  })), [modules]);
+
 
   const isItemActive = (item: NavItem): boolean => {
     if (item.isLainnya) return pathname === item.url;

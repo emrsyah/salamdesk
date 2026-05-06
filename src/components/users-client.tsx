@@ -43,12 +43,6 @@ import {
   RiCloseCircleLine,
 } from "@remixicon/react";
 import { toast } from "sonner";
-import {
-  createUserAction,
-  updateUserRoleAction,
-  toggleUserActiveAction,
-  setUserModulesAction,
-} from "@/actions/users.actions";
 import { useRouter } from "next/navigation";
 import {
   Select,
@@ -140,6 +134,7 @@ export function UsersClient({ initialUsers, modules }: UsersClientProps) {
     values.moduleIds.forEach((id) => formData.append("moduleIds", id));
 
     try {
+      const { createUserAction } = await import("@/actions/users.actions");
       const result = await createUserAction(formData);
       if (result.error) {
         toast.error(result.error);
@@ -158,6 +153,7 @@ export function UsersClient({ initialUsers, modules }: UsersClientProps) {
     if (!editingUser) return;
 
     try {
+      const { updateUserRoleAction, setUserModulesAction } = await import("@/actions/users.actions");
       if (values.role !== editingUser.role) {
         await updateUserRoleAction(editingUser.id, values.role as any);
       }
@@ -183,6 +179,7 @@ export function UsersClient({ initialUsers, modules }: UsersClientProps) {
 
   const handleToggleActive = async (userId: string) => {
     try {
+      const { toggleUserActiveAction } = await import("@/actions/users.actions");
       const result = await toggleUserActiveAction(userId);
       if (result.error) {
         toast.error(result.error);
@@ -195,7 +192,7 @@ export function UsersClient({ initialUsers, modules }: UsersClientProps) {
     }
   };
 
-  const getRoleBadge = (role: string) => {
+  const getRoleBadge = React.useCallback((role: string) => {
     switch (role) {
       case "admin":
         return <Badge variant="secondary" className="bg-red-100 text-red-700 hover:bg-red-100">Admin</Badge>;
@@ -206,7 +203,7 @@ export function UsersClient({ initialUsers, modules }: UsersClientProps) {
       default:
         return <Badge variant="secondary" className="bg-gray-100 text-gray-700 hover:bg-gray-100">Reporter</Badge>;
     }
-  };
+  }, []);
 
   const columns: ColumnDef<User>[] = [
     {

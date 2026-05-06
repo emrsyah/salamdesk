@@ -1,24 +1,21 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { TicketDetailData } from "./ticket-detail";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { RiMessage3Line, RiLockLine } from "@remixicon/react";
+import { formatTime } from "@/lib/utils";
+
 
 interface TicketMessageThreadProps {
   messages: TicketDetailData["messages"];
 }
 
-function formatTime(date: Date | string): string {
-  return new Intl.DateTimeFormat("id-ID", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(new Date(date));
-}
+
 
 export function TicketMessageThread({ messages }: TicketMessageThreadProps) {
-  const publicMessages = messages.filter((m) => !m.isInternalNote);
-  const internalNotes = messages.filter((m) => m.isInternalNote);
+  const publicMessages = useMemo(() => messages.filter((m) => !m.isInternalNote), [messages]);
+  const internalNotes = useMemo(() => messages.filter((m) => m.isInternalNote), [messages]);
 
   return (
     <div className="flex-1 p-6 overflow-y-auto">

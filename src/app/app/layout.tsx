@@ -11,18 +11,22 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
   const user = session.user as typeof session.user & { role: string };
 
-  const [allModules, allSlaConfigs] = await Promise.all([
+  // Start all independent fetches in parallel, including the conditional one
+  const [allModules, allSlaConfigs, userModules] = await Promise.all([
     getCachedAllModules(),
     getCachedSlaConfigs(),
+    // For agents/engineers, we need their assigned modules.
+    // For other roles, this resolves to undefined (wasted work is negligible).
+    (user.role === "agent" || user.role === "engineer")
+      ? getCachedModulesByUserId(user.id, { activeOnly: true })
+      : Promise.resolve(undefined),
   ]);
 
   // Determine which modules to show in the sidebar
-  let sidebarModules = allModules;
-  if (user.role === "agent" || user.role === "engineer") {
-    sidebarModules = await getCachedModulesByUserId(user.id, { activeOnly: true });
-  } else if (user.role === "reporter") {
-    sidebarModules = []; // Reporters see their own tickets, no need for module shortcuts
-  }
+  const sidebarModules =
+    user.role === "reporter"
+      ? []
+      : (userModules ?? allModules);
 
   return (
     <TooltipProvider>

@@ -10,12 +10,8 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { RiAddLine, RiEditLine, RiCloseLine, RiPencilLine, RiTimeLine } from "@remixicon/react";
-import {
-  createModuleAction,
-  updateModuleAction,
-  toggleModuleActiveAction,
-  upsertSlaConfigAction,
-} from "@/actions/modules.actions";
+
+
 import { toast } from "sonner";
 
 type Module = {
@@ -101,6 +97,7 @@ export function SettingsDialog({ open, onOpenChange, modules, slaConfigs }: Sett
         const formData = new FormData();
         formData.set("name", moduleName);
         formData.set("color", moduleColor);
+        const { updateModuleAction } = await import("@/actions/modules.actions");
         const result = await updateModuleAction(editingModule.id, formData);
         if (result.error) {
           toast.error(result.error);
@@ -111,6 +108,7 @@ export function SettingsDialog({ open, onOpenChange, modules, slaConfigs }: Sett
         const formData = new FormData();
         formData.set("name", moduleName);
         formData.set("color", moduleColor);
+        const { createModuleAction } = await import("@/actions/modules.actions");
         const result = await createModuleAction(formData);
         if (result.error) {
           toast.error(result.error);
@@ -129,6 +127,7 @@ export function SettingsDialog({ open, onOpenChange, modules, slaConfigs }: Sett
 
   const handleToggleModule = async (moduleId: string) => {
     try {
+      const { toggleModuleActiveAction } = await import("@/actions/modules.actions");
       const result = await toggleModuleActiveAction(moduleId);
       if (result.error) {
         toast.error(result.error);
@@ -147,6 +146,7 @@ export function SettingsDialog({ open, onOpenChange, modules, slaConfigs }: Sett
       return;
     }
     try {
+      const { upsertSlaConfigAction } = await import("@/actions/modules.actions");
       const result = await upsertSlaConfigAction(
         selectedModuleForSla,
         slaPriority,

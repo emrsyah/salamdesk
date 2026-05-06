@@ -14,7 +14,7 @@ import {
 import { RiSearchLine, RiAddLine } from "@remixicon/react";
 import { TicketListItem, type TicketListEntry } from "./ticket-list-item";
 import { useQueryParams } from "@/hooks/use-query-params";
-import { createTicketAction } from "@/actions/tickets.actions";
+
 import { cn } from "@/lib/utils";
 
 type Module = { id: string; name: string; color: string | null; slug: string };
@@ -64,11 +64,15 @@ export function TicketList({ tickets, modules, onTicketCreated }: TicketListProp
   }, [tickets, tab, search]);
 
   const counts = useMemo(
-    () => ({
-      inbox: tickets.filter((t) => TAB_STATUSES.inbox.includes(t.status)).length,
-      waiting: tickets.filter((t) => TAB_STATUSES.waiting.includes(t.status)).length,
-      done: tickets.filter((t) => TAB_STATUSES.done.includes(t.status)).length,
-    }),
+    () => {
+      const acc = { inbox: 0, waiting: 0, done: 0 };
+      for (const t of tickets) {
+        if (TAB_STATUSES.inbox.includes(t.status)) acc.inbox++;
+        else if (TAB_STATUSES.waiting.includes(t.status)) acc.waiting++;
+        else if (TAB_STATUSES.done.includes(t.status)) acc.done++;
+      }
+      return acc;
+    },
     [tickets],
   );
 
@@ -81,6 +85,7 @@ export function TicketList({ tickets, modules, onTicketCreated }: TicketListProp
     setFormError(null);
     const formData = new FormData(e.currentTarget);
     startTransition(async () => {
+      const { createTicketAction } = await import("@/actions/tickets.actions");
       const result = await createTicketAction(formData);
       if (result?.error) {
         setFormError(result.error);

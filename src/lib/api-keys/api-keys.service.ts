@@ -1,5 +1,5 @@
 import { db } from "@/db";
-import { apiKeys } from "@/db/schema";
+import { apiKeys } from "@/db/schema/api-keys";
 import { eq } from "drizzle-orm";
 import { randomBytes, createHash } from "crypto";
 

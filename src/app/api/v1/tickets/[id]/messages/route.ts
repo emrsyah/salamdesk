@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { validateApiKey } from "@/lib/api-keys/api-keys.service";
 import { db } from "@/db";
-import { tickets, ticketMessages } from "@/db/schema";
+import { tickets, ticketMessages } from "@/db/schema/tickets";
 import { eq } from "drizzle-orm";
 
 async function verifyAuth(req: NextRequest) {

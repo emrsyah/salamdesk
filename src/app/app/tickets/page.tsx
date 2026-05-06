@@ -11,18 +11,18 @@ export default async function TicketsPage() {
 
   // Fetch stable, cacheable data server-side.
   // The ticket list and ticket detail are fetched client-side in TicketInbox.
-  const allActiveModules = await getCachedActiveModules();
-
-  // For agents/engineers: only their assigned modules can be used to create tickets
-  let moduleOptions = allActiveModules;
-  if (user.role === "agent" || user.role === "engineer") {
-    moduleOptions = await getCachedModulesByUserId(user.id, { activeOnly: true });
-  }
-
-  const [quickReplies, engineers] = await Promise.all([
+  // Start all independent fetches in parallel, including the conditional one.
+  const [allActiveModules, userModules, quickReplies, engineers] = await Promise.all([
+    getCachedActiveModules(),
+    // For agents/engineers: only their assigned modules can be used to create tickets
+    (user.role === "agent" || user.role === "engineer")
+      ? getCachedModulesByUserId(user.id, { activeOnly: true })
+      : Promise.resolve(undefined),
     getCachedQuickReplies(),
     getCachedEngineers(),
   ]);
+
+  const moduleOptions = userModules ?? allActiveModules;
 
   return (
     <TicketInbox

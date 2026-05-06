@@ -21,15 +21,19 @@ export async function GET(request: Request) {
     resolvedBy: searchParams.get("resolvedBy") ?? undefined,
   };
 
-  const allActiveModules = await getCachedActiveModules();
+  // Start module fetches in parallel — both are independent
+  const [allActiveModules, userModules] = await Promise.all([
+    getCachedActiveModules(),
+    // Only agents/engineers need their filtered modules; others skip this fetch
+    (user.role !== "admin" && user.role !== "reporter")
+      ? getCachedModulesByUserId(user.id, { activeOnly: true })
+      : Promise.resolve(undefined),
+  ]);
 
-  let viewableModuleIds: string[] = [];
-  if (user.role === "admin" || user.role === "reporter") {
-    viewableModuleIds = allActiveModules.map((m) => m.id);
-  } else {
-    const userModules = await getCachedModulesByUserId(user.id, { activeOnly: true });
-    viewableModuleIds = userModules.map((m) => m.id);
-  }
+  const viewableModuleIds =
+    (user.role === "admin" || user.role === "reporter")
+      ? allActiveModules.map((m) => m.id)
+      : (userModules ?? []).map((m) => m.id);
 
   const tickets = await getTickets({
     userId: user.id,

@@ -2,6 +2,7 @@ import { unstable_cache } from "next/cache";
 import { getAllModules, getModulesByUserId, getSlaConfigs } from "@/services/module.service";
 import { getEngineers } from "@/services/user.service";
 import { getQuickReplies } from "@/services/quick-reply.service";
+import { getAllKbArticles, getKbGaps } from "@/services/knowledge.service";
 
 /**
  * Cached version of getAllModules (active only).
@@ -60,3 +61,22 @@ export const getCachedQuickReplies = unstable_cache(
   ["quick-replies"],
   { revalidate: 60, tags: ["quick-replies"] }
 );
+
+/**
+ * Cached KB articles list — changes when admin adds/edits articles.
+ */
+export const getCachedKbArticles = unstable_cache(
+  () => getAllKbArticles(),
+  ["kb-articles"],
+  { revalidate: 60, tags: ["knowledge-base"] }
+);
+
+/**
+ * Cached KB gaps list — derived from resolved tickets without KB links.
+ */
+export const getCachedKbGaps = (limit: number) =>
+  unstable_cache(
+    () => getKbGaps(limit),
+    [`kb-gaps-${limit}`],
+    { revalidate: 60, tags: ["knowledge-base", "tickets"] }
+  )();
