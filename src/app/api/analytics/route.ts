@@ -9,7 +9,7 @@ import {
   getModuleDistribution,
   getSourceDistribution,
   getResolutionBreakdown,
-  getAgentPerformance,
+  getStaffPerformance,
   getRootCauseDistribution,
 } from "@/services/analytics.service"
 
@@ -40,8 +40,8 @@ export async function GET(request: Request) {
 
   const params = { dateRange: { from, to }, moduleId: moduleParam }
 
-  // Only admins and engineers can see agent performance data
-  const canSeeAgentPerf = user.role === "admin" || user.role === "engineer"
+  // Leadership and technical staff can see staff performance data.
+  const canSeeStaffPerf = ["owner", "admin", "supervisor", "engineer"].includes(user.role)
 
   const [
     summary,
@@ -52,7 +52,7 @@ export async function GET(request: Request) {
     moduleDist,
     sourceDist,
     resolution,
-    agentPerf,
+    staffPerf,
     rootCause,
   ] = await Promise.all([
     getSummaryStats(params),
@@ -63,7 +63,7 @@ export async function GET(request: Request) {
     getModuleDistribution(params),
     getSourceDistribution(params),
     getResolutionBreakdown(params),
-    canSeeAgentPerf ? getAgentPerformance(params) : Promise.resolve(null),
+    canSeeStaffPerf ? getStaffPerformance(params) : Promise.resolve(null),
     getRootCauseDistribution(params),
   ])
 
@@ -76,7 +76,7 @@ export async function GET(request: Request) {
     moduleDist,
     sourceDist,
     resolution,
-    agentPerf,
+    staffPerf,
     rootCause,
   })
 }

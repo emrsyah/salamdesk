@@ -8,7 +8,11 @@ import { headers } from "next/headers";
  * layout.tsx and page.tsx both call this, it only hits the auth API once.
  */
 export const getSession = cache(async () => {
-  return auth.api.getSession({ headers: await headers() });
+  const session = await auth.api.getSession({ headers: await headers() });
+  if (session?.user && (session.user as { isActive?: boolean }).isActive === false) {
+    return null;
+  }
+  return session;
 });
 
 export type AppSession = Awaited<ReturnType<typeof getSession>>;

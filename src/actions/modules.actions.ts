@@ -10,7 +10,7 @@ import { auth } from "@/lib/auth/auth";
 async function requireAdmin() {
   const session = await auth.api.getSession({ headers: await headers() });
   const role = (session?.user as { role?: string } | null)?.role;
-  if (!session?.user || role !== "admin") throw new Error("Unauthorized");
+  if (!session?.user || !["owner", "admin"].includes(role ?? "")) throw new Error("Unauthorized");
 }
 
 export async function createModuleAction(formData: FormData) {

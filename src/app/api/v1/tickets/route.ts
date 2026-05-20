@@ -1,11 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { validateApiKey } from "@/lib/api-keys/api-keys.service";
 import { db } from "@/db";
-import { tickets } from "@/db/schema/tickets";
 import { modules } from "@/db/schema/modules";
-import { users } from "@/db/schema/users";
 import { eq } from "drizzle-orm";
-import { nanoid } from "nanoid";
+import { createTicket } from "@/services/ticket.service";
+import { findOrCreateRequesterByIdentity } from "@/services/requester.service";
 
 async function verifyAuth(req: NextRequest) {
   const authHeader = req.headers.get("authorization");
@@ -24,26 +23,23 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { title, description, priority, moduleSlug, reporterEmail, reporterName } = body;
+    const { title, description, priority, moduleSlug, reporterEmail, reporterName, reporterPhone, externalRef } = body;
 
-    if (!title || !priority || !moduleSlug || !reporterEmail) {
-      return NextResponse.json({ error: "Missing required fields: title, priority, moduleSlug, reporterEmail" }, { status: 400 });
+    if (!title || !priority || !moduleSlug || (!reporterEmail && !reporterPhone)) {
+      return NextResponse.json({ error: "Missing required fields: title, priority, moduleSlug, reporterEmail or reporterPhone" }, { status: 400 });
     }
 
-    // 1. Find or create reporter
-    let [reporter] = await db.select().from(users).where(eq(users.email, reporterEmail));
-    if (!reporter) {
-      // Very basic user creation for reporters via API
-      [reporter] = await db.insert(users).values({
-        id: nanoid(),
+    const requesterId = await findOrCreateRequesterByIdentity(
+      reporterEmail ? "email" : "whatsapp",
+      reporterEmail || reporterPhone,
+      {
+        displayName: reporterName,
+        fullName: reporterName,
         email: reporterEmail,
-        name: reporterName || reporterEmail.split("@")[0],
-        role: "reporter",
-        emailVerified: true,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      }).returning();
-    }
+        phone: reporterPhone,
+        externalRef,
+      },
+    );
 
     // 2. Find module
     const [moduleRecord] = await db.select().from(modules).where(eq(modules.slug, moduleSlug));
@@ -51,18 +47,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Module not found" }, { status: 404 });
     }
 
-    // 3. Create ticket
-    const ticketId = `TKT-${nanoid(8).toUpperCase()}`;
-    const [newTicket] = await db.insert(tickets).values({
-      id: ticketId,
+    const newTicket = await createTicket({
       title,
       description,
       priority,
       moduleId: moduleRecord.id,
-      createdById: reporter.id,
       source: "api",
-      status: "open",
-    }).returning();
+      requesterId,
+    });
 
     return NextResponse.json({ success: true, ticket: newTicket }, { status: 201 });
   } catch (error: any) {

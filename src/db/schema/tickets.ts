@@ -1,6 +1,7 @@
 import { pgTable, text, uuid, boolean, timestamp, numeric } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { users } from "./users";
+import { requesters } from "./requesters";
 import { modules } from "./modules";
 import { notifications } from "./notifications";
 import { aiSuggestions } from "./knowledge-base";
@@ -23,9 +24,11 @@ export const tickets = pgTable("tickets", {
     slaStatus: slaStatusEnum("sla_status").notNull().default("safe"),
     slaDeadlineAt: timestamp("sla_deadline_at"),
     moduleId: uuid("module_id").references(() => modules.id, { onDelete: "set null" }),
+    requesterId: uuid("requester_id").references(() => requesters.id, { onDelete: "set null" }),
     waPhone: text("wa_phone"),
     source: ticketSourceEnum("source").notNull(),
     assigneeId: text("assignee_id").references(() => users.id, { onDelete: "set null" }),
+    openedByStaffId: text("opened_by_staff_id").references(() => users.id, { onDelete: "set null" }),
     createdById: text("created_by_id").references(() => users.id, { onDelete: "set null" }),
     resolvedByType: resolvedByTypeEnum("resolved_by_type"),
     resolvedById: text("resolved_by_id").references(() => users.id, { onDelete: "set null" }),
@@ -44,6 +47,7 @@ export const ticketMessages = pgTable("ticket_messages", {
     id: uuid("id").primaryKey().defaultRandom(),
     ticketId: text("ticket_id").notNull().references(() => tickets.id, { onDelete: "cascade" }),
     senderId: text("sender_id").references(() => users.id, { onDelete: "set null" }),
+    requesterId: uuid("requester_id").references(() => requesters.id, { onDelete: "set null" }),
     senderType: senderTypeEnum("sender_type").notNull(),
     content: text("content").notNull(),
     isInternalNote: boolean("is_internal_note").default(false).notNull(),
@@ -62,7 +66,9 @@ export const ticketEscalations = pgTable("ticket_escalations", {
 
 export const ticketsRelations = relations(tickets, ({ one, many }) => ({
     module: one(modules, { fields: [tickets.moduleId], references: [modules.id] }),
+    requester: one(requesters, { fields: [tickets.requesterId], references: [requesters.id] }),
     assignee: one(users, { fields: [tickets.assigneeId], references: [users.id], relationName: "assignee" }),
+    openedByStaff: one(users, { fields: [tickets.openedByStaffId], references: [users.id], relationName: "openedByStaff" }),
     createdBy: one(users, { fields: [tickets.createdById], references: [users.id], relationName: "creator" }),
     messages: many(ticketMessages),
     escalations: many(ticketEscalations),
@@ -73,6 +79,7 @@ export const ticketsRelations = relations(tickets, ({ one, many }) => ({
 export const ticketMessagesRelations = relations(ticketMessages, ({ one }) => ({
     ticket: one(tickets, { fields: [ticketMessages.ticketId], references: [tickets.id] }),
     sender: one(users, { fields: [ticketMessages.senderId], references: [users.id] }),
+    requester: one(requesters, { fields: [ticketMessages.requesterId], references: [requesters.id] }),
 }));
 
 export const ticketEscalationsRelations = relations(ticketEscalations, ({ one }) => ({

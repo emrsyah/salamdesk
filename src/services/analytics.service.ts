@@ -222,16 +222,16 @@ export async function getResolutionBreakdown(params: AnalyticsParams) {
   return row ?? { totalResolved: 0, resolvedByAi: 0, resolvedByUser: 0, avgResolutionMinutes: null }
 }
 
-// ─── Agent Performance ────────────────────────────────────
+// Staff Performance
 
-export async function getAgentPerformance(params: AnalyticsParams) {
+export async function getStaffPerformance(params: AnalyticsParams) {
   const { dateRange, moduleId } = params
   const filter = moduleId ? eq(tickets.moduleId, moduleId) : undefined
 
   return db
     .select({
-      agentId: users.id,
-      agentName: users.name,
+      staffId: users.id,
+      staffName: users.name,
       assignedCount: sql<number>`count(*)::int`,
       resolvedCount: sql<number>`count(*) filter (where ${tickets.status} = 'resolved')::int`,
       avgResolutionMinutes: sql<number | null>`

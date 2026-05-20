@@ -43,3 +43,16 @@ export async function getEngineers() {
     orderBy: [asc(users.name)],
   });
 }
+
+export async function getAssignableStaff() {
+  return db.query.users.findMany({
+    where: eq(users.isActive, true),
+    columns: {
+      id: true,
+      name: true,
+      email: true,
+      role: true,
+    },
+    orderBy: [asc(users.name)],
+  });
+}

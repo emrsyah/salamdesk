@@ -3,7 +3,7 @@ import { validateApiKey } from "@/lib/api-keys/api-keys.service";
 import { db } from "@/db";
 import { tickets } from "@/db/schema/tickets";
 import { modules } from "@/db/schema/modules";
-import { users } from "@/db/schema/users";
+import { requesters } from "@/db/schema/requesters";
 import { eq } from "drizzle-orm";
 
 async function verifyAuth(req: NextRequest) {
@@ -33,11 +33,13 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       priority: tickets.priority,
       createdAt: tickets.createdAt,
       moduleName: modules.name,
-      reporterEmail: users.email,
+      requesterName: requesters.displayName,
+      requesterEmail: requesters.primaryEmail,
+      requesterPhone: requesters.primaryPhone,
     })
     .from(tickets)
     .leftJoin(modules, eq(tickets.moduleId, modules.id))
-    .leftJoin(users, eq(tickets.createdById, users.id))
+    .leftJoin(requesters, eq(tickets.requesterId, requesters.id))
     .where(eq(tickets.id, ticketId));
 
     if (!ticket) {

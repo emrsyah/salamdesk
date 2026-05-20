@@ -10,12 +10,12 @@ import { headers } from "next/headers";
 import { auth } from "@/lib/auth/auth";
 import crypto from "node:crypto";
 
-type UserRole = "reporter" | "agent" | "engineer" | "admin";
+type UserRole = "owner" | "admin" | "supervisor" | "operator" | "engineer";
 
 async function requireAdmin() {
   const session = await auth.api.getSession({ headers: await headers() });
   const role = (session?.user as { role?: string } | null)?.role;
-  if (!session?.user || role !== "admin") throw new Error("Unauthorized");
+  if (!session?.user || !["owner", "admin"].includes(role ?? "")) throw new Error("Unauthorized");
   return session;
 }
 

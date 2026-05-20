@@ -1,6 +1,6 @@
 import { unstable_cache } from "next/cache";
 import { getAllModules, getModulesByUserId, getSlaConfigs } from "@/services/module.service";
-import { getEngineers } from "@/services/user.service";
+import { getAssignableStaff } from "@/services/user.service";
 import { getQuickReplies } from "@/services/quick-reply.service";
 import { getAllKbArticles, getKbGaps } from "@/services/knowledge.service";
 
@@ -47,9 +47,9 @@ export const getCachedModulesByUserId = (userId: string, options?: { activeOnly?
 /**
  * Cached engineers list — changes only when user roles change.
  */
-export const getCachedEngineers = unstable_cache(
-  () => getEngineers(),
-  ["engineers"],
+export const getCachedAssignableStaff = unstable_cache(
+  () => getAssignableStaff(),
+  ["assignable-staff"],
   { revalidate: 60, tags: ["users"] }
 );
 

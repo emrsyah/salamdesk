@@ -57,6 +57,7 @@ export function TicketList({ tickets, modules, onTicketCreated }: TicketListProp
       const matchesSearch =
         !q ||
         t.title.toLowerCase().includes(q) ||
+        (t.requester?.displayName.toLowerCase().includes(q) ?? false) ||
         (t.createdBy?.name.toLowerCase().includes(q) ?? false) ||
         (t.module?.name.toLowerCase().includes(q) ?? false);
       return matchesTab && matchesSearch;
@@ -115,6 +116,37 @@ export function TicketList({ tickets, modules, onTicketCreated }: TicketListProp
               <SheetTitle>Buat Tiket Baru</SheetTitle>
             </SheetHeader>
             <form onSubmit={handleSubmit} className="mt-6 space-y-4 px-1">
+              <div className="space-y-1.5">
+                <Label htmlFor="requesterName">Pelapor *</Label>
+                <Input
+                  id="requesterName"
+                  name="requesterName"
+                  placeholder="Nama pelapor..."
+                  required
+                  disabled={isPending}
+                />
+              </div>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div className="space-y-1.5">
+                  <Label htmlFor="requesterEmail">Email</Label>
+                  <Input
+                    id="requesterEmail"
+                    name="requesterEmail"
+                    type="email"
+                    placeholder="nama@rsud.local"
+                    disabled={isPending}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="requesterPhone">WhatsApp</Label>
+                  <Input
+                    id="requesterPhone"
+                    name="requesterPhone"
+                    placeholder="628..."
+                    disabled={isPending}
+                  />
+                </div>
+              </div>
               <div className="space-y-1.5">
                 <Label htmlFor="title">Judul *</Label>
                 <Input

@@ -14,6 +14,7 @@ export type TicketListEntry = {
   slaDeadlineAt: Date | string | null;
   createdAt: Date | string;
   module: { id: string; name: string; color: string | null } | null;
+  requester: { id: string; displayName: string; fullName: string | null } | null;
   createdBy: { id: string; name: string } | null;
 };
 
@@ -77,7 +78,7 @@ export function TicketListItem({ ticket, isSelected }: TicketListItemProps) {
 
       <div className="flex items-center justify-between text-xs gap-2">
         <span className="text-muted-foreground truncate">
-          {ticket.createdBy?.name ?? "Anonim"}
+          {ticket.requester?.displayName ?? ticket.createdBy?.name ?? "Anonim"}
         </span>
         <div className="flex items-center gap-2 shrink-0">
           {ticket.module && (

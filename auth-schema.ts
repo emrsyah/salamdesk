@@ -11,9 +11,9 @@ export const user = pgTable("user", {
   email: text("email").notNull().unique(),
   emailVerified: boolean("email_verified").default(false).notNull(),
   image: text("image"),
-  // App-specific fields
+  // Staff account fields. Requesters live in src/db/schema/requesters.ts.
   phone: text("phone"),
-  role: userRoleEnum("role").notNull().default("agent"),
+  role: userRoleEnum("role").notNull().default("operator"),
   vendor: text("vendor"),
   isActive: boolean("is_active").default(true).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),

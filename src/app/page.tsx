@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { authClient } from "@/lib/auth/auth-client";
-import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -118,10 +117,7 @@ export default function LoginPage() {
           </form>
 
           <p className="text-center text-sm text-muted-foreground">
-            Don&apos;t have an account?{" "}
-            <Link href="/register" className="font-medium text-primary hover:underline underline-offset-4">
-              Sign up
-            </Link>
+            Need access? Contact your SalamDesk admin.
           </p>
         </div>
       </div>

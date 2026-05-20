@@ -15,18 +15,15 @@ export default async function DashboardLayout({ children }: { children: React.Re
   const [allModules, allSlaConfigs, userModules] = await Promise.all([
     getCachedAllModules(),
     getCachedSlaConfigs(),
-    // For agents/engineers, we need their assigned modules.
+    // For operators/engineers, we need their assigned modules.
     // For other roles, this resolves to undefined (wasted work is negligible).
-    (user.role === "agent" || user.role === "engineer")
+    (user.role === "operator" || user.role === "engineer")
       ? getCachedModulesByUserId(user.id, { activeOnly: true })
       : Promise.resolve(undefined),
   ]);
 
   // Determine which modules to show in the sidebar
-  const sidebarModules =
-    user.role === "reporter"
-      ? []
-      : (userModules ?? allModules);
+  const sidebarModules = userModules ?? allModules;
 
   return (
     <TooltipProvider>

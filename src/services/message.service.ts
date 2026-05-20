@@ -21,14 +21,16 @@ export async function getTicketMessages(ticketId: string) {
 export async function createMessage(data: {
   ticketId: string;
   senderId: string | null;
-  senderType: "user" | "ai_bot";
+  requesterId?: string | null;
+  senderType: "requester" | "staff" | "ai_agent" | "system";
   content: string;
   isInternalNote: boolean;
-  source?: "whatsapp" | "web" | "email" | "manual";
+  source?: "whatsapp" | "web" | "email" | "manual" | "api";
 }) {
   return db.insert(ticketMessages).values({
     ticketId: data.ticketId,
     senderId: data.senderId,
+    requesterId: data.requesterId ?? null,
     senderType: data.senderType,
     content: data.content,
     isInternalNote: data.isInternalNote,

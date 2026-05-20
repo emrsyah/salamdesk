@@ -11,18 +11,27 @@ export type TicketDetailData = {
   priority: "low" | "medium" | "critical";
   slaStatus: "safe" | "warning" | "breached";
   slaDeadlineAt: Date | string | null;
-  source: "whatsapp" | "web" | "email" | "manual";
+  source: "whatsapp" | "web" | "email" | "manual" | "api";
   createdAt: Date | string;
+  requester: {
+    id: string;
+    displayName: string;
+    fullName: string | null;
+    primaryPhone: string | null;
+    primaryEmail: string | null;
+    department: { id: string; name: string } | null;
+  } | null;
   module: { id: string; name: string; color: string | null } | null;
   createdBy: { id: string; name: string; email: string } | null;
   assignee: { id: string; name: string } | null;
   messages: {
     id: string;
     content: string;
-    senderType: "user" | "ai_bot" | "system";
+    senderType: "requester" | "staff" | "ai_agent" | "system";
     isInternalNote: boolean;
     createdAt: Date | string;
     sender: { id: string; name: string } | null;
+    requester: { id: string; displayName: string } | null;
   }[];
   // AI triage data (optional — present after triage runs)
   aiSuggestions?: AiSuggestionData[];
@@ -31,11 +40,11 @@ export type TicketDetailData = {
 interface TicketDetailProps {
   ticket: TicketDetailData | null | undefined;
   quickReplies?: { id: string; label: string; content: string }[];
-  engineers?: { id: string; name: string; email: string }[];
+  assignableStaff?: { id: string; name: string; email: string; role: string }[];
   onMutated?: () => void;
 }
 
-export function TicketDetail({ ticket, quickReplies, engineers, onMutated }: TicketDetailProps) {
+export function TicketDetail({ ticket, quickReplies, assignableStaff, onMutated }: TicketDetailProps) {
   if (!ticket) {
     return (
       <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground text-sm bg-muted/10">
@@ -65,12 +74,12 @@ export function TicketDetail({ ticket, quickReplies, engineers, onMutated }: Tic
 
   // Find the AI auto-reply message in the thread (if one was sent)
   const aiReplyMessage = latestSuggestion
-    ? ticket.messages.find((m) => m.senderType === "ai_bot" && !m.isInternalNote)
+    ? ticket.messages.find((m) => m.senderType === "ai_agent" && !m.isInternalNote)
     : null;
 
   return (
     <div className="flex-1 flex flex-col h-full bg-background overflow-hidden">
-      <TicketDetailHeader ticket={ticket} engineers={engineers} onMutated={onMutated} />
+      <TicketDetailHeader ticket={ticket} assignableStaff={assignableStaff} onMutated={onMutated} />
       <TicketMessageThread messages={ticket.messages} />
       {/* AI suggestion card — rendered below the message thread, above reply box */}
       {latestSuggestion && (

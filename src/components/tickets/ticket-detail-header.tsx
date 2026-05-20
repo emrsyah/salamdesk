@@ -61,16 +61,17 @@ const SOURCE_LABEL: Record<string, string> = {
   web: "Web",
   email: "Email",
   manual: "Manual",
+  api: "API",
 };
 
 
 interface TicketDetailHeaderProps {
   ticket: TicketDetailData;
-  engineers?: { id: string; name: string; email: string }[];
+  assignableStaff?: { id: string; name: string; email: string; role: string }[];
   onMutated?: () => void;
 }
 
-export function TicketDetailHeader({ ticket, engineers = [], onMutated }: TicketDetailHeaderProps) {
+export function TicketDetailHeader({ ticket, assignableStaff = [], onMutated }: TicketDetailHeaderProps) {
   const [isResolveOpen, setIsResolveOpen] = useState(false);
   const [isEscalateOpen, setIsEscalateOpen] = useState(false);
   const [selectedEngineerId, setSelectedEngineerId] = useState<string | null>(null);
@@ -174,10 +175,11 @@ export function TicketDetailHeader({ ticket, engineers = [], onMutated }: Ticket
               <RiInboxLine className="size-3.5" />
               {SOURCE_LABEL[ticket.source]}
             </span>
-            {ticket.createdBy && (
+            {ticket.requester && (
               <span className="text-muted-foreground flex items-center gap-1.5">
                 <RiUserLine className="size-3.5" />
-                {ticket.createdBy.name}
+                {ticket.requester.displayName}
+                {ticket.requester.department ? ` - ${ticket.requester.department.name}` : ""}
               </span>
             )}
             <TicketSLABadge
@@ -200,12 +202,12 @@ export function TicketDetailHeader({ ticket, engineers = [], onMutated }: Ticket
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={() => handleAssign(null)}>Lepas Tugas</DropdownMenuItem>
               <DropdownMenuSeparator />
-              {engineers.length === 0 ? (
-                <div className="p-2 text-xs text-muted-foreground">Tidak ada engineer tersedia</div>
+              {assignableStaff.length === 0 ? (
+                <div className="p-2 text-xs text-muted-foreground">Tidak ada staf tersedia</div>
               ) : (
-                engineers.map((eng) => (
-                  <DropdownMenuItem key={eng.id} onClick={() => handleAssign(eng.id)}>
-                    {eng.name}
+                assignableStaff.map((staff) => (
+                  <DropdownMenuItem key={staff.id} onClick={() => handleAssign(staff.id)}>
+                    {staff.name}
                   </DropdownMenuItem>
                 ))
               )}
@@ -224,7 +226,7 @@ export function TicketDetailHeader({ ticket, engineers = [], onMutated }: Ticket
               <DialogHeader>
                 <DialogTitle>Eskalasi Tiket</DialogTitle>
                 <DialogDescription>
-                  Gunakan ini jika tiket membutuhkan bantuan dari tim engineer khusus.
+                  Gunakan ini jika tiket membutuhkan bantuan staf teknis khusus.
                 </DialogDescription>
               </DialogHeader>
               <div className="py-4 space-y-4">
@@ -237,8 +239,8 @@ export function TicketDetailHeader({ ticket, engineers = [], onMutated }: Ticket
                     onChange={(e) => setSelectedEngineerId(e.target.value || null)}
                   >
                     <option value="">-- Pilih Engineer --</option>
-                    {engineers.map((eng) => (
-                      <option key={eng.id} value={eng.id}>{eng.name}</option>
+                    {assignableStaff.map((staff) => (
+                      <option key={staff.id} value={staff.id}>{staff.name}</option>
                     ))}
                   </select>
                 </div>

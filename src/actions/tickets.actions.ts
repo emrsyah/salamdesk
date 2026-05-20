@@ -1,6 +1,12 @@
 "use server";
 
-import { createTicket } from "@/services/ticket.service";
+import {
+  assignTicket,
+  createTicket,
+  resolveTicket,
+  updateTicketStatus,
+} from "@/services/ticket.service";
+import { findOrCreateRequesterFromContact } from "@/services/requester.service";
 import { aiTriageQueue } from "@/lib/queue";
 import { auth } from "@/lib/auth/auth";
 import { headers } from "next/headers";
@@ -19,9 +25,16 @@ export async function createTicketAction(formData: FormData) {
   const description = (formData.get("description") as string)?.trim() ?? "";
   const moduleId = (formData.get("moduleId") as string) || null;
   const priority = formData.get("priority") as "low" | "medium" | "critical";
+  const requesterName = (formData.get("requesterName") as string)?.trim();
+  const requesterEmail = (formData.get("requesterEmail") as string)?.trim().toLowerCase();
+  const requesterPhone = (formData.get("requesterPhone") as string)?.trim();
 
   if (!title || !priority) {
     return { error: "Judul dan prioritas wajib diisi." };
+  }
+
+  if (!requesterName && !requesterEmail && !requesterPhone) {
+    return { error: "Nama, email, atau nomor WhatsApp pelapor wajib diisi." };
   }
 
   // For web-created tickets, module is required (user picks from dropdown)
@@ -34,12 +47,21 @@ export async function createTicketAction(formData: FormData) {
   }
 
   try {
+    const requesterId = await findOrCreateRequesterFromContact({
+      displayName: requesterName,
+      fullName: requesterName,
+      email: requesterEmail,
+      phone: requesterPhone,
+    });
+
     const ticket = await createTicket({
       title,
       description,
       moduleId,
       priority,
       source: "web",
+      requesterId,
+      openedByStaffId: session?.user?.id,
       createdById: session?.user?.id,
     });
 
@@ -59,7 +81,6 @@ export async function updateTicketStatusAction(id: string, status: any) {
   if (!session) throw new Error("Unauthorized");
 
   try {
-    const { updateTicketStatus } = await import("@/services/ticket.service");
     await updateTicketStatus(id, status);
     return { success: true };
   } catch (err) {
@@ -73,7 +94,6 @@ export async function assignTicketAction(id: string, assigneeId: string | null) 
   if (!session) throw new Error("Unauthorized");
 
   try {
-    const { assignTicket } = await import("@/services/ticket.service");
     await assignTicket(id, assigneeId);
     return { success: true };
   } catch (err) {
@@ -94,7 +114,6 @@ export async function resolveTicketAction(
   if (!session) throw new Error("Unauthorized");
 
   try {
-    const { resolveTicket } = await import("@/services/ticket.service");
     await resolveTicket(id, {
       ...data,
       resolvedById: session.user.id,

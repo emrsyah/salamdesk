@@ -23,7 +23,7 @@ export async function sendReplyAction(data: {
   await createMessage({
     ticketId: data.ticketId,
     senderId: session.user.id,
-    senderType: "user",
+    senderType: "staff",
     content: data.content,
     isInternalNote: data.isInternalNote,
     source: "web",

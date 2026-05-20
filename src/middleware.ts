@@ -20,7 +20,7 @@ export async function middleware(request: NextRequest) {
     }
 
     const session = await sessionRes.json();
-    if (!session?.user) {
+    if (!session?.user || (session.user as { isActive?: boolean }).isActive === false) {
       const loginUrl = new URL("/", request.url);
       loginUrl.searchParams.set("callbackUrl", pathname);
       return NextResponse.redirect(loginUrl);
@@ -30,7 +30,7 @@ export async function middleware(request: NextRequest) {
     const adminRoutes = ["/app/users", "/app/settings"];
     if (adminRoutes.some((route) => pathname.startsWith(route))) {
       const userRole = (session.user as { role?: string })?.role;
-      if (userRole !== "admin") {
+      if (!["owner", "admin"].includes(userRole ?? "")) {
         const ticketsUrl = new URL("/app/tickets", request.url);
         return NextResponse.redirect(ticketsUrl);
       }

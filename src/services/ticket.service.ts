@@ -6,10 +6,21 @@ import { eq, and, desc, asc, inArray, isNull, isNotNull } from "drizzle-orm";
 import crypto from "node:crypto";
 
 export type TicketPriority = "low" | "medium" | "critical";
-export type TicketSource = "whatsapp" | "web" | "email" | "manual";
+export type TicketSource = "whatsapp" | "web" | "email" | "manual" | "api";
 
 const TICKETS_WITH = {
   module: { columns: { id: true, name: true, color: true } },
+  requester: {
+    columns: {
+      id: true,
+      displayName: true,
+      fullName: true,
+      primaryPhone: true,
+      primaryEmail: true,
+      departmentId: true,
+    },
+    with: { department: { columns: { id: true, name: true } } },
+  },
   createdBy: { columns: { id: true, name: true, email: true } },
   assignee: { columns: { id: true, name: true } },
 } as const;
@@ -37,9 +48,7 @@ export async function getTickets(ctx?: TicketContext) {
 
       // Base Role-based Access
       if (ctx) {
-        if (ctx.role === "reporter") {
-          conditions.push(eq(tickets.createdById, ctx.userId));
-        } else if (ctx.role === "agent" && ctx.moduleIds) {
+        if (ctx.role === "operator" && ctx.moduleIds) {
           if (ctx.moduleIds.length === 0) return undefined; // Should return nothing, handled by return [] below if no conditions
           conditions.push(inArray(tickets.moduleId, ctx.moduleIds));
         } else if (ctx.role === "engineer") {
@@ -82,8 +91,8 @@ export async function getTickets(ctx?: TicketContext) {
 
   const results = await query;
   
-  // Extra safety for agent with no modules
-  if (ctx?.role === "agent" && (!ctx.moduleIds || ctx.moduleIds.length === 0)) {
+  // Extra safety for operators with no modules
+  if (ctx?.role === "operator" && (!ctx.moduleIds || ctx.moduleIds.length === 0)) {
     return [];
   }
 
@@ -95,10 +104,27 @@ export async function getTicketById(id: string) {
     where: eq(tickets.id, id),
     with: {
       module: true,
+      requester: {
+        with: {
+          department: { columns: { id: true, name: true } },
+          identities: {
+            columns: {
+              id: true,
+              channel: true,
+              identifier: true,
+              displayName: true,
+              lastSeenAt: true,
+            },
+          },
+        },
+      },
       createdBy: { columns: { id: true, name: true, email: true } },
       assignee: { columns: { id: true, name: true } },
       messages: {
-        with: { sender: { columns: { id: true, name: true } } },
+        with: {
+          sender: { columns: { id: true, name: true } },
+          requester: { columns: { id: true, displayName: true } },
+        },
         orderBy: [asc(ticketMessages.createdAt)],
       },
       aiSuggestions: {
@@ -120,7 +146,9 @@ export async function createTicket(data: {
   moduleId?: string | null;
   priority: TicketPriority;
   source: TicketSource;
-  createdById?: string;
+  requesterId?: string | null;
+  openedByStaffId?: string | null;
+  createdById?: string | null;
   waPhone?: string | null;
 }) {
   let slaDeadlineAt: Date | null = null;
@@ -150,16 +178,19 @@ export async function createTicket(data: {
     slaStatus: "safe",
     slaDeadlineAt,
     moduleId: data.moduleId ?? null,
+    requesterId: data.requesterId ?? null,
     waPhone: data.waPhone ?? null,
     source: data.source,
     createdById: data.createdById ?? null,
+    openedByStaffId: data.openedByStaffId ?? null,
   }).execute();
 
   if (data.description) {
     await db.insert(ticketMessages).values({
       ticketId: id,
-      senderId: data.createdById ?? null,
-      senderType: "user",
+      senderId: data.openedByStaffId ?? null,
+      requesterId: data.requesterId ?? null,
+      senderType: data.requesterId ? "requester" : "staff",
       content: data.description,
       isInternalNote: false,
       source: data.source,

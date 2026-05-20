@@ -26,6 +26,7 @@ import {
   RiBook3Line,
   RiCodeSSlashLine,
   RiCommandLine,
+  RiDashboardLine,
   RiErrorWarningLine,
   RiHospitalLine,
   RiInboxLine,
@@ -63,6 +64,7 @@ const ANTRIAN_ITEMS: NavItem[] = [
 ];
 
 const LAINNYA_ITEMS: NavItem[] = [
+  { title: "Dashboard", url: "/app/dashboard", icon: <RiDashboardLine />, isLainnya: true },
   { title: "Knowledge Base", url: "/app/knowledge", icon: <RiBook3Line />, isLainnya: true },
   { title: "Analytics", url: "/app/analytic", icon: <RiBarChartBoxLine />, isLainnya: true },
   { title: "Users", url: "/app/users", icon: <RiTeamLine />, isLainnya: true },

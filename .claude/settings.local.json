@@ -6,7 +6,12 @@
       "Bash(rtk find *)",
       "Bash(rtk ls *)",
       "Bash(rtk tree *)",
-      "Bash(rtk tsc *)"
+      "Bash(rtk tsc *)",
+      "Bash(bun add *)"
     ]
-  }
+  },
+  "enableAllProjectMcpServers": true,
+  "enabledMcpjsonServers": [
+    "neon"
+  ]
 }

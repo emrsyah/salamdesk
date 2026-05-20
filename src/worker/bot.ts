@@ -1,4 +1,4 @@
-import { findOrCreateReporterByPhone } from "@/services/whatsapp.service";
+import { findOrCreateRequesterByPhone } from "@/services/whatsapp.service";
 import {
   findOpenTicketByWaPhone,
   createTicket,
@@ -24,8 +24,8 @@ export async function processInboundWaMessage(job: WaInboundJob): Promise<{
 }> {
   const { phone, text, pushName } = job;
 
-  // 1. Resolve or create the reporter user
-  const reporterId = await findOrCreateReporterByPhone(phone, pushName);
+  // 1. Resolve or create the requester profile
+  const requesterId = await findOrCreateRequesterByPhone(phone, pushName);
 
   // 2. Find an active ticket for this phone
   const existingTicket = await findOpenTicketByWaPhone(phone);
@@ -34,8 +34,9 @@ export async function processInboundWaMessage(job: WaInboundJob): Promise<{
     // Append to the existing conversation thread
     await createMessage({
       ticketId: existingTicket.id,
-      senderId: reporterId,
-      senderType: "user",
+      requesterId,
+      senderId: null,
+      senderType: "requester",
       content: text,
       isInternalNote: false,
       source: "whatsapp",
@@ -59,14 +60,14 @@ export async function processInboundWaMessage(job: WaInboundJob): Promise<{
     moduleId: null, // Will be triaged manually or by AI in Phase 5
     priority: "medium",
     source: "whatsapp",
-    createdById: reporterId,
+    requesterId,
     waPhone: phone,
   });
 
   console.log(`[BOT] Created ticket ${ticketId} for ${phone} (${pushName ?? "unknown"})`);
 
   // Enqueue AI triage — classifies module, priority, and searches KB
-  await aiTriageQueue.add("triage", { ticketId });
+  await aiTriageQueue.add("triage", { ticketId, trigger: "intake" });
   console.log(`[BOT] Enqueued AI triage for ticket ${ticketId}`);
 
   return { action: "created", ticketId };

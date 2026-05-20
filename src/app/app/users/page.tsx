@@ -9,7 +9,7 @@ export default async function UsersPage() {
   if (!session?.user) redirect("/");
 
   const user = session.user as typeof session.user & { role: string };
-  if (user.role !== "admin") {
+  if (!["owner", "admin"].includes(user.role)) {
     redirect("/app/tickets");
   }
 

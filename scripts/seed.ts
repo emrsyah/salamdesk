@@ -37,7 +37,7 @@ async function seedUser(
   email: string,
   password: string,
   name: string,
-  role: "admin" | "agent",
+  role: "admin" | "operator",
 ) {
   const existing = await db
     .select({ id: users.id })
@@ -100,9 +100,10 @@ async function seed() {
 
   console.log("👤 Seeding users...");
   await seedUser("admin@salamdesk.com", "password123", "Admin SIMRS", "admin");
+  await seedUser("operator@salamdesk.com", "operator123", "Operator ITSM", "operator");
 
   // Assign first 4 modules to agent for testing
-  const agent = await db.select({ id: users.id }).from(users).where(eq(users.email, "agent@salamdesk.com")).limit(1);
+  const agent = await db.select({ id: users.id }).from(users).where(eq(users.email, "operator@salamdesk.com")).limit(1);
   const agentUserId = agent[0]?.id;
 
   if (agentUserId) {

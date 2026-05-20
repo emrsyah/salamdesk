@@ -62,8 +62,9 @@ export function TicketMessageThread({ messages }: TicketMessageThreadProps) {
 }
 
 function MessageCard({ msg }: { msg: TicketDetailData["messages"][0] }) {
-  const isAi = msg.senderType === "ai_bot";
+  const isAi = msg.senderType === "ai_agent";
   const isSystem = msg.senderType === "system";
+  const isRequester = msg.senderType === "requester";
 
   return (
     <div
@@ -78,7 +79,13 @@ function MessageCard({ msg }: { msg: TicketDetailData["messages"][0] }) {
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-2">
           <span className="text-sm font-semibold">
-            {isAi ? "AI Assistant" : isSystem ? "Sistem" : (msg.sender?.name ?? "Anonim")}
+            {isAi
+              ? "AI Agent"
+              : isSystem
+                ? "Sistem"
+                : isRequester
+                  ? (msg.requester?.displayName ?? "Pelapor")
+                  : (msg.sender?.name ?? "Staf")}
           </span>
           {isAi && (
             <span className="text-[10px] bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">

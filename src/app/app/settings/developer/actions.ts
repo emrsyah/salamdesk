@@ -9,7 +9,7 @@ export async function createApiKeyAction(name: string, expiresInDays?: number) {
     headers: await headers(),
   });
 
-  if (!session || session.user.role !== "admin") {
+  if (!session || !["owner", "admin"].includes(session.user.role)) {
     throw new Error("Unauthorized");
   }
 
@@ -22,7 +22,7 @@ export async function getApiKeysAction() {
     headers: await headers(),
   });
 
-  if (!session || session.user.role !== "admin") {
+  if (!session || !["owner", "admin"].includes(session.user.role)) {
     throw new Error("Unauthorized");
   }
 
@@ -34,7 +34,7 @@ export async function revokeApiKeyAction(id: string) {
     headers: await headers(),
   });
 
-  if (!session || session.user.role !== "admin") {
+  if (!session || !["owner", "admin"].includes(session.user.role)) {
     throw new Error("Unauthorized");
   }
 

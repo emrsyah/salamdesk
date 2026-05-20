@@ -54,4 +54,5 @@ export type WaOutboundJob = {
 
 export type AiTriageJob = {
   ticketId: string;
+  trigger?: "intake" | "manual" | "message_added" | "retry";
 };

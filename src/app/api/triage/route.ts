@@ -32,7 +32,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "ticketId is required" }, { status: 400 });
   }
 
-  await aiTriageQueue.add("triage", { ticketId: parsed.data.ticketId });
+  await aiTriageQueue.add("triage", { ticketId: parsed.data.ticketId, trigger: "manual" });
 
   return NextResponse.json({ queued: true, ticketId: parsed.data.ticketId });
 }

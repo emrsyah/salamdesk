@@ -8,12 +8,12 @@ import { Skeleton } from "@/components/ui/skeleton";
 
 type Module = { id: string; name: string; color: string | null; slug: string };
 type QuickReply = { id: string; label: string; content: string };
-type Engineer = { id: string; name: string; email: string };
+type AssignableStaff = { id: string; name: string; email: string; role: string };
 
 interface TicketInboxProps {
   modules: Module[];
   quickReplies: QuickReply[];
-  engineers: Engineer[];
+  assignableStaff: AssignableStaff[];
 }
 
 function TicketListSkeleton() {
@@ -77,7 +77,7 @@ function TicketDetailSkeleton() {
   );
 }
 
-export function TicketInbox({ modules, quickReplies, engineers }: TicketInboxProps) {
+export function TicketInbox({ modules, quickReplies, assignableStaff }: TicketInboxProps) {
   const { tickets, isLoading: ticketsLoading, refetch: refetchTickets } = useTickets();
   const { ticket, isLoading: detailLoading, selectedId, refetch: refetchDetail } = useTicketDetail();
 
@@ -102,7 +102,7 @@ export function TicketInbox({ modules, quickReplies, engineers }: TicketInboxPro
           <TicketDetail
             ticket={ticket as any}
             quickReplies={quickReplies as any}
-            engineers={engineers as any}
+            assignableStaff={assignableStaff as any}
             onMutated={handleMutated}
           />
         )
@@ -110,7 +110,7 @@ export function TicketInbox({ modules, quickReplies, engineers }: TicketInboxPro
         <TicketDetail
           ticket={null}
           quickReplies={quickReplies as any}
-          engineers={engineers as any}
+          assignableStaff={assignableStaff as any}
         />
       )}
     </div>

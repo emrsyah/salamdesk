@@ -1,8 +1,5 @@
-import { db } from "@/db";
-import { eq } from "drizzle-orm";
 import { waOutboundQueue, type WaOutboundJob } from "@/lib/queue";
-import crypto from "node:crypto";
-import { user } from "auth-schema";
+import { findOrCreateRequesterByIdentity } from "@/services/requester.service";
 
 /**
  * Normalises a WhatsApp JID like "6281234567890@s.whatsapp.net"
@@ -23,36 +20,14 @@ export function normalisePhone(jid: string): string {
  *
  * They cannot log in via web — they exist only as a DB reference for tickets.
  */
-export async function findOrCreateReporterByPhone(
+export async function findOrCreateRequesterByPhone(
   phone: string,
   pushName: string | null,
 ): Promise<string> {
-  // Look up by phone first
-  const existing = await db.query.users.findFirst({
-    where: eq(user.phone, phone),
-    columns: { id: true },
-  });
-
-  if (existing) return existing.id;
-
-  // Create a synthetic reporter account
-  const id = crypto.randomUUID();
-  const syntheticEmail = `${phone}@wa.salamdesk.local`;
-  const name = pushName?.trim() || phone;
-
-  await db.insert(user).values({
-    id,
-    name,
-    email: syntheticEmail,
-    emailVerified: false,
+  return findOrCreateRequesterByIdentity("whatsapp", phone, {
+    displayName: pushName,
     phone,
-    role: "reporter",
-    isActive: true,
-    createdAt: new Date(),
-    updatedAt: new Date(),
   });
-
-  return id;
 }
 
 /**

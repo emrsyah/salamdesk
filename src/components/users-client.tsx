@@ -58,12 +58,12 @@ const createUserSchema = z.object({
   name: z.string().min(2, "Nama minimal 2 karakter"),
   email: z.string().email("Email tidak valid"),
   password: z.string().min(6, "Password minimal 6 karakter"),
-  role: z.enum(["reporter", "agent", "engineer", "admin"]),
+  role: z.enum(["owner", "admin", "supervisor", "operator", "engineer"]),
   moduleIds: z.array(z.string()),
 });
 
 const editUserSchema = z.object({
-  role: z.enum(["reporter", "agent", "engineer", "admin"]),
+  role: z.enum(["owner", "admin", "supervisor", "operator", "engineer"]),
   moduleIds: z.array(z.string()),
 });
 
@@ -111,7 +111,7 @@ export function UsersClient({ initialUsers, modules }: UsersClientProps) {
       name: "",
       email: "",
       password: "",
-      role: "agent",
+      role: "operator",
       moduleIds: [],
     },
   });
@@ -120,7 +120,7 @@ export function UsersClient({ initialUsers, modules }: UsersClientProps) {
   const editForm = useForm<EditUserValues>({
     resolver: zodResolver(editUserSchema),
     defaultValues: {
-      role: "agent",
+      role: "operator",
       moduleIds: [],
     },
   });
@@ -194,14 +194,18 @@ export function UsersClient({ initialUsers, modules }: UsersClientProps) {
 
   const getRoleBadge = React.useCallback((role: string) => {
     switch (role) {
+      case "owner":
+        return <Badge variant="secondary" className="bg-zinc-900 text-white hover:bg-zinc-900">Owner</Badge>;
       case "admin":
         return <Badge variant="secondary" className="bg-red-100 text-red-700 hover:bg-red-100">Admin</Badge>;
+      case "supervisor":
+        return <Badge variant="secondary" className="bg-amber-100 text-amber-700 hover:bg-amber-100">Supervisor</Badge>;
       case "engineer":
         return <Badge variant="secondary" className="bg-blue-100 text-blue-700 hover:bg-blue-100">Engineer</Badge>;
-      case "agent":
-        return <Badge variant="secondary" className="bg-green-100 text-green-700 hover:bg-green-100">Agent</Badge>;
+      case "operator":
+        return <Badge variant="secondary" className="bg-green-100 text-green-700 hover:bg-green-100">Operator</Badge>;
       default:
-        return <Badge variant="secondary" className="bg-gray-100 text-gray-700 hover:bg-gray-100">Reporter</Badge>;
+        return <Badge variant="secondary" className="bg-gray-100 text-gray-700 hover:bg-gray-100">{role}</Badge>;
     }
   }, []);
 
@@ -246,7 +250,9 @@ export function UsersClient({ initialUsers, modules }: UsersClientProps) {
                 </Badge>
               ))
             ) : (
-              <span className="text-xs text-muted-foreground italic">Semua</span>
+              <span className="text-xs text-muted-foreground italic">
+                {["operator", "engineer"].includes(user.role) ? "Tidak ada" : "Semua"}
+              </span>
             )}
           </div>
         );
@@ -326,7 +332,7 @@ export function UsersClient({ initialUsers, modules }: UsersClientProps) {
           <DialogHeader>
             <DialogTitle>Tambah User Baru</DialogTitle>
             <DialogDescription>
-              Buat akun user baru untuk Agent, Engineer, atau Admin.
+              Buat akun staf baru untuk Operator, Engineer, Supervisor, atau Admin.
             </DialogDescription>
           </DialogHeader>
           <Form {...addForm}>
@@ -383,17 +389,18 @@ export function UsersClient({ initialUsers, modules }: UsersClientProps) {
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        <SelectItem value="reporter">Reporter</SelectItem>
-                        <SelectItem value="agent">Agent</SelectItem>
-                        <SelectItem value="engineer">Engineer</SelectItem>
+                        <SelectItem value="owner">Owner</SelectItem>
                         <SelectItem value="admin">Admin</SelectItem>
+                        <SelectItem value="supervisor">Supervisor</SelectItem>
+                        <SelectItem value="operator">Operator</SelectItem>
+                        <SelectItem value="engineer">Engineer</SelectItem>
                       </SelectContent>
                     </Select>
                     <FormMessage />
                   </FormItem>
                 )}
               />
-              {addForm.watch("role") !== "reporter" && (
+              {["operator", "engineer"].includes(addForm.watch("role")) && (
                 <FormField
                   control={addForm.control}
                   name="moduleIds"
@@ -465,10 +472,11 @@ export function UsersClient({ initialUsers, modules }: UsersClientProps) {
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        <SelectItem value="reporter">Reporter</SelectItem>
-                        <SelectItem value="agent">Agent</SelectItem>
-                        <SelectItem value="engineer">Engineer</SelectItem>
+                        <SelectItem value="owner">Owner</SelectItem>
                         <SelectItem value="admin">Admin</SelectItem>
+                        <SelectItem value="supervisor">Supervisor</SelectItem>
+                        <SelectItem value="operator">Operator</SelectItem>
+                        <SelectItem value="engineer">Engineer</SelectItem>
                       </SelectContent>
                     </Select>
                     <FormMessage />

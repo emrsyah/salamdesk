@@ -1,8 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
-import { authClient } from "@/lib/auth/auth-client";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,28 +14,12 @@ export default function RegisterPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const router = useRouter();
-
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
     setLoading(true);
 
-    const { error: err } = await authClient.signUp.email({
-      email,
-      password,
-      name,
-      role: "reporter",
-      vendor: "",
-      isActive: true,
-      callbackURL: "/app/tickets",
-    });
-
-    if (err) {
-      setError(err.message || "Something went wrong. Please try again.");
-    } else {
-      router.push("/app/tickets");
-    }
+    setError("Akses SalamDesk saat ini menggunakan undangan admin. Hubungi admin ITSM untuk dibuatkan akun.");
 
     setLoading(false);
   }
@@ -78,7 +60,7 @@ export default function RegisterPage() {
             </div>
             <h1 className="text-3xl font-semibold tracking-tight">Create an account</h1>
             <p className="text-sm text-muted-foreground">
-              Join SalamDesk and streamline your hospital IT support efficiently.
+              Akun staf dibuat melalui undangan admin ITSM.
             </p>
           </div>
 
@@ -137,7 +119,7 @@ export default function RegisterPage() {
               ) : (
                 <>
                   <RiUserAddLine className="size-5" />
-                  Register
+                  Request access
                 </>
               )}
             </Button>

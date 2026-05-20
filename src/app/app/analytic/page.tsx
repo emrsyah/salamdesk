@@ -37,7 +37,7 @@ type AnalyticsData = {
   moduleDist: { moduleId: string; moduleName: string; moduleColor: string; count: number }[]
   sourceDist: { source: string; count: number }[]
   resolution: { totalResolved: number; resolvedByAi: number; resolvedByUser: number; avgResolutionMinutes: number | null }
-  agentPerf: { agentId: string; agentName: string; assignedCount: number; resolvedCount: number; avgResolutionMinutes: number | null }[] | null
+  staffPerf: { staffId: string; staffName: string; assignedCount: number; resolvedCount: number; avgResolutionMinutes: number | null }[] | null
   rootCause: { rootCause: string; count: number }[]
 }
 
@@ -321,7 +321,7 @@ function ResolutionCard({ data }: { data: AnalyticsData["resolution"] }) {
   )
 }
 
-function AgentPerformanceTable({ data }: { data: NonNullable<AnalyticsData["agentPerf"]> }) {
+function StaffPerformanceTable({ data }: { data: NonNullable<AnalyticsData["staffPerf"]> }) {
   if (!data || !data.length) {
     return (
       <Card>
@@ -345,7 +345,7 @@ function AgentPerformanceTable({ data }: { data: NonNullable<AnalyticsData["agen
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b text-left text-muted-foreground">
-                <th className="pb-2 pr-4 font-medium">Agent</th>
+                <th className="pb-2 pr-4 font-medium">Staff</th>
                 <th className="pb-2 pr-4 font-medium">Ditangani</th>
                 <th className="pb-2 pr-4 font-medium">Resolved</th>
                 <th className="pb-2 font-medium">Rata-rata</th>
@@ -353,8 +353,8 @@ function AgentPerformanceTable({ data }: { data: NonNullable<AnalyticsData["agen
             </thead>
             <tbody>
               {data.map((row) => (
-                <tr key={row.agentId} className="border-b last:border-0">
-                  <td className="py-2 pr-4">{row.agentName}</td>
+                <tr key={row.staffId} className="border-b last:border-0">
+                  <td className="py-2 pr-4">{row.staffName}</td>
                   <td className="py-2 pr-4">{row.assignedCount}</td>
                   <td className="py-2 pr-4">{row.resolvedCount}</td>
                   <td className="py-2">{formatMinutes(row.avgResolutionMinutes)}</td>
@@ -536,8 +536,8 @@ export default function AnalyticPage() {
         colorMap={ROOT_CAUSE_COLORS}
       />
 
-      {/* Agent Performance */}
-      {data.agentPerf && <AgentPerformanceTable data={data.agentPerf} />}
+      {/* Staff Performance */}
+      {data.staffPerf && <StaffPerformanceTable data={data.staffPerf} />}
     </div>
   )
 }

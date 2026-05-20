@@ -24,14 +24,14 @@ export async function GET(request: Request) {
   // Start module fetches in parallel — both are independent
   const [allActiveModules, userModules] = await Promise.all([
     getCachedActiveModules(),
-    // Only agents/engineers need their filtered modules; others skip this fetch
-    (user.role !== "admin" && user.role !== "reporter")
+    // Operators/engineers need their filtered modules; admins/supervisors/owners skip this fetch.
+    (user.role === "operator" || user.role === "engineer")
       ? getCachedModulesByUserId(user.id, { activeOnly: true })
       : Promise.resolve(undefined),
   ]);
 
   const viewableModuleIds =
-    (user.role === "admin" || user.role === "reporter")
+    (user.role === "owner" || user.role === "admin" || user.role === "supervisor")
       ? allActiveModules.map((m) => m.id)
       : (userModules ?? []).map((m) => m.id);
 

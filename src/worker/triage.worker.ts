@@ -20,7 +20,7 @@ export function createTriageWorker(connection: IORedis) {
     "ai-triage",
     async (job) => {
       console.log(`[TRIAGE] Processing job ${job.id} for ticket ${job.data.ticketId}`);
-      const result = await triageTicket(job.data.ticketId);
+      const result = await triageTicket(job.data.ticketId, job.data.trigger ?? "intake");
       console.log(
         `[TRIAGE] Job ${job.id} done — module: ${result.moduleName ?? "unclassified"}, ` +
           `priority: ${result.priority}, autoReplied: ${result.autoReplied}`
