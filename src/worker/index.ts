@@ -15,7 +15,7 @@
 
 import "dotenv/config";
 import IORedis from "ioredis";
-import { Worker } from "bullmq";
+import { Worker, type ConnectionOptions } from "bullmq";
 import { connectToWhatsApp, disconnectWhatsApp, getSocket } from "@/lib/whatsapp";
 import { processInboundWaMessage } from "./bot";
 import { createTriageWorker } from "./triage.worker";
@@ -35,6 +35,8 @@ workerRedis.on("error", (err) => {
   console.error("[ioredis] Worker connection error:", err.message);
 });
 
+const connection = workerRedis as ConnectionOptions;
+
 // ---------------------------------------------------------------------------
 // wa-inbound worker: processes incoming WhatsApp messages
 // ---------------------------------------------------------------------------
@@ -49,7 +51,7 @@ const inboundWorker = new Worker<WaInboundJob>(
     return result;
   },
   {
-    connection: workerRedis,
+    connection,
     concurrency: 5,
   },
 );
@@ -100,7 +102,7 @@ const outboundWorker = new Worker<WaOutboundJob>(
     );
   },
   {
-    connection: workerRedis,
+    connection,
     concurrency: 3,
   },
 );
@@ -112,13 +114,13 @@ outboundWorker.on("failed", (job, err) => {
 // ---------------------------------------------------------------------------
 // ai-triage worker: classifies tickets with AI after creation
 // ---------------------------------------------------------------------------
-const triageWorker = createTriageWorker(workerRedis);
+const triageWorker = createTriageWorker(connection);
 console.log("[WORKER] AI triage worker started.");
 
-const ticketLifecycleWorker = createTicketLifecycleWorker(workerRedis);
+const ticketLifecycleWorker = createTicketLifecycleWorker(connection);
 console.log("[WORKER] Ticket lifecycle worker started.");
 
-const knowledgeIngestionWorker = createKnowledgeIngestionWorker(workerRedis);
+const knowledgeIngestionWorker = createKnowledgeIngestionWorker(connection);
 console.log("[WORKER] Knowledge ingestion worker started.");
 
 await ticketLifecycleQueue.add(TICKET_LIFECYCLE_JOBS.autoCloseResolved, {}, {

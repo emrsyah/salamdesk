@@ -1,5 +1,4 @@
-import { Worker } from "bullmq";
-import IORedis from "ioredis";
+import { Worker, type ConnectionOptions } from "bullmq";
 import { triageTicket } from "@/services/ai.service";
 import type { AiTriageJob } from "@/lib/queue";
 
@@ -15,7 +14,7 @@ import type { AiTriageJob } from "@/lib/queue";
  * Export the createTriageWorker factory so worker/index.ts can pass
  * a shared Redis connection.
  */
-export function createTriageWorker(connection: IORedis) {
+export function createTriageWorker(connection: ConnectionOptions) {
   const worker = new Worker<AiTriageJob>(
     "ai-triage",
     async (job) => {

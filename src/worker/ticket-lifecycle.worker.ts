@@ -4,10 +4,9 @@ import { TICKET_LIFECYCLE_JOBS, type TicketLifecycleJob } from "@/lib/queue";
 import { calculateSlaWarningAt } from "@/services/ticket-sla.service";
 import { closeResolvedTicket } from "@/services/ticket-lifecycle.service";
 import { and, eq, inArray, isNull, lte } from "drizzle-orm";
-import { Worker, type JobsOptions } from "bullmq";
-import type IORedis from "ioredis";
+import { Worker, type ConnectionOptions, type JobsOptions } from "bullmq";
 
-export function createTicketLifecycleWorker(connection: IORedis) {
+export function createTicketLifecycleWorker(connection: ConnectionOptions) {
   return new Worker<TicketLifecycleJob>(
     "ticket-lifecycle",
     async (job) => {

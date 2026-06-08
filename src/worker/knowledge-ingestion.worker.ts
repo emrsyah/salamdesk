@@ -1,5 +1,4 @@
-import { Worker } from "bullmq";
-import IORedis from "ioredis";
+import { Worker, type ConnectionOptions } from "bullmq";
 import { mkdir, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -34,7 +33,7 @@ async function downloadToTempFile(jobId: string | undefined, data: KnowledgeInge
   return filePath;
 }
 
-export function createKnowledgeIngestionWorker(connection: IORedis) {
+export function createKnowledgeIngestionWorker(connection: ConnectionOptions) {
   const worker = new Worker<KnowledgeIngestionJob>(
     "knowledge-ingestion",
     async (job) => {
