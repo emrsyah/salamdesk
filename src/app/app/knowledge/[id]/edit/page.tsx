@@ -24,14 +24,14 @@ export default async function EditKbArticlePage({ params }: { params: Promise<{ 
   return (
     <div className="p-8 max-w-3xl mx-auto">
       <div className="mb-8">
-        <h1 className="text-3xl font-bold tracking-tight">Edit Artikel</h1>
-        <p className="text-muted-foreground">Perbarui informasi pada artikel basis pengetahuan ini.</p>
+        <h1 className="text-3xl font-bold tracking-tight">Edit Dokumen Pengetahuan</h1>
+        <p className="text-muted-foreground">Perbarui konten dokumen. Chunk akan dibuat ulang saat konten disimpan.</p>
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle>Detail Artikel</CardTitle>
-          <CardDescription>Ubah judul, modul terkait, dan konten artikel.</CardDescription>
+          <CardTitle>Detail Dokumen</CardTitle>
+          <CardDescription>Ubah judul, modul terkait, tags, dan konten dokumen.</CardDescription>
         </CardHeader>
         <CardContent>
           <KbArticleForm 

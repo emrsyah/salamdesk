@@ -27,13 +27,13 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
   return (
     <TooltipProvider>
-      <SidebarProvider>
+      <SidebarProvider className="h-svh min-h-0 overflow-hidden">
         <HelpdeskSidebar user={user} modules={sidebarModules} slaConfigs={allSlaConfigs} />
-        <SidebarInset className="overflow-hidden">
+        <SidebarInset className="min-h-0 overflow-hidden">
           <header className="flex md:hidden h-16 shrink-0 items-center gap-2 border-b px-4">
             <div className="h-4 w-px bg-border" />
           </header>
-          <div className="flex flex-1 flex-col overflow-hidden">{children}</div>
+          <div className="flex min-h-0 flex-1 flex-col overflow-x-hidden overflow-y-auto">{children}</div>
         </SidebarInset>
       </SidebarProvider>
     </TooltipProvider>

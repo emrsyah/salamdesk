@@ -1,6 +1,7 @@
 import { db } from "@/db";
 import { requesterIdentities, requesters } from "@/db/schema/requesters";
-import { and, eq } from "drizzle-orm";
+import { tickets } from "@/db/schema/tickets";
+import { desc, and, eq } from "drizzle-orm";
 import crypto from "node:crypto";
 
 type RequesterChannel = "whatsapp" | "web" | "api" | "email";
@@ -81,4 +82,62 @@ export async function findOrCreateRequesterFromContact(seed: RequesterSeed): Pro
   if (seed.email) return findOrCreateRequesterByIdentity("email", seed.email, seed);
   if (seed.phone) return findOrCreateRequesterByIdentity("whatsapp", seed.phone, seed);
   return findOrCreateRequesterByIdentity("web", crypto.randomUUID(), seed);
+}
+
+export type RequesterProfileUpdate = {
+  displayName: string;
+  fullName?: string | null;
+  jobTitle?: string | null;
+  employeeNumber?: string | null;
+  primaryPhone?: string | null;
+  primaryEmail?: string | null;
+  externalRef?: string | null;
+  notes?: string | null;
+};
+
+function optionalText(value: string | null | undefined) {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : null;
+}
+
+export async function updateRequesterProfile(id: string, data: RequesterProfileUpdate) {
+  const [updated] = await db
+    .update(requesters)
+    .set({
+      displayName: data.displayName.trim(),
+      fullName: optionalText(data.fullName),
+      jobTitle: optionalText(data.jobTitle),
+      employeeNumber: optionalText(data.employeeNumber),
+      primaryPhone: optionalText(data.primaryPhone),
+      primaryEmail: optionalText(data.primaryEmail)?.toLowerCase() ?? null,
+      externalRef: optionalText(data.externalRef),
+      notes: optionalText(data.notes),
+      updatedAt: new Date(),
+    })
+    .where(eq(requesters.id, id))
+    .returning();
+
+  return updated;
+}
+
+export async function getRequesterTicketHistory(requesterId: string) {
+  return db.query.tickets.findMany({
+    where: eq(tickets.requesterId, requesterId),
+    columns: {
+      id: true,
+      title: true,
+      status: true,
+      priority: true,
+      source: true,
+      createdAt: true,
+      resolvedAt: true,
+      closedAt: true,
+    },
+    with: {
+      module: { columns: { id: true, name: true, color: true } },
+      assignee: { columns: { id: true, name: true } },
+    },
+    orderBy: [desc(tickets.createdAt)],
+    limit: 20,
+  });
 }

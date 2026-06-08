@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { validateApiKey } from "@/lib/api-keys/api-keys.service";
-import { db } from "@/db";
-import { tickets, ticketMessages } from "@/db/schema/tickets";
-import { eq } from "drizzle-orm";
+import {
+  addRequesterMessageWithLifecycle,
+  addSystemUpdateCommand,
+  TicketLifecycleError,
+} from "@/services/ticket-lifecycle.service";
 
 async function verifyAuth(req: NextRequest) {
   const authHeader = req.headers.get("authorization");
@@ -29,26 +31,28 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       return NextResponse.json({ error: "Missing required field: content" }, { status: 400 });
     }
 
-    // Verify ticket exists
-    const [ticket] = await db.select().from(tickets).where(eq(tickets.id, ticketId));
-    if (!ticket) {
-      return NextResponse.json({ error: "Ticket not found" }, { status: 404 });
+    const senderType = body.senderType === "requester" ? "requester" : "system";
+    if (senderType === "requester") {
+      const message = await addRequesterMessageWithLifecycle({
+        ticketId,
+        content,
+        source: "api",
+      });
+      return NextResponse.json({ success: true, message }, { status: 201 });
     }
 
-    // Insert message from the API (senderId is null, but senderType is "system" or maybe "user" if we pass email)
-    // For simplicity, we'll assume messages created via API are from the system/API unless specified.
-    // If we wanted, we could also pass `senderEmail` in the body and look up the user.
-    const [newMessage] = await db.insert(ticketMessages).values({
+    const newMessage = await addSystemUpdateCommand({
       ticketId,
       content,
-      senderType: "system",
       source: "api",
-      isInternalNote: false,
-    }).returning();
+    });
 
     return NextResponse.json({ success: true, message: newMessage }, { status: 201 });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("API Error:", error);
+    if (error instanceof TicketLifecycleError) {
+      return NextResponse.json({ error: error.message }, { status: 409 });
+    }
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
   }
 }

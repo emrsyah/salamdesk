@@ -40,19 +40,74 @@ export const aiTriageQueue = new Queue("ai-triage", {
   },
 });
 
+export const ticketLifecycleQueue = new Queue("ticket-lifecycle", {
+  connection: redisConnection,
+  defaultJobOptions: {
+    attempts: 2,
+    backoff: { type: "exponential", delay: 5000 },
+    removeOnComplete: 500,
+    removeOnFail: 200,
+  },
+});
+
+export const knowledgeIngestionQueue = new Queue("knowledge-ingestion", {
+  connection: redisConnection,
+  defaultJobOptions: {
+    attempts: 3,
+    backoff: { type: "exponential", delay: 5000 },
+    removeOnComplete: 500,
+    removeOnFail: 200,
+  },
+});
+
+export const TICKET_LIFECYCLE_JOBS = {
+  autoCloseResolved: "auto-close-resolved",
+  scanTicketSlas: "scan-ticket-slas",
+} as const;
+
+export const KNOWLEDGE_INGESTION_JOBS = {
+  ingestDocument: "ingest-document",
+} as const;
+
 export type WaInboundJob = {
-  phone: string; // e.g. "6281234567890"
+  // Full WhatsApp addressing JID, e.g. "6281234567890@s.whatsapp.net" or
+  // "80646684844239@lid". This is what we reply to — never reconstruct it.
+  jid: string;
+  // Human-readable phone number, e.g. "6281234567890". Resolved from the LID
+  // mapping when possible; falls back to the JID's local part. For display
+  // and requester profiles only — NOT for addressing outbound messages.
+  phone: string;
   text: string;
   pushName: string | null;
   messageId: string;
 };
 
+export type WaOutboundAttachment = {
+  // Publicly reachable URL (uploadthing) Baileys fetches when sending.
+  url: string;
+  fileName: string;
+  mimeType: string;
+};
+
 export type WaOutboundJob = {
-  phone: string; // e.g. "6281234567890"
+  // Full WhatsApp addressing JID to send to (carries the @lid / @s.whatsapp.net
+  // domain). Passed straight to sock.sendMessage() — do not append a domain.
+  jid: string;
   text: string;
+  // Optional media to send alongside the text (images inline, others as docs).
+  attachments?: WaOutboundAttachment[];
 };
 
 export type AiTriageJob = {
   ticketId: string;
   trigger?: "intake" | "manual" | "message_added" | "retry";
+};
+
+export type TicketLifecycleJob = Record<string, never>;
+
+export type KnowledgeIngestionJob = {
+  documentId: string;
+  fileUrl: string;
+  fileName: string;
+  mimeType: string;
 };

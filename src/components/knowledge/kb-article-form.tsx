@@ -36,9 +36,10 @@ type KbArticleFormProps = {
     tags?: string[];
   };
   modules: { id: string; name: string }[];
+  onCancel?: () => void;
 };
 
-export function KbArticleForm({ initialData, modules }: KbArticleFormProps) {
+export function KbArticleForm({ initialData, modules, onCancel }: KbArticleFormProps) {
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
 
@@ -68,15 +69,16 @@ export function KbArticleForm({ initialData, modules }: KbArticleFormProps) {
 
       if (initialData?.id) {
         await updateKbArticleAction(initialData.id, payload);
-        toast.success("Artikel berhasil diperbarui");
+        toast.success("Dokumen berhasil diperbarui");
       } else {
         await createKbArticleAction(payload);
-        toast.success("Artikel berhasil dibuat");
+        toast.success("Dokumen berhasil dibuat");
       }
       
       router.push("/app/knowledge");
-    } catch (error: any) {
-      toast.error(error.message || "Gagal menyimpan artikel");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Gagal menyimpan dokumen";
+      toast.error(message);
     } finally {
       setIsLoading(false);
     }
@@ -90,7 +92,7 @@ export function KbArticleForm({ initialData, modules }: KbArticleFormProps) {
           name="title"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Judul Artikel</FormLabel>
+              <FormLabel>Judul Dokumen</FormLabel>
               <FormControl>
                 <Input placeholder="Contoh: Cara reset password SIMRS" {...field} />
               </FormControl>
@@ -118,7 +120,7 @@ export function KbArticleForm({ initialData, modules }: KbArticleFormProps) {
                   ))}
                 </select>
               </FormControl>
-              <FormDescription>Pilih modul jika artikel ini spesifik untuk satu modul.</FormDescription>
+              <FormDescription>Pilih modul jika dokumen ini spesifik untuk satu modul.</FormDescription>
               <FormMessage />
             </FormItem>
           )}
@@ -132,8 +134,8 @@ export function KbArticleForm({ initialData, modules }: KbArticleFormProps) {
               <FormLabel>Konten</FormLabel>
               <FormControl>
                 <Textarea 
-                  placeholder="Isi artikel..." 
-                  className="min-h-[200px]" 
+                  placeholder="Isi dokumen pengetahuan..."
+                  className="min-h-[260px]"
                   {...field} 
                 />
               </FormControl>
@@ -157,11 +159,11 @@ export function KbArticleForm({ initialData, modules }: KbArticleFormProps) {
         />
 
         <div className="flex justify-end gap-2">
-          <Button type="button" variant="outline" onClick={() => router.back()} disabled={isLoading}>
+          <Button type="button" variant="outline" onClick={onCancel ?? (() => router.back())} disabled={isLoading}>
             Batal
           </Button>
           <Button type="submit" disabled={isLoading}>
-            {isLoading ? "Menyimpan..." : "Simpan Artikel"}
+            {isLoading ? "Menyimpan..." : "Simpan Dokumen"}
           </Button>
         </div>
       </form>

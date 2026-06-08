@@ -16,10 +16,12 @@
 import "dotenv/config";
 import IORedis from "ioredis";
 import { Worker } from "bullmq";
-import { connectToWhatsApp, getSocket } from "@/lib/whatsapp";
+import { connectToWhatsApp, disconnectWhatsApp, getSocket } from "@/lib/whatsapp";
 import { processInboundWaMessage } from "./bot";
 import { createTriageWorker } from "./triage.worker";
-import type { WaInboundJob, WaOutboundJob } from "@/lib/queue";
+import { createTicketLifecycleWorker } from "./ticket-lifecycle.worker";
+import { createKnowledgeIngestionWorker } from "./knowledge-ingestion.worker";
+import { ticketLifecycleQueue, TICKET_LIFECYCLE_JOBS, type WaInboundJob, type WaOutboundJob } from "@/lib/queue";
 
 // ---------------------------------------------------------------------------
 // Redis connection for workers (separate from the queue-producer connection)
@@ -62,16 +64,40 @@ inboundWorker.on("failed", (job, err) => {
 const outboundWorker = new Worker<WaOutboundJob>(
   "wa-outbound",
   async (job) => {
-    const { phone, text } = job.data;
+    const { jid, text, attachments = [] } = job.data;
     const sock = getSocket();
 
     if (!sock) {
       throw new Error("WhatsApp socket not connected — will retry");
     }
 
-    const jid = `${phone}@s.whatsapp.net`;
-    await sock.sendMessage(jid, { text });
-    console.log(`[WORKER] Sent WA message to ${phone}: "${text.slice(0, 50)}"`);
+    // jid already carries the correct domain (@lid or @s.whatsapp.net) — send
+    // it verbatim. Reconstructing "<num>@s.whatsapp.net" from a LID silently
+    // sends to a non-existent number (sendMessage doesn't throw on bad JIDs).
+    if (attachments.length === 0) {
+      await sock.sendMessage(jid, { text });
+    } else {
+      // Attach the reply text as the caption of the first media item so the
+      // requester sees one coherent message; remaining items send bare.
+      for (let i = 0; i < attachments.length; i++) {
+        const attachment = attachments[i];
+        const caption = i === 0 && text ? text : undefined;
+        const isImage = attachment.mimeType.startsWith("image/");
+        const media = isImage
+          ? { image: { url: attachment.url }, caption }
+          : {
+              document: { url: attachment.url },
+              fileName: attachment.fileName,
+              mimetype: attachment.mimeType,
+              caption,
+            };
+        await sock.sendMessage(jid, media);
+      }
+    }
+    console.log(
+      `[WORKER] Sent WA message to ${jid}: "${text.slice(0, 50)}"` +
+        (attachments.length ? ` (+${attachments.length} attachment(s))` : ""),
+    );
   },
   {
     connection: workerRedis,
@@ -88,6 +114,52 @@ outboundWorker.on("failed", (job, err) => {
 // ---------------------------------------------------------------------------
 const triageWorker = createTriageWorker(workerRedis);
 console.log("[WORKER] AI triage worker started.");
+
+const ticketLifecycleWorker = createTicketLifecycleWorker(workerRedis);
+console.log("[WORKER] Ticket lifecycle worker started.");
+
+const knowledgeIngestionWorker = createKnowledgeIngestionWorker(workerRedis);
+console.log("[WORKER] Knowledge ingestion worker started.");
+
+await ticketLifecycleQueue.add(TICKET_LIFECYCLE_JOBS.autoCloseResolved, {}, {
+  repeat: { every: 15 * 60 * 1000 },
+  jobId: TICKET_LIFECYCLE_JOBS.autoCloseResolved,
+});
+
+await ticketLifecycleQueue.add(TICKET_LIFECYCLE_JOBS.scanTicketSlas, {}, {
+  repeat: { every: 5 * 60 * 1000 },
+  jobId: TICKET_LIFECYCLE_JOBS.scanTicketSlas,
+});
+
+// ---------------------------------------------------------------------------
+// wa-control subscriber: receives commands from the web app (e.g. disconnect).
+// Needs its own connection because ioredis enters a dedicated subscriber mode.
+// ---------------------------------------------------------------------------
+const controlRedis = new IORedis(
+  process.env.REDIS_URL ?? "redis://localhost:6379",
+  { maxRetriesPerRequest: null },
+);
+
+controlRedis.on("error", (err) => {
+  console.error("[ioredis] Control connection error:", err.message);
+});
+
+controlRedis.subscribe("wa-control", (err) => {
+  if (err) console.error("[WORKER] Failed to subscribe to wa-control:", err.message);
+  else console.log("[WORKER] Subscribed to wa-control channel.");
+});
+
+controlRedis.on("message", async (channel, message) => {
+  if (channel !== "wa-control") return;
+  if (message === "disconnect") {
+    console.log("[WORKER] Received disconnect command.");
+    try {
+      await disconnectWhatsApp();
+    } catch (err) {
+      console.error("[WORKER] disconnectWhatsApp failed:", err);
+    }
+  }
+});
 
 // ---------------------------------------------------------------------------
 // Boot WhatsApp connection
@@ -109,6 +181,9 @@ async function shutdown() {
     inboundWorker.close(),
     outboundWorker.close(),
     triageWorker.close(),
+    ticketLifecycleWorker.close(),
+    knowledgeIngestionWorker.close(),
+    controlRedis.quit(),
     workerRedis.quit(),
   ]);
   process.exit(0);

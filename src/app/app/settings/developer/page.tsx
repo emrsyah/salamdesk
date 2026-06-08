@@ -1,6 +1,8 @@
 import { getApiKeysAction, revokeApiKeyAction } from "./actions";
 import { GenerateKeyDialog } from "./generate-key-dialog";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Table,
   TableBody,
@@ -9,7 +11,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
 import { revalidatePath } from "next/cache";
 
@@ -18,8 +19,95 @@ export const metadata = {
   description: "Manage API Keys for programmatic access.",
 };
 
+const endpoints = [
+  {
+    method: "POST",
+    path: "/api/v1/tickets",
+    tone: "bg-green-600 hover:bg-green-700",
+    title: "Create ticket",
+    description: "Create a ticket from an external SIMRS, monitoring, or patient-support system.",
+    required: ["title", "priority", "moduleSlug", "reporterEmail or reporterPhone"],
+    optional: ["description", "reporterName", "reporterPhone", "externalRef"],
+    body: `{
+  "title": "Billing printout failed",
+  "description": "Kasir tidak dapat mencetak invoice setelah pembayaran.",
+  "priority": "critical",
+  "moduleSlug": "simrs-billing",
+  "reporterEmail": "kasir@example.com",
+  "reporterName": "Budi Santoso",
+  "externalRef": "SIMRS-INC-1042"
+}`,
+    responses: [
+      "201: ticket created",
+      "400: missing required field",
+      "404: moduleSlug not found",
+      "409: requester already has an active ticket",
+    ],
+  },
+  {
+    method: "GET",
+    path: "/api/v1/tickets/:id",
+    tone: "bg-blue-600 hover:bg-blue-700",
+    title: "Get ticket status",
+    description: "Read the latest status, priority, module, requester, and creation time for one ticket.",
+    required: ["ticket id in URL"],
+    optional: [],
+    body: `{
+  "success": true,
+  "ticket": {
+    "id": "TKT-A1B2C3D4",
+    "title": "Billing printout failed",
+    "status": "open",
+    "priority": "critical",
+    "moduleName": "SIMRS Billing"
+  }
+}`,
+    responses: ["200: ticket returned", "401: invalid API key", "404: ticket not found"],
+  },
+  {
+    method: "POST",
+    path: "/api/v1/tickets/:id/messages",
+    tone: "bg-green-600 hover:bg-green-700",
+    title: "Add ticket update",
+    description: "Append a requester reply or system update to an existing ticket.",
+    required: ["content"],
+    optional: ['senderType: "system" or "requester"'],
+    body: `{
+  "content": "Pembaruan otomatis: service billing sudah direstart.",
+  "senderType": "system"
+}`,
+    responses: [
+      "201: message added",
+      "400: content is missing",
+      "409: ticket lifecycle rejected the update",
+    ],
+  },
+];
+
+function getKeyStatus(key: { isActive: boolean; expiresAt: Date | null }) {
+  const expiresAt = key.expiresAt ? new Date(key.expiresAt) : null;
+  const isExpired = Boolean(expiresAt && expiresAt < new Date());
+
+  if (!key.isActive) return "revoked";
+  if (isExpired) return "expired";
+  return "active";
+}
+
+function getDaysUntil(date: Date | null) {
+  if (!date) return null;
+  const diff = date.getTime() - Date.now();
+  return Math.ceil(diff / (1000 * 60 * 60 * 24));
+}
+
 export default async function DeveloperPortalPage() {
   const apiKeys = await getApiKeysAction();
+  const activeKeys = apiKeys.filter((key) => getKeyStatus(key) === "active");
+  const expiredKeys = apiKeys.filter((key) => getKeyStatus(key) === "expired");
+  const revokedKeys = apiKeys.filter((key) => getKeyStatus(key) === "revoked");
+  const expiringSoonKeys = activeKeys.filter((key) => {
+    const daysUntilExpiry = getDaysUntil(key.expiresAt ? new Date(key.expiresAt) : null);
+    return daysUntilExpiry !== null && daysUntilExpiry <= 14;
+  });
 
   const handleRevoke = async (formData: FormData) => {
     "use server";
@@ -29,24 +117,65 @@ export default async function DeveloperPortalPage() {
   };
 
   return (
-    <div className="flex-1 space-y-6 p-6 lg:p-8 max-w-6xl mx-auto w-full">
-      <div className="flex flex-col md:flex-row md:justify-between md:items-start gap-4">
-        <div>
-          <h3 className="text-2xl font-bold tracking-tight">Developer Portal</h3>
-          <p className="text-muted-foreground mt-1">
-            Kelola API key untuk sistem eksternal agar dapat berinteraksi dengan SalamDesk.
+    <div className="flex-1 space-y-8 p-6 lg:p-8 max-w-7xl mx-auto w-full">
+      <div className="flex flex-col gap-5 md:flex-row md:items-start md:justify-between">
+        <div className="max-w-3xl">
+          <div className="mb-3 flex flex-wrap items-center gap-2">
+            <Badge variant="outline">Developer settings</Badge>
+            <Badge variant="secondary">REST API v1</Badge>
+          </div>
+          <h1 className="text-3xl font-bold tracking-tight">Developer Portal</h1>
+          <p className="mt-2 text-muted-foreground">
+            Manage API keys, review integration rules, and hand external systems a clear contract for
+            creating tickets or posting operational updates into SalamDesk.
           </p>
         </div>
         <GenerateKeyDialog />
       </div>
 
-      <div className="space-y-4">
-        <h4 className="text-lg font-medium">API Key Aktif</h4>
-        <div className="border rounded-xl overflow-hidden bg-card">
+      <div className="grid gap-4 md:grid-cols-4">
+        <Card>
+          <CardContent className="p-4">
+            <p className="text-sm text-muted-foreground">Active keys</p>
+            <p className="mt-1 text-2xl font-bold text-green-600">{activeKeys.length}</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <p className="text-sm text-muted-foreground">Expiring soon</p>
+            <p className="mt-1 text-2xl font-bold text-amber-600">{expiringSoonKeys.length}</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <p className="text-sm text-muted-foreground">Expired</p>
+            <p className="mt-1 text-2xl font-bold text-muted-foreground">{expiredKeys.length}</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <p className="text-sm text-muted-foreground">Revoked</p>
+            <p className="mt-1 text-2xl font-bold text-red-600">{revokedKeys.length}</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      <section className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_22rem]">
+        <div className="space-y-4">
+          <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <h2 className="text-xl font-semibold">API keys</h2>
+              <p className="text-sm text-muted-foreground">
+                Keys are shown once when generated. Store them in the calling system&apos;s secret manager.
+              </p>
+            </div>
+          </div>
+
+          <div className="border rounded-xl overflow-hidden bg-card">
           <Table>
             <TableHeader className="bg-muted/50">
               <TableRow>
-                <TableHead>Name</TableHead>
+                <TableHead>Key</TableHead>
                 <TableHead>Prefix</TableHead>
                 <TableHead>Created</TableHead>
                 <TableHead>Expires</TableHead>
@@ -63,22 +192,26 @@ export default async function DeveloperPortalPage() {
                 </TableRow>
               ) : (
                 apiKeys.map((key) => {
-                  const isExpired = key.expiresAt && key.expiresAt < new Date();
-                  const status = !key.isActive
-                    ? "revoked"
-                    : isExpired
-                      ? "expired"
-                      : "active";
+                  const status = getKeyStatus(key);
+                  const expiresAt = key.expiresAt ? new Date(key.expiresAt) : null;
+                  const daysUntilExpiry = getDaysUntil(expiresAt);
 
                   return (
                     <TableRow key={key.id}>
-                      <TableCell className="font-medium">{key.name}</TableCell>
+                      <TableCell>
+                        <div className="font-medium">{key.name}</div>
+                        {status === "active" && daysUntilExpiry !== null && daysUntilExpiry <= 14 ? (
+                          <div className="text-xs text-amber-600">
+                            Rotate within {Math.max(daysUntilExpiry, 0)} day{daysUntilExpiry === 1 ? "" : "s"}
+                          </div>
+                        ) : null}
+                      </TableCell>
                       <TableCell className="font-mono text-xs">{key.prefix}...</TableCell>
                       <TableCell className="text-muted-foreground">
                         {format(new Date(key.createdAt), "MMM d, yyyy")}
                       </TableCell>
                       <TableCell className="text-muted-foreground">
-                        {key.expiresAt ? format(new Date(key.expiresAt), "MMM d, yyyy") : "Never"}
+                        {expiresAt ? format(expiresAt, "MMM d, yyyy") : "Never"}
                       </TableCell>
                       <TableCell>
                         <Badge
@@ -86,7 +219,11 @@ export default async function DeveloperPortalPage() {
                             status === "active" ? "default" :
                               status === "expired" ? "secondary" : "destructive"
                           }
-                          className={status === "expired" ? "bg-amber-500/10 text-amber-500 hover:bg-amber-500/20" : ""}
+                          className={
+                            status === "expired"
+                              ? "bg-amber-500/10 text-amber-600 hover:bg-amber-500/20"
+                              : ""
+                          }
                         >
                           {status.charAt(0).toUpperCase() + status.slice(1)}
                         </Badge>
@@ -107,80 +244,109 @@ export default async function DeveloperPortalPage() {
               )}
             </TableBody>
           </Table>
-        </div>
-      </div>
-
-      <div className="pt-8 border-t space-y-6">
-        <div>
-          <h4 className="text-lg font-medium">API Documentation</h4>
-          <p className="text-sm text-muted-foreground mt-1">
-            Gunakan endpoint ini untuk berinteraksi dengan sistem ticketing secara programatik.
-            Sertakan API key Anda di header: <code className="bg-muted px-1.5 py-0.5 rounded text-xs">Authorization: Bearer &lt;YOUR_API_KEY&gt;</code>
-          </p>
-        </div>
-
-        <div className="grid gap-6 md:grid-cols-2">
-          {/* Create Ticket Docs */}
-          <div className="border rounded-xl p-5 bg-card space-y-3">
-            <div className="flex items-center gap-2">
-              <Badge variant="default" className="bg-green-600 hover:bg-green-700">POST</Badge>
-              <code className="text-sm font-semibold">/api/v1/tickets</code>
-            </div>
-            <p className="text-sm text-muted-foreground">Buat tiket baru dari sistem eksternal.</p>
-            <div className="bg-muted/50 p-3 rounded-lg text-xs font-mono overflow-x-auto">
-              <pre>
-{`{
-  "title": "Issue title",
-  "description": "Detailed description",
-  "priority": "low | medium | critical",
-  "moduleSlug": "simrs-billing",
-  "reporterEmail": "user@example.com",
-  "reporterName": "John Doe" // opsional
-}`}
-              </pre>
-            </div>
-          </div>
-
-          {/* Get Ticket Docs */}
-          <div className="border rounded-xl p-5 bg-card space-y-3">
-            <div className="flex items-center gap-2">
-              <Badge variant="default" className="bg-blue-600 hover:bg-blue-700">GET</Badge>
-              <code className="text-sm font-semibold">/api/v1/tickets/:id</code>
-            </div>
-            <p className="text-sm text-muted-foreground">Ambil status dan detail tiket spesifik.</p>
-            <div className="bg-muted/50 p-3 rounded-lg text-xs font-mono overflow-x-auto mt-auto">
-              <pre>
-{`// Contoh Respons
-{
-  "success": true,
-  "ticket": {
-    "id": "TKT-A1B2C3D4",
-    "status": "open",
-    "priority": "critical"
-  }
-}`}
-              </pre>
-            </div>
-          </div>
-
-          {/* Add Message Docs */}
-          <div className="border rounded-xl p-5 bg-card space-y-3 md:col-span-2">
-            <div className="flex items-center gap-2">
-              <Badge variant="default" className="bg-green-600 hover:bg-green-700">POST</Badge>
-              <code className="text-sm font-semibold">/api/v1/tickets/:id/messages</code>
-            </div>
-            <p className="text-sm text-muted-foreground">Tambahkan balasan otomatis atau log sistem ke tiket yang sudah ada.</p>
-            <div className="bg-muted/50 p-3 rounded-lg text-xs font-mono overflow-x-auto">
-              <pre>
-{`{
-  "content": "Pembaruan otomatis sistem: Server telah berhasil di-restart."
-}`}
-              </pre>
-            </div>
           </div>
         </div>
-      </div>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Production checklist</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4 text-sm">
+            <div>
+              <p className="font-medium">Authentication</p>
+              <p className="mt-1 text-muted-foreground">
+                Send every request with a bearer token. Missing, revoked, or expired keys return 401.
+              </p>
+              <code className="mt-2 block overflow-x-auto rounded-md bg-muted px-3 py-2 text-xs">
+                Authorization: Bearer sd_live_...
+              </code>
+            </div>
+            <div>
+              <p className="font-medium">Rotation</p>
+              <p className="mt-1 text-muted-foreground">
+                Create a replacement key, deploy it to the external system, confirm traffic, then revoke the old key.
+              </p>
+            </div>
+            <div>
+              <p className="font-medium">Requester rule</p>
+              <p className="mt-1 text-muted-foreground">
+                SalamDesk blocks duplicate active tickets for the same requester to keep support queues clean.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      </section>
+
+      <section className="space-y-5 border-t pt-8">
+        <div className="flex flex-col gap-2 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <h2 className="text-xl font-semibold">Integration reference</h2>
+            <p className="text-sm text-muted-foreground">
+              Use these endpoints when another system needs to open tickets, check status, or push updates.
+            </p>
+          </div>
+          <div className="rounded-md border bg-muted/40 px-3 py-2 text-xs">
+            Base URL: <code>https://&lt;your-domain&gt;</code>
+          </div>
+        </div>
+
+        <div className="grid gap-5">
+          {endpoints.map((endpoint) => (
+            <Card key={`${endpoint.method}-${endpoint.path}`}>
+              <CardHeader className="gap-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge className={endpoint.tone}>{endpoint.method}</Badge>
+                  <code className="rounded-md bg-muted px-2 py-1 text-sm font-semibold">
+                    {endpoint.path}
+                  </code>
+                </div>
+                <div>
+                  <CardTitle className="text-base">{endpoint.title}</CardTitle>
+                  <p className="mt-1 text-sm text-muted-foreground">{endpoint.description}</p>
+                </div>
+              </CardHeader>
+              <CardContent className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_20rem]">
+                <div className="rounded-lg bg-muted/50 p-4">
+                  <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                    Example {endpoint.method === "GET" ? "response" : "body"}
+                  </p>
+                  <pre className="overflow-x-auto text-xs leading-relaxed">
+                    <code>{endpoint.body}</code>
+                  </pre>
+                </div>
+                <div className="space-y-4 text-sm">
+                  <div>
+                    <p className="font-medium">Required</p>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {endpoint.required.map((field) => (
+                        <Badge key={field} variant="outline">{field}</Badge>
+                      ))}
+                    </div>
+                  </div>
+                  {endpoint.optional.length ? (
+                    <div>
+                      <p className="font-medium">Optional</p>
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {endpoint.optional.map((field) => (
+                          <Badge key={field} variant="secondary">{field}</Badge>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
+                  <div>
+                    <p className="font-medium">Common responses</p>
+                    <ul className="mt-2 space-y-1 text-muted-foreground">
+                      {endpoint.responses.map((response) => (
+                        <li key={response}>{response}</li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      </section>
     </div>
   );
 }
-

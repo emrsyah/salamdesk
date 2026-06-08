@@ -5,6 +5,7 @@ import { modules } from "@/db/schema/modules";
 import { eq } from "drizzle-orm";
 import { createTicket } from "@/services/ticket.service";
 import { findOrCreateRequesterByIdentity } from "@/services/requester.service";
+import { findActiveTicketForRequester } from "@/services/ticket-lifecycle.service";
 
 async function verifyAuth(req: NextRequest) {
   const authHeader = req.headers.get("authorization");
@@ -40,6 +41,14 @@ export async function POST(req: NextRequest) {
         externalRef,
       },
     );
+
+    const activeTicket = await findActiveTicketForRequester(requesterId);
+    if (activeTicket) {
+      return NextResponse.json(
+        { error: "Requester has an active ticket", ticketId: activeTicket.id },
+        { status: 409 },
+      );
+    }
 
     // 2. Find module
     const [moduleRecord] = await db.select().from(modules).where(eq(modules.slug, moduleSlug));

@@ -2,11 +2,12 @@
 
 import { auth } from "@/lib/auth/auth";
 import { headers } from "next/headers";
-import { revalidatePath } from "next/cache";
+import { revalidatePath, updateTag } from "next/cache";
 import {
   createKbArticle,
   updateKbArticle,
   deleteKbArticle,
+  setKbArticleActive,
 } from "@/services/knowledge.service";
 import { z } from "zod";
 
@@ -38,6 +39,7 @@ export async function createKbArticleAction(data: z.infer<typeof kbArticleSchema
   });
 
   revalidatePath("/app/knowledge");
+  updateTag("knowledge-base");
 }
 
 export async function updateKbArticleAction(
@@ -58,6 +60,7 @@ export async function updateKbArticleAction(
 
   revalidatePath("/app/knowledge");
   revalidatePath(`/app/knowledge/${id}`);
+  updateTag("knowledge-base");
 }
 
 export async function deleteKbArticleAction(id: string) {
@@ -72,6 +75,23 @@ export async function deleteKbArticleAction(id: string) {
   await deleteKbArticle(id);
 
   revalidatePath("/app/knowledge");
+  updateTag("knowledge-base");
+}
+
+export async function setKbArticleActiveAction(id: string, isActive: boolean) {
+  const session = await auth.api.getSession({
+    headers: await headers(),
+  });
+
+  if (!session) {
+    throw new Error("Unauthorized");
+  }
+
+  await setKbArticleActive(id, isActive);
+
+  revalidatePath("/app/knowledge");
+  revalidatePath(`/app/knowledge/${id}`);
+  updateTag("knowledge-base");
 }
 
 export async function getAllKbArticlesAction(moduleId?: string) {

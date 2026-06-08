@@ -3,11 +3,36 @@
 import { useEffect, useState } from "react";
 import { QRCodeSVG } from "qrcode.react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { RiWhatsappLine, RiLoader4Line, RiCheckDoubleLine, RiErrorWarningLine } from "@remixicon/react";
+import { Button } from "@/components/ui/button";
+import { RiWhatsappLine, RiLoader4Line, RiCheckDoubleLine, RiErrorWarningLine, RiLogoutBoxRLine } from "@remixicon/react";
 
 export default function WhatsAppConnectionPage() {
   const [status, setStatus] = useState<string>("connecting");
   const [qr, setQr] = useState<string | null>(null);
+  const [confirmingDisconnect, setConfirmingDisconnect] = useState(false);
+  const [disconnecting, setDisconnecting] = useState(false);
+  const [disconnectError, setDisconnectError] = useState<string | null>(null);
+
+  const handleDisconnect = async () => {
+    setDisconnecting(true);
+    setDisconnectError(null);
+    try {
+      const res = await fetch("/api/whatsapp/disconnect", { method: "POST" });
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        setDisconnectError(data?.error ?? "Gagal memutuskan koneksi.");
+        return;
+      }
+      // The polling effect will pick up the new status from the worker.
+      setStatus("connecting");
+      setQr(null);
+      setConfirmingDisconnect(false);
+    } catch {
+      setDisconnectError("Gagal menghubungi server.");
+    } finally {
+      setDisconnecting(false);
+    }
+  };
 
   useEffect(() => {
     const fetchStatus = async () => {
@@ -55,6 +80,52 @@ export default function WhatsAppConnectionPage() {
                   WhatsApp sudah berhasil terhubung dan siap digunakan.
                 </p>
               </div>
+
+              {confirmingDisconnect ? (
+                <div className="flex flex-col items-center gap-3 pt-2">
+                  <p className="text-sm text-muted-foreground max-w-[260px]">
+                    Memutuskan koneksi akan melepas tautan perangkat ini. Anda perlu
+                    memindai QR Code lagi untuk menghubungkan kembali. Lanjutkan?
+                  </p>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setConfirmingDisconnect(false)}
+                      disabled={disconnecting}
+                    >
+                      Batal
+                    </Button>
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={handleDisconnect}
+                      disabled={disconnecting}
+                    >
+                      {disconnecting ? (
+                        <RiLoader4Line className="size-4 animate-spin" />
+                      ) : (
+                        <RiLogoutBoxRLine className="size-4" />
+                      )}
+                      Ya, putuskan
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="mt-2 text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200"
+                  onClick={() => setConfirmingDisconnect(true)}
+                >
+                  <RiLogoutBoxRLine className="size-4" />
+                  Putuskan Koneksi
+                </Button>
+              )}
+
+              {disconnectError && (
+                <p className="text-sm text-red-600">{disconnectError}</p>
+              )}
             </div>
           ) : status === "qr" && qr ? (
             <div className="flex flex-col items-center space-y-6 animate-in fade-in duration-300">

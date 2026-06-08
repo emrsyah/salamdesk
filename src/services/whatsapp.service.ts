@@ -1,4 +1,4 @@
-import { waOutboundQueue, type WaOutboundJob } from "@/lib/queue";
+import { waOutboundQueue, type WaOutboundAttachment, type WaOutboundJob } from "@/lib/queue";
 import { findOrCreateRequesterByIdentity } from "@/services/requester.service";
 
 /**
@@ -32,12 +32,17 @@ export async function findOrCreateRequesterByPhone(
 
 /**
  * Enqueue an outbound WhatsApp message.
- * Called by messages.actions.ts when an agent replies to a WA-sourced ticket.
+ * Called when an agent (or AI) replies to a WA-sourced ticket.
+ *
+ * `jid` is the full WhatsApp addressing JID stored on the ticket
+ * (tickets.waPhone), e.g. "6281234567890@s.whatsapp.net" or "<id>@lid".
+ * The worker passes it straight to sock.sendMessage() — do not append a domain.
  */
 export async function sendWhatsAppMessage(
-  phone: string,
+  jid: string,
   text: string,
+  options?: { attachments?: WaOutboundAttachment[] },
 ): Promise<void> {
-  const job: WaOutboundJob = { phone, text };
+  const job: WaOutboundJob = { jid, text, attachments: options?.attachments };
   await waOutboundQueue.add("send", job);
 }

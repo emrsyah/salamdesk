@@ -31,6 +31,21 @@ type SlaConfig = {
   isActive: boolean;
 };
 
+const PRIORITY_OPTIONS = [
+  { value: "low", label: "Low" },
+  { value: "medium", label: "Medium" },
+  { value: "critical", label: "Critical" },
+] as const;
+
+function formatDuration(minutes: number): string {
+  if (!minutes || minutes < 1) return "—";
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  if (h === 0) return `${m} mnt`;
+  if (m === 0) return `${h} jam`;
+  return `${h} jam ${m} mnt`;
+}
+
 interface SettingsDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -55,8 +70,21 @@ export function SettingsDialog({ open, onOpenChange, modules, slaConfigs }: Sett
   const [slaPriority, setSlaPriority] = React.useState<"low" | "medium" | "critical">("medium");
   const [responseTime, setResponseTime] = React.useState(30);
   const [resolutionTime, setResolutionTime] = React.useState(120);
+  const [editingSlaId, setEditingSlaId] = React.useState<string | null>(null);
+
+  // The config that the current module + priority selection maps to (if any).
+  // When set, saving overwrites it; the form reflects an "update" instead of "add".
+  const matchingSlaConfig = React.useMemo(
+    () =>
+      slaConfigs.find(
+        (c) => c.moduleId === selectedModuleForSla && c.priority === slaPriority
+      ) ?? null,
+    [slaConfigs, selectedModuleForSla, slaPriority]
+  );
+  const isEditingSla = Boolean(selectedModuleForSla && matchingSlaConfig);
 
   const handleEditSla = (config: SlaConfig) => {
+    setEditingSlaId(config.id);
     setSelectedModuleForSla(config.moduleId);
     setSlaPriority(config.priority);
     setResponseTime(config.responseTimeMinutes);
@@ -66,6 +94,7 @@ export function SettingsDialog({ open, onOpenChange, modules, slaConfigs }: Sett
   };
 
   const handleClearSlaForm = () => {
+    setEditingSlaId(null);
     setSelectedModuleForSla("");
     setSlaPriority("medium");
     setResponseTime(30);
@@ -299,15 +328,18 @@ export function SettingsDialog({ open, onOpenChange, modules, slaConfigs }: Sett
 
               <div ref={slaFormRef} className="border rounded-lg p-4 bg-muted/50 scroll-mt-4">
                 <div className="flex justify-between items-center mb-4">
-                  <h4 className="font-medium">Tambah/Edit Konfigurasi SLA</h4>
-                  {selectedModuleForSla && (
+                  <h4 className="font-medium">
+                    {isEditingSla ? "Perbarui Konfigurasi SLA" : "Tambah Konfigurasi SLA"}
+                  </h4>
+                  {(selectedModuleForSla || editingSlaId) && (
                     <Button variant="ghost" size="sm" onClick={handleClearSlaForm} className="h-8">
-                      Batal
+                      <RiCloseLine className="mr-1 size-4" />
+                      Reset
                     </Button>
                   )}
                 </div>
                 <div className="grid gap-4 max-w-md">
-                  <div>
+                  <div className="grid gap-1.5">
                     <Label htmlFor="module-select">Modul</Label>
                     <Select value={selectedModuleForSla} onValueChange={setSelectedModuleForSla}>
                       <SelectTrigger className="w-full">
@@ -325,25 +357,29 @@ export function SettingsDialog({ open, onOpenChange, modules, slaConfigs }: Sett
                     </Select>
                   </div>
 
-                  <div>
-                    <Label htmlFor="priority-select">Prioritas</Label>
-                    <Select
-                      value={slaPriority}
-                      onValueChange={(val) => setSlaPriority(val as "low" | "medium" | "critical")}
-                    >
-                      <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Pilih prioritas" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="low">Low</SelectItem>
-                        <SelectItem value="medium">Medium</SelectItem>
-                        <SelectItem value="critical">Critical</SelectItem>
-                      </SelectContent>
-                    </Select>
+                  <div className="grid gap-1.5">
+                    <Label>Prioritas</Label>
+                    <div className="grid grid-cols-3 gap-1 rounded-md bg-muted p-1">
+                      {PRIORITY_OPTIONS.map((opt) => (
+                        <button
+                          key={opt.value}
+                          type="button"
+                          onClick={() => setSlaPriority(opt.value)}
+                          aria-pressed={slaPriority === opt.value}
+                          className={`rounded-sm px-3 py-1.5 text-sm font-medium transition-colors ${
+                            slaPriority === opt.value
+                              ? "bg-background text-foreground shadow-sm"
+                              : "text-muted-foreground hover:text-foreground"
+                          }`}
+                        >
+                          {opt.label}
+                        </button>
+                      ))}
+                    </div>
                   </div>
 
                   <div className="grid grid-cols-2 gap-4">
-                    <div>
+                    <div className="grid gap-1.5">
                       <Label htmlFor="response-time">Respon (menit)</Label>
                       <Input
                         id="response-time"
@@ -353,9 +389,10 @@ export function SettingsDialog({ open, onOpenChange, modules, slaConfigs }: Sett
                         onChange={(e) => setResponseTime(Number(e.target.value))}
                         placeholder="30"
                       />
+                      <p className="text-xs text-muted-foreground">≈ {formatDuration(responseTime)}</p>
                     </div>
 
-                    <div>
+                    <div className="grid gap-1.5">
                       <Label htmlFor="resolution-time">Resolusi (menit)</Label>
                       <Input
                         id="resolution-time"
@@ -365,12 +402,19 @@ export function SettingsDialog({ open, onOpenChange, modules, slaConfigs }: Sett
                         onChange={(e) => setResolutionTime(Number(e.target.value))}
                         placeholder="120"
                       />
+                      <p className="text-xs text-muted-foreground">≈ {formatDuration(resolutionTime)}</p>
                     </div>
                   </div>
 
-                  <Button onClick={handleSaveSlaConfig}>
+                  {isEditingSla && (
+                    <p className="text-xs text-amber-600 dark:text-amber-500">
+                      Konfigurasi untuk kombinasi modul &amp; prioritas ini sudah ada — menyimpan akan menimpanya.
+                    </p>
+                  )}
+
+                  <Button onClick={handleSaveSlaConfig} disabled={!selectedModuleForSla}>
                     <RiPencilLine className="mr-2 size-4" />
-                    Simpan Konfigurasi
+                    {isEditingSla ? "Perbarui Konfigurasi" : "Simpan Konfigurasi"}
                   </Button>
                 </div>
               </div>
@@ -390,12 +434,17 @@ export function SettingsDialog({ open, onOpenChange, modules, slaConfigs }: Sett
                       })
                       .map((config) => {
                         const module = modules.find((m) => m.id === config.moduleId);
+                        const isActive = editingSlaId === config.id;
                         return (
-                          <div
+                          <button
                             key={config.id}
-                            className="flex flex-col border rounded-lg p-3 hover:border-primary/50 transition-colors group bg-card"
+                            type="button"
+                            onClick={() => handleEditSla(config)}
+                            className={`flex flex-col border rounded-lg p-3 text-left transition-colors bg-card hover:border-primary/50 ${
+                              isActive ? "border-primary ring-1 ring-primary/30" : ""
+                            }`}
                           >
-                            <div className="flex justify-between items-start mb-3">
+                            <div className="flex justify-between items-start mb-3 w-full">
                               <div className="flex items-center gap-2">
                                 <div
                                   className="size-3 rounded-full"
@@ -416,27 +465,20 @@ export function SettingsDialog({ open, onOpenChange, modules, slaConfigs }: Sett
                                 >
                                   {config.priority}
                                 </Badge>
-                                <Button
-                                  variant="ghost"
-                                  size="icon-sm"
-                                  className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
-                                  onClick={() => handleEditSla(config)}
-                                >
-                                  <RiEditLine className="size-3.5" />
-                                </Button>
+                                <RiEditLine className="size-3.5 text-muted-foreground" />
                               </div>
                             </div>
-                            <div className="grid grid-cols-2 gap-2 mt-auto text-xs text-muted-foreground">
+                            <div className="grid grid-cols-2 gap-2 mt-auto text-xs text-muted-foreground w-full">
                               <div className="flex items-center gap-1.5 bg-muted/40 p-1.5 rounded">
-                                <RiTimeLine className="size-3.5" />
-                                <span>Respon: {config.responseTimeMinutes}m</span>
+                                <RiTimeLine className="size-3.5 shrink-0" />
+                                <span>Respon: {formatDuration(config.responseTimeMinutes)}</span>
                               </div>
                               <div className="flex items-center gap-1.5 bg-muted/40 p-1.5 rounded">
-                                <RiTimeLine className="size-3.5" />
-                                <span>Resolusi: {config.resolutionTimeMinutes}m</span>
+                                <RiTimeLine className="size-3.5 shrink-0" />
+                                <span>Resolusi: {formatDuration(config.resolutionTimeMinutes)}</span>
                               </div>
                             </div>
-                          </div>
+                          </button>
                         );
                       })}
                   </div>

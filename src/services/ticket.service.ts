@@ -1,9 +1,14 @@
 import { db } from "@/db";
 import { tickets, ticketMessages, ticketEscalations } from "@/db/schema/tickets";
 import { aiSuggestions } from "@/db/schema/knowledge-base";
-import { slaConfigs } from "@/db/schema/modules";
 import { eq, and, desc, asc, inArray, isNull, isNotNull } from "drizzle-orm";
 import crypto from "node:crypto";
+import { getSlaDeadlines } from "./ticket-sla.service";
+import {
+  assignTicketWithLifecycle,
+  resolveTicketWithLifecycle,
+  transitionTicketStatus,
+} from "./ticket-lifecycle.service";
 
 export type TicketPriority = "low" | "medium" | "critical";
 export type TicketSource = "whatsapp" | "web" | "email" | "manual" | "api";
@@ -24,6 +29,10 @@ const TICKETS_WITH = {
   createdBy: { columns: { id: true, name: true, email: true } },
   assignee: { columns: { id: true, name: true } },
 } as const;
+
+const NEVER_MATCHING_MODULE_ID = "00000000-0000-0000-0000-000000000000";
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 type TicketContext = {
   userId: string;
@@ -69,7 +78,14 @@ export async function getTickets(ctx?: TicketContext) {
         }
 
         if (ctx.filters.module) {
-          conditions.push(eq(tickets.moduleId, ctx.filters.module));
+          conditions.push(
+            eq(
+              tickets.moduleId,
+              UUID_PATTERN.test(ctx.filters.module)
+                ? ctx.filters.module
+                : NEVER_MATCHING_MODULE_ID,
+            ),
+          );
         }
 
         if (ctx.filters.status) {
@@ -124,6 +140,15 @@ export async function getTicketById(id: string) {
         with: {
           sender: { columns: { id: true, name: true } },
           requester: { columns: { id: true, displayName: true } },
+          attachments: {
+            columns: {
+              id: true,
+              fileName: true,
+              fileUrl: true,
+              mimeType: true,
+              fileSize: true,
+            },
+          },
         },
         orderBy: [asc(ticketMessages.createdAt)],
       },
@@ -151,22 +176,12 @@ export async function createTicket(data: {
   createdById?: string | null;
   waPhone?: string | null;
 }) {
-  let slaDeadlineAt: Date | null = null;
-
-  if (data.moduleId) {
-    const slaConfig = await db.query.slaConfigs.findFirst({
-      where: and(
-        eq(slaConfigs.moduleId, data.moduleId),
-        eq(slaConfigs.priority, data.priority),
-        eq(slaConfigs.isActive, true),
-      ),
-    });
-    if (slaConfig) {
-      const now = new Date();
-      slaDeadlineAt = new Date(now.getTime() + slaConfig.resolutionTimeMinutes * 60 * 1000);
-    }
-  }
-
+  const createdAt = new Date();
+  const { firstResponseDueAt, resolutionDueAt } = await getSlaDeadlines({
+    moduleId: data.moduleId,
+    priority: data.priority,
+    createdAt,
+  });
   const id = crypto.randomUUID();
 
   await db.insert(tickets).values({
@@ -176,13 +191,16 @@ export async function createTicket(data: {
     status: "open",
     priority: data.priority,
     slaStatus: "safe",
-    slaDeadlineAt,
+    slaDeadlineAt: resolutionDueAt,
+    firstResponseDueAt,
+    resolutionDueAt,
     moduleId: data.moduleId ?? null,
     requesterId: data.requesterId ?? null,
     waPhone: data.waPhone ?? null,
     source: data.source,
     createdById: data.createdById ?? null,
     openedByStaffId: data.openedByStaffId ?? null,
+    createdAt,
   }).execute();
 
   if (data.description) {
@@ -200,26 +218,25 @@ export async function createTicket(data: {
   return { id };
 }
 
-export async function updateTicketStatus(id: string, status: any) {
-  await db
-    .update(tickets)
-    .set({
-      status,
-      updatedAt: new Date(),
-    })
-    .where(eq(tickets.id, id))
-    .execute();
+export async function updateTicketStatus(
+  id: string,
+  status: "open" | "in_progress" | "resolved" | "closed",
+) {
+  await transitionTicketStatus({
+    ticketId: id,
+    toStatus: status,
+    actorId: null,
+    actorType: "system",
+    note: "Legacy status update compatibility path",
+  });
 }
 
 export async function assignTicket(id: string, assigneeId: string | null) {
-  await db
-    .update(tickets)
-    .set({
-      assigneeId,
-      updatedAt: new Date(),
-    })
-    .where(eq(tickets.id, id))
-    .execute();
+  await assignTicketWithLifecycle({
+    ticketId: id,
+    assigneeId,
+    actorId: assigneeId ?? "system",
+  });
 }
 
 export async function resolveTicket(
@@ -231,19 +248,13 @@ export async function resolveTicket(
     resolvedKbIds?: string[];
   }
 ) {
-  await db
-    .update(tickets)
-    .set({
-      status: "resolved",
-      resolutionNote: data.resolutionNote || null,
-      rootCause: data.rootCause || null,
-      resolvedById: data.resolvedById || null,
-      resolvedKbIds: data.resolvedKbIds || null,
-      resolvedAt: new Date(),
-      updatedAt: new Date(),
-    })
-    .where(eq(tickets.id, id))
-    .execute();
+  await resolveTicketWithLifecycle({
+    ticketId: id,
+    actorId: data.resolvedById ?? "system",
+    resolutionNote: data.resolutionNote ?? "",
+    rootCause: data.rootCause ?? null,
+    resolvedKbIds: data.resolvedKbIds ?? null,
+  });
 }
 
 export async function escalateTicket(
@@ -255,23 +266,12 @@ export async function escalateTicket(
   }
 ) {
   await db.transaction(async (tx) => {
-    // Insert escalation record
     await tx.insert(ticketEscalations).values({
       ticketId,
       escalatedFromId: data.fromId,
       escalatedToId: data.toId,
       reason: data.reason,
     });
-
-    // Update ticket status and assignee
-    await tx
-      .update(tickets)
-      .set({
-        status: "in_progress",
-        assigneeId: data.toId,
-        updatedAt: new Date(),
-      })
-      .where(eq(tickets.id, ticketId));
   });
 }
 
@@ -295,6 +295,20 @@ export async function findOpenTicketByWaPhone(phone: string) {
   if (ticket.status === "resolved" || ticket.status === "closed") return null;
 
   return ticket;
+}
+
+export async function findLatestTicketByWaPhone(phone: string) {
+  return db.query.tickets.findFirst({
+    where: eq(tickets.waPhone, phone),
+    orderBy: [desc(tickets.createdAt)],
+    columns: {
+      id: true,
+      status: true,
+      assigneeId: true,
+      autoCloseDueAt: true,
+      waPhone: true,
+    },
+  });
 }
 
 

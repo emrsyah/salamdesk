@@ -1,9 +1,13 @@
 import { findOrCreateRequesterByPhone } from "@/services/whatsapp.service";
 import {
-  findOpenTicketByWaPhone,
+  findLatestTicketByWaPhone,
   createTicket,
 } from "@/services/ticket.service";
-import { createMessage } from "@/services/message.service";
+import {
+  addRequesterMessageWithLifecycle,
+  createReopenedFromLink,
+  TicketLifecycleError,
+} from "@/services/ticket-lifecycle.service";
 import { aiTriageQueue } from "@/lib/queue";
 import type { WaInboundJob } from "@/lib/queue";
 
@@ -19,26 +23,25 @@ import type { WaInboundJob } from "@/lib/queue";
  * This function is called by the wa-inbound BullMQ worker.
  */
 export async function processInboundWaMessage(job: WaInboundJob): Promise<{
-  action: "created" | "appended";
+  action: "created" | "appended" | "reopened" | "linked_created";
   ticketId: string;
 }> {
-  const { phone, text, pushName } = job;
+  const { jid, phone, text, pushName } = job;
 
-  // 1. Resolve or create the requester profile
+  // 1. Resolve or create the requester profile (keyed on phone for readability)
   const requesterId = await findOrCreateRequesterByPhone(phone, pushName);
 
-  // 2. Find an active ticket for this phone
-  const existingTicket = await findOpenTicketByWaPhone(phone);
+  // 2. Find the latest ticket for this contact. We key on the full addressing
+  //    JID (stored in waPhone) so outbound replies route to the exact JID —
+  //    a phone number alone can't distinguish @lid from @s.whatsapp.net.
+  const existingTicket = await findLatestTicketByWaPhone(jid);
 
-  if (existingTicket) {
+  if (existingTicket && (existingTicket.status === "open" || existingTicket.status === "in_progress")) {
     // Append to the existing conversation thread
-    await createMessage({
+    await addRequesterMessageWithLifecycle({
       ticketId: existingTicket.id,
       requesterId,
-      senderId: null,
-      senderType: "requester",
       content: text,
-      isInternalNote: false,
       source: "whatsapp",
     });
 
@@ -47,6 +50,20 @@ export async function processInboundWaMessage(job: WaInboundJob): Promise<{
     );
 
     return { action: "appended", ticketId: existingTicket.id };
+  }
+
+  if (existingTicket?.status === "resolved") {
+    try {
+      await addRequesterMessageWithLifecycle({
+        ticketId: existingTicket.id,
+        requesterId,
+        content: text,
+        source: "whatsapp",
+      });
+      return { action: "reopened", ticketId: existingTicket.id };
+    } catch (error) {
+      if (!(error instanceof TicketLifecycleError)) throw error;
+    }
   }
 
   // 3. Create a fresh ticket
@@ -61,14 +78,22 @@ export async function processInboundWaMessage(job: WaInboundJob): Promise<{
     priority: "medium",
     source: "whatsapp",
     requesterId,
-    waPhone: phone,
+    waPhone: jid, // full addressing JID — used to route outbound replies
   });
 
-  console.log(`[BOT] Created ticket ${ticketId} for ${phone} (${pushName ?? "unknown"})`);
+  console.log(`[BOT] Created ticket ${ticketId} for ${jid} (${pushName ?? "unknown"})`);
 
   // Enqueue AI triage — classifies module, priority, and searches KB
   await aiTriageQueue.add("triage", { ticketId, trigger: "intake" });
   console.log(`[BOT] Enqueued AI triage for ticket ${ticketId}`);
+
+  if (existingTicket && (existingTicket.status === "closed" || existingTicket.status === "resolved")) {
+    await createReopenedFromLink({
+      sourceTicketId: existingTicket.id,
+      targetTicketId: ticketId,
+    });
+    return { action: "linked_created", ticketId };
+  }
 
   return { action: "created", ticketId };
 }

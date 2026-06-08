@@ -53,6 +53,7 @@ type NavItem = {
   url: string;
   icon: React.ReactNode;
   isLainnya?: boolean;
+  adminOnly?: boolean;
 };
 
 const ANTRIAN_ITEMS: NavItem[] = [
@@ -66,10 +67,10 @@ const ANTRIAN_ITEMS: NavItem[] = [
 const LAINNYA_ITEMS: NavItem[] = [
   { title: "Dashboard", url: "/app/dashboard", icon: <RiDashboardLine />, isLainnya: true },
   { title: "Knowledge Base", url: "/app/knowledge", icon: <RiBook3Line />, isLainnya: true },
-  { title: "Analytics", url: "/app/analytic", icon: <RiBarChartBoxLine />, isLainnya: true },
-  { title: "Users", url: "/app/users", icon: <RiTeamLine />, isLainnya: true },
-  { title: "WhatsApp", url: "/app/whatsapp", icon: <RiCommandLine />, isLainnya: true },
-  { title: "Developer API", url: "/app/settings/developer", icon: <RiCodeSSlashLine />, isLainnya: true },
+  //{ title: "Analytics", url: "/app/analytic", icon: <RiBarChartBoxLine />, isLainnya: true },
+  { title: "Users", url: "/app/users", icon: <RiTeamLine />, isLainnya: true, adminOnly: true },
+  { title: "WhatsApp", url: "/app/whatsapp", icon: <RiCommandLine />, isLainnya: true, adminOnly: true },
+  { title: "Developer API", url: "/app/settings/developer", icon: <RiCodeSSlashLine />, isLainnya: true, adminOnly: true },
 ];
 
 interface HelpdeskSidebarProps extends ComponentProps<typeof Sidebar> {
@@ -86,6 +87,14 @@ export function HelpdeskSidebar({ user, modules, slaConfigs, ...props }: Helpdes
   const [settingsOpen, setSettingsOpen] = useState(false);
 
   const isTicketsPage = pathname.startsWith("/app/tickets");
+
+  // Privileged roles, kept in lockstep with middleware.ts adminRoutes guard.
+  const isAdmin = user.role === "admin" || user.role === "owner";
+
+  const lainnyaItems = useMemo(
+    () => LAINNYA_ITEMS.filter((item) => !item.adminOnly || isAdmin),
+    [isAdmin]
+  );
 
   const moduleNavItems: NavItem[] = useMemo(() => modules.filter((m) => m.isActive).map((m) => ({
     title: m.name,
@@ -140,7 +149,7 @@ export function HelpdeskSidebar({ user, modules, slaConfigs, ...props }: Helpdes
               </div>
             </div>
             <div className="flex items-center gap-1 group-data-[collapsible=icon]:hidden">
-              {user.role === "admin" && (
+              {isAdmin && (
                 <button
                   onClick={() => setSettingsOpen(true)}
                   className="flex size-6 items-center justify-center rounded-md text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors"
@@ -210,7 +219,7 @@ export function HelpdeskSidebar({ user, modules, slaConfigs, ...props }: Helpdes
             </SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
-                {LAINNYA_ITEMS.map((item) => (
+                {lainnyaItems.map((item) => (
                   <SidebarMenuItem key={item.title}>
                     <SidebarMenuButton
                       onClick={() => handleItemClick(item)}
@@ -233,7 +242,7 @@ export function HelpdeskSidebar({ user, modules, slaConfigs, ...props }: Helpdes
         <SidebarRail />
       </Sidebar>
 
-      {user.role === "admin" && (
+      {isAdmin && (
         <SettingsDialog
           open={settingsOpen}
           onOpenChange={setSettingsOpen}

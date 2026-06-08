@@ -1,49 +1,42 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useCallback } from "react";
 import { useSearchParams } from "next/navigation";
+import useSWR from "swr";
 import type { TicketDetailData } from "@/components/tickets/ticket-detail";
+
+async function fetchTicket(url: string): Promise<TicketDetailData | null> {
+  const res = await fetch(url);
+  if (res.status === 404) return null;
+  if (!res.ok) throw new Error("Failed to fetch ticket");
+  return res.json() as Promise<TicketDetailData>;
+}
 
 /**
  * Client-side hook for fetching a single ticket's full detail.
- * Watches the `selected` searchParam so switching tickets
- * only fetches the new detail — no full page re-render.
+ * SWR keeps previously visited tickets in memory so revisits render immediately
+ * while the detail revalidates in the background.
  */
-export function useTicketDetail() {
+export function useTicketDetail(initialTicket?: TicketDetailData | null) {
   const searchParams = useSearchParams();
   const selectedId = searchParams.get("selected");
+  const key = selectedId ? `/api/tickets/${selectedId}` : null;
 
-  const [ticket, setTicket] = useState<TicketDetailData | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const { data, error, isLoading, isValidating, mutate } = useSWR(key, fetchTicket, {
+    fallbackData: initialTicket?.id === selectedId ? initialTicket : undefined,
+    keepPreviousData: true,
+  });
 
-  const fetchTicket = useCallback(async (id: string) => {
-    setIsLoading(true);
-    setError(null);
-    try {
-      const res = await fetch(`/api/tickets/${id}`);
-      if (res.status === 404) {
-        setTicket(null);
-        return;
-      }
-      if (!res.ok) throw new Error("Failed to fetch ticket");
-      const data = await res.json();
-      setTicket(data);
-    } catch (err) {
-      console.error("useTicketDetail fetch error:", err);
-      setError("Gagal memuat detail tiket.");
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
+  const refetch = useCallback(() => {
+    if (selectedId) void mutate();
+  }, [mutate, selectedId]);
 
-  useEffect(() => {
-    if (selectedId) {
-      fetchTicket(selectedId);
-    } else {
-      setTicket(null);
-    }
-  }, [selectedId, fetchTicket]);
-
-  return { ticket, isLoading, error, selectedId, refetch: () => { if (selectedId) fetchTicket(selectedId); } };
+  return {
+    ticket: selectedId ? data : null,
+    isLoading,
+    isRefreshing: isValidating && Boolean(data),
+    error: error ? "Gagal memuat detail tiket." : null,
+    selectedId,
+    refetch,
+  };
 }

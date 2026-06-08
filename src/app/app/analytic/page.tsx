@@ -57,7 +57,6 @@ const RANGE_OPTIONS = [
 const STATUS_LABELS: Record<string, string> = {
   open: "Open",
   in_progress: "In Progress",
-  waiting: "Waiting",
   resolved: "Resolved",
   closed: "Closed",
 }
@@ -95,7 +94,6 @@ const ROOT_CAUSE_LABELS: Record<string, string> = {
 const STATUS_COLORS: Record<string, string> = {
   open: "#3b82f6",
   in_progress: "#f59e0b",
-  waiting: "#8b5cf6",
   resolved: "#22c55e",
   closed: "#6b7280",
 }

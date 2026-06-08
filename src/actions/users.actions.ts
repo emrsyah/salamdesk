@@ -3,12 +3,10 @@
 import { db } from "@/db";
 import { users } from "@/db/schema/users";
 import { userModules } from "@/db/schema/modules";
-import { account } from "../../auth-schema";
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 import { auth } from "@/lib/auth/auth";
-import crypto from "node:crypto";
 
 type UserRole = "owner" | "admin" | "supervisor" | "operator" | "engineer";
 
@@ -17,16 +15,6 @@ async function requireAdmin() {
   const role = (session?.user as { role?: string } | null)?.role;
   if (!session?.user || !["owner", "admin"].includes(role ?? "")) throw new Error("Unauthorized");
   return session;
-}
-
-async function hashPassword(password: string): Promise<string> {
-  const salt = crypto.randomBytes(16).toString("hex");
-  return new Promise((resolve, reject) => {
-    crypto.scrypt(password, salt, 64, (err, derivedKey) => {
-      if (err) reject(err);
-      else resolve(`scrypt:${salt}:${derivedKey.toString("hex")}`);
-    });
-  });
 }
 
 export async function createUserAction(formData: FormData) {
@@ -49,24 +37,23 @@ export async function createUserAction(formData: FormData) {
     .limit(1);
   if (existing.length > 0) return { error: "Email sudah terdaftar." };
 
-  const userId = crypto.randomUUID();
-  const hashedPassword = await hashPassword(password);
+  // Create the user + credential through Better Auth so the password is hashed
+  // with the same scheme the login flow verifies against.
+  let userId: string;
+  try {
+    const created = await auth.api.signUpEmail({
+      body: { name, email, password, role, vendor: "", isActive: true },
+    });
+    userId = created.user.id;
+  } catch {
+    return { error: "Gagal membuat user." };
+  }
 
-  await db.insert(users).values({
-    id: userId,
-    name,
-    email,
-    emailVerified: true,
-    role: role as UserRole,
-  });
-
-  await db.insert(account).values({
-    id: crypto.randomUUID(),
-    accountId: email,
-    providerId: "credential",
-    userId,
-    password: hashedPassword,
-  });
+  // signUpEmail won't mark the email verified.
+  await db
+    .update(users)
+    .set({ emailVerified: true })
+    .where(eq(users.id, userId));
 
   if (moduleIds.length > 0) {
     await db.insert(userModules).values(moduleIds.map((moduleId) => ({ userId, moduleId })));

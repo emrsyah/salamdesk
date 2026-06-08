@@ -8,14 +8,18 @@ import { RiBookReadLine, RiDeleteBinLine, RiEditLine, RiFilterLine, RiSearchLine
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 type KbArticle = {
   id: string;
   title: string;
   content: string;
+  sourceType: string;
+  ingestionStatus: string;
+  isActive: boolean;
   moduleId: string | null;
   tags: string[] | null;
   updatedAt: Date;
@@ -32,12 +36,33 @@ interface KbListClientProps {
   modules: Module[];
 }
 
+const sourceTypeLabel: Record<string, string> = {
+  manual: "Teks manual",
+  pdf: "PDF",
+  docx: "DOCX",
+  txt: "TXT",
+  markdown: "Markdown",
+  note: "Catatan",
+};
+
+const ingestionStatusLabel: Record<string, string> = {
+  ready: "Siap",
+  pending: "Menunggu",
+  processing: "Diproses",
+  failed: "Gagal",
+};
+
 export function KbListClient({ articles, modules }: KbListClientProps) {
   const router = useRouter();
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedModuleId, setSelectedModuleId] = useState<string>("all");
   const [deletingArticle, setDeletingArticle] = useState<KbArticle | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [activeOverrides, setActiveOverrides] = useState<Record<string, boolean>>({});
+  const [updatingActiveIds, setUpdatingActiveIds] = useState<Set<string>>(new Set());
+
+  const getArticleActiveState = (article: KbArticle) =>
+    activeOverrides[article.id] ?? article.isActive;
 
   const filteredArticles = articles.filter((article) => {
     const matchesSearch = searchQuery === "" || 
@@ -70,6 +95,35 @@ export function KbListClient({ articles, modules }: KbListClientProps) {
     }
   };
 
+  const handleActiveChange = async (article: KbArticle, isActive: boolean) => {
+    const previousActive = getArticleActiveState(article);
+
+    setActiveOverrides((current) => ({
+      ...current,
+      [article.id]: isActive,
+    }));
+    setUpdatingActiveIds((current) => new Set(current).add(article.id));
+
+    try {
+      const { setKbArticleActiveAction } = await import("@/actions/knowledge.actions");
+      await setKbArticleActiveAction(article.id, isActive);
+      toast.success(isActive ? "KB diaktifkan" : "KB dinonaktifkan");
+      router.refresh();
+    } catch {
+      setActiveOverrides((current) => ({
+        ...current,
+        [article.id]: previousActive,
+      }));
+      toast.error("Gagal memperbarui status KB");
+    } finally {
+      setUpdatingActiveIds((current) => {
+        const next = new Set(current);
+        next.delete(article.id);
+        return next;
+      });
+    }
+  };
+
   const handleDialogClose = () => {
     setDeletingArticle(null);
   };
@@ -87,7 +141,7 @@ export function KbListClient({ articles, modules }: KbListClientProps) {
               Buat artikel pertama Anda agar AI dapat mulai memberikan saran otomatis.
             </p>
             <Button variant="outline" asChild>
-              <Link href="/app/knowledge/new">Buat Artikel</Link>
+              <Link href="/app/knowledge/new">Buat Dokumen</Link>
             </Button>
           </CardContent>
         </Card>
@@ -135,50 +189,85 @@ export function KbListClient({ articles, modules }: KbListClientProps) {
           </CardContent>
         </Card>
       ) : (
-        <div className="grid gap-6">
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {filteredArticles.map((kb) => (
-            <Card key={kb.id} className="hover:shadow-md transition-shadow">
-              <CardHeader className="pb-3 flex flex-row items-start justify-between space-y-0">
-                <div className="space-y-1">
-                  <CardTitle className="text-xl flex items-center gap-2">
+            <Card
+              key={kb.id}
+              className="transition-shadow hover:shadow-md data-[inactive=true]:bg-muted/20"
+              data-inactive={!getArticleActiveState(kb)}
+              size="sm"
+            >
+              <CardHeader className="pb-0">
+                <div className="space-y-2">
+                  <CardTitle className="line-clamp-2 text-base leading-snug">
                     <Link href={`/app/knowledge/${kb.id}`} className="hover:underline">
                       {kb.title}
                     </Link>
+                  </CardTitle>
+                  <div className="flex min-h-5 flex-wrap gap-1">
+                    <Badge variant="secondary" className="text-[10px] font-normal">
+                      {sourceTypeLabel[kb.sourceType] ?? kb.sourceType}
+                    </Badge>
+                    <Badge
+                      variant={kb.ingestionStatus === "ready" ? "outline" : "secondary"}
+                      className="text-[10px] font-normal"
+                    >
+                      {ingestionStatusLabel[kb.ingestionStatus] ?? kb.ingestionStatus}
+                    </Badge>
+                    <Badge
+                      variant={getArticleActiveState(kb) ? "outline" : "secondary"}
+                      className="text-[10px] font-normal"
+                    >
+                      {getArticleActiveState(kb) ? "Aktif" : "Nonaktif"}
+                    </Badge>
                     {kb.moduleId && (
                       <Badge variant="outline" className="text-[10px] font-normal">
                         {modules.find((m) => m.id === kb.moduleId)?.name}
                       </Badge>
                     )}
-                  </CardTitle>
-                  <CardDescription className="line-clamp-2 text-sm">
-                    {kb.content}
-                  </CardDescription>
-                  {kb.tags && kb.tags.length > 0 && (
-                    <div className="flex gap-1 mt-2">
-                      {kb.tags.map(tag => (
-                        <Badge key={tag} variant="secondary" className="text-[10px] font-normal px-1.5 py-0">
-                          {tag}
-                        </Badge>
-                      ))}
-                    </div>
-                  )}
+                    {kb.tags?.slice(0, 3).map(tag => (
+                      <Badge key={tag} variant="secondary" className="text-[10px] font-normal px-1.5 py-0">
+                        {tag}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="flex-1">
+                <CardDescription className="line-clamp-4 text-sm">
+                  {kb.content}
+                </CardDescription>
+              </CardContent>
+              <CardFooter className="mt-auto justify-between border-t pt-3">
+                <div className="flex items-center gap-2">
+                  <Switch
+                    size="sm"
+                    checked={getArticleActiveState(kb)}
+                    disabled={updatingActiveIds.has(kb.id)}
+                    onCheckedChange={(checked) => handleActiveChange(kb, checked)}
+                    aria-label={`${getArticleActiveState(kb) ? "Nonaktifkan" : "Aktifkan"} ${kb.title}`}
+                  />
+                  <Button variant="ghost" size="sm" className="h-8 px-2" asChild>
+                    <Link href={`/app/knowledge/${kb.id}`}>Buka</Link>
+                  </Button>
                 </div>
                 <div className="flex items-center gap-1">
                   <Button variant="ghost" size="icon" className="size-8" asChild>
-                    <Link href={`/app/knowledge/${kb.id}/edit`}>
+                    <Link href={`/app/knowledge/${kb.id}/edit`} aria-label={`Edit ${kb.title}`}>
                       <RiEditLine className="size-4" />
                     </Link>
                   </Button>
-                  <Button 
-                    variant="ghost" 
-                    size="icon" 
-                    className="size-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="size-8 text-destructive hover:bg-destructive/10 hover:text-destructive"
                     onClick={() => handleDeleteClick(kb)}
+                    aria-label={`Hapus ${kb.title}`}
                   >
                     <RiDeleteBinLine className="size-4" />
                   </Button>
                 </div>
-              </CardHeader>
+              </CardFooter>
             </Card>
           ))}
         </div>
@@ -189,7 +278,7 @@ export function KbListClient({ articles, modules }: KbListClientProps) {
           <DialogHeader>
             <DialogTitle>Hapus Artikel?</DialogTitle>
             <DialogDescription>
-              Artikel "{deletingArticle?.title}" akan dihapus secara permanen. Tindakan ini tidak dapat dibatalkan.
+              Artikel &quot;{deletingArticle?.title}&quot; akan dihapus secara permanen. Tindakan ini tidak dapat dibatalkan.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>

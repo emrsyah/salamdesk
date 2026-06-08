@@ -1,10 +1,26 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useTickets } from "@/hooks/use-tickets";
 import { useTicketDetail } from "@/hooks/use-ticket-detail";
 import { TicketList } from "@/components/tickets/ticket-list";
-import { TicketDetail } from "@/components/tickets/ticket-detail";
+import {
+  TicketDetail,
+  type TicketDetailData,
+} from "@/components/tickets/ticket-detail";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useEffect, useState } from "react";
+import { loadStoredTicketConfiguration } from "@/lib/tickets/ticket-configuration-storage";
+import type { TicketConfiguration } from "@/lib/tickets/ticket-configuration";
+import type { TicketListEntry } from "@/components/tickets/ticket-list-item";
+
+const TicketConfigurationSheet = dynamic(
+  () =>
+    import("@/components/tickets/ticket-configuration-sheet").then(
+      (mod) => mod.TicketConfigurationSheet,
+    ),
+  { ssr: false },
+);
 
 type Module = { id: string; name: string; color: string | null; slug: string };
 type QuickReply = { id: string; label: string; content: string };
@@ -14,6 +30,9 @@ interface TicketInboxProps {
   modules: Module[];
   quickReplies: QuickReply[];
   assignableStaff: AssignableStaff[];
+  initialTickets: TicketListEntry[];
+  initialTicket: TicketDetailData | null;
+  defaultConfiguration: TicketConfiguration;
 }
 
 function TicketListSkeleton() {
@@ -77,9 +96,33 @@ function TicketDetailSkeleton() {
   );
 }
 
-export function TicketInbox({ modules, quickReplies, assignableStaff }: TicketInboxProps) {
-  const { tickets, isLoading: ticketsLoading, refetch: refetchTickets } = useTickets();
-  const { ticket, isLoading: detailLoading, selectedId, refetch: refetchDetail } = useTicketDetail();
+export function TicketInbox({
+  modules,
+  quickReplies,
+  assignableStaff,
+  initialTickets,
+  initialTicket,
+  defaultConfiguration,
+}: TicketInboxProps) {
+  const { tickets, isLoading: ticketsLoading, refetch: refetchTickets } =
+    useTickets(initialTickets);
+  const {
+    ticket,
+    isLoading: detailLoading,
+    selectedId,
+    refetch: refetchDetail,
+  } = useTicketDetail(initialTicket);
+  const [configuration, setConfiguration] = useState<TicketConfiguration>(defaultConfiguration);
+  const [configurationHydrated, setConfigurationHydrated] = useState(false);
+
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => {
+      setConfiguration(loadStoredTicketConfiguration(modules));
+      setConfigurationHydrated(true);
+    }, 0);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [modules]);
 
   // Called after any mutation (create, status change, assign) to refresh both lists
   const handleMutated = () => {
@@ -88,11 +131,23 @@ export function TicketInbox({ modules, quickReplies, assignableStaff }: TicketIn
   };
 
   return (
-    <div className="flex h-full w-full bg-background overflow-hidden">
+    <div className="flex min-h-0 h-full w-full bg-background overflow-hidden">
       {ticketsLoading ? (
         <TicketListSkeleton />
       ) : (
-        <TicketList tickets={tickets as any} modules={modules} onTicketCreated={refetchTickets} />
+        <TicketList
+          tickets={tickets}
+          modules={modules}
+          configuration={configuration}
+          configurationControl={configurationHydrated ? (
+            <TicketConfigurationSheet
+              modules={modules}
+              value={configuration}
+              onChange={setConfiguration}
+            />
+          ) : null}
+          onTicketCreated={refetchTickets}
+        />
       )}
 
       {selectedId ? (
@@ -100,17 +155,21 @@ export function TicketInbox({ modules, quickReplies, assignableStaff }: TicketIn
           <TicketDetailSkeleton />
         ) : (
           <TicketDetail
-            ticket={ticket as any}
-            quickReplies={quickReplies as any}
-            assignableStaff={assignableStaff as any}
+            ticket={ticket}
+            quickReplies={quickReplies}
+            assignableStaff={assignableStaff}
+            modules={modules}
+            configuration={configuration}
             onMutated={handleMutated}
           />
         )
       ) : (
         <TicketDetail
           ticket={null}
-          quickReplies={quickReplies as any}
-          assignableStaff={assignableStaff as any}
+          quickReplies={quickReplies}
+          assignableStaff={assignableStaff}
+          modules={modules}
+          configuration={configuration}
         />
       )}
     </div>

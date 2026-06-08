@@ -1,10 +1,12 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useMemo } from "react";
 import { TicketDetailData } from "./ticket-detail";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { RiMessage3Line, RiLockLine } from "@remixicon/react";
-import { formatTime } from "@/lib/utils";
+import { RiDownloadLine, RiFile3Line, RiMessage3Line } from "@remixicon/react";
+import { cn, formatTime } from "@/lib/utils";
+import { AttachmentImage } from "./attachment-image";
+
+type MessageAttachment = NonNullable<TicketDetailData["messages"][0]["attachments"]>[0];
 
 
 interface TicketMessageThreadProps {
@@ -15,96 +17,221 @@ interface TicketMessageThreadProps {
 
 export function TicketMessageThread({ messages }: TicketMessageThreadProps) {
   const publicMessages = useMemo(() => messages.filter((m) => !m.isInternalNote), [messages]);
-  const internalNotes = useMemo(() => messages.filter((m) => m.isInternalNote), [messages]);
 
   return (
-    <div className="flex-1 p-6 overflow-y-auto">
-      <div className="max-w-4xl mx-auto">
-        <Tabs defaultValue="thread" className="w-full">
-          <TabsList className="mb-6 bg-muted/50 p-1">
-            <TabsTrigger value="thread" className="gap-2 px-4">
-              <RiMessage3Line className="size-4" />
-              Percakapan ({publicMessages.length})
-            </TabsTrigger>
-            <TabsTrigger value="internal" className="gap-2 px-4">
-              <RiLockLine className="size-4" />
-              Catatan Internal ({internalNotes.length})
-            </TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="thread" className="space-y-4 outline-none">
-            {publicMessages.length === 0 ? (
-              <div className="text-center text-sm text-muted-foreground py-12 border-2 border-dashed rounded-xl">
-                Belum ada pesan publik.
-              </div>
-            ) : (
-              publicMessages.map((msg) => (
-                <MessageCard key={msg.id} msg={msg} />
-              ))
-            )}
-          </TabsContent>
-
-          <TabsContent value="internal" className="space-y-4 outline-none">
-            {internalNotes.length === 0 ? (
-              <div className="text-center text-sm text-muted-foreground py-12 border-2 border-dashed rounded-xl">
-                Belum ada catatan internal.
-              </div>
-            ) : (
-              internalNotes.map((msg) => (
-                <MessageCard key={msg.id} msg={msg} />
-              ))
-            )}
-          </TabsContent>
-        </Tabs>
+    <div className="min-h-0 flex-1 overflow-y-auto bg-muted/15 px-4 py-3 sm:px-6">
+      <div className="mx-auto max-w-5xl">
+        {publicMessages.length === 0 ? (
+          <EmptyThread
+            icon={<RiMessage3Line className="size-5" />}
+            title="Belum ada percakapan"
+            description="Balasan publik akan muncul di sini dalam urutan waktu."
+          />
+        ) : (
+          <div className="space-y-4 pb-2">
+            {publicMessages.map((msg) => (
+              <MessageBubble key={msg.id} msg={msg} />
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
 }
 
-function MessageCard({ msg }: { msg: TicketDetailData["messages"][0] }) {
+function EmptyThread({
+  icon,
+  title,
+  description,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  description: string;
+}) {
+  return (
+    <div className="rounded-lg border border-dashed bg-background/70 px-6 py-12 text-center shadow-sm">
+      <div className="mx-auto mb-3 flex size-11 items-center justify-center rounded-full bg-muted text-muted-foreground">
+        {icon}
+      </div>
+      <p className="text-sm font-semibold text-foreground">{title}</p>
+      <p className="mx-auto mt-1 max-w-sm text-xs leading-5 text-muted-foreground">{description}</p>
+    </div>
+  );
+}
+
+function MessageBubble({ msg }: { msg: TicketDetailData["messages"][0] }) {
   const isAi = msg.senderType === "ai_agent";
   const isSystem = msg.senderType === "system";
   const isRequester = msg.senderType === "requester";
+  const isStaff = msg.senderType === "staff";
+  const isOutgoing = isStaff || isAi;
+  const senderName = getSenderName(msg);
+  const avatarLabel = getAvatarLabel(senderName, msg.senderType);
+
+  if (isSystem) {
+    return (
+      <div className="flex justify-center">
+        <div className="max-w-[78%] rounded-full border bg-background/80 px-3 py-1.5 text-center text-xs text-muted-foreground shadow-sm">
+          <span className="font-medium text-foreground/70">Sistem</span>
+          <span className="px-1.5">-</span>
+          <span>{msg.content}</span>
+          <span className="pl-2 text-[10px] uppercase tracking-wide">{formatTime(msg.createdAt)}</span>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div
-      className={`rounded-xl border p-4 shadow-sm transition-all hover:shadow-md ${
-        msg.isInternalNote
-          ? "bg-yellow-50/40 border-yellow-200 dark:bg-yellow-950/20 dark:border-yellow-900"
-          : isAi
-            ? "bg-purple-50/40 border-purple-200 dark:bg-purple-950/20"
-            : "bg-card"
-      }`}
-    >
-      <div className="flex items-center justify-between mb-2">
-        <div className="flex items-center gap-2">
-          <span className="text-sm font-semibold">
-            {isAi
-              ? "AI Agent"
-              : isSystem
-                ? "Sistem"
-                : isRequester
-                  ? (msg.requester?.displayName ?? "Pelapor")
-                  : (msg.sender?.name ?? "Staf")}
-          </span>
-          {isAi && (
-            <span className="text-[10px] bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">
-              Bot
-            </span>
+    <div className={cn("flex gap-3", isOutgoing && !msg.isInternalNote ? "justify-end" : "justify-start")}>
+      {!isOutgoing || msg.isInternalNote ? (
+        <MessageAvatar label={avatarLabel} tone={msg.isInternalNote ? "internal" : "requester"} />
+      ) : null}
+
+      <div className={cn("min-w-0 max-w-[82%] sm:max-w-[72%]", isOutgoing && !msg.isInternalNote && "items-end")}>
+        <div
+          className={cn(
+            "mb-1 flex items-center gap-2 text-xs text-muted-foreground",
+            isOutgoing && !msg.isInternalNote && "justify-end",
           )}
-          {msg.isInternalNote && (
-            <span className="text-[10px] bg-yellow-100 text-yellow-700 px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">
-              Internal
-            </span>
+        >
+          <span className="font-medium text-foreground/75">{senderName}</span>
+          <span>{formatTime(msg.createdAt)}</span>
+          {isAi ? <MessageTag tone="ai">AI</MessageTag> : null}
+          {msg.isInternalNote ? <MessageTag tone="internal">Internal</MessageTag> : null}
+        </div>
+
+        <div
+          className={cn(
+            "whitespace-pre-wrap rounded-2xl border px-4 py-3 text-sm leading-6 shadow-sm",
+            isRequester &&
+              "rounded-tl-md border-border bg-background text-foreground",
+            isStaff &&
+              !msg.isInternalNote &&
+              "rounded-tr-md border-primary/30 bg-primary text-primary-foreground shadow-primary/10",
+            isAi &&
+              "rounded-tr-md border-violet-200 bg-violet-50 text-violet-950 dark:border-violet-900/70 dark:bg-violet-950/30 dark:text-violet-100",
+            msg.isInternalNote &&
+              "rounded-tl-md border-yellow-200 bg-yellow-50 text-yellow-950 dark:border-yellow-900/70 dark:bg-yellow-950/25 dark:text-yellow-100",
+          )}
+        >
+          {msg.content.trim() && msg.content}
+          {msg.attachments && msg.attachments.length > 0 && (
+            <div className={cn("flex flex-col gap-2", msg.content.trim() && "mt-2")}>
+              {msg.attachments.map((attachment) => (
+                <AttachmentItem key={attachment.id} attachment={attachment} isOutgoing={isOutgoing && !msg.isInternalNote} />
+              ))}
+            </div>
           )}
         </div>
-        <span className="text-xs text-muted-foreground font-medium">
-          {formatTime(msg.createdAt)}
-        </span>
       </div>
-      <p className="text-sm whitespace-pre-wrap leading-relaxed text-foreground/90">
-        {msg.content}
-      </p>
+
+      {isOutgoing && !msg.isInternalNote ? (
+        <MessageAvatar label={avatarLabel} tone={isAi ? "ai" : "staff"} />
+      ) : null}
     </div>
   );
+}
+
+function AttachmentItem({
+  attachment,
+  isOutgoing,
+}: {
+  attachment: MessageAttachment;
+  isOutgoing: boolean;
+}) {
+  const isImage = attachment.mimeType.startsWith("image/");
+
+  if (isImage) {
+    return (
+      <AttachmentImage
+        src={attachment.fileUrl}
+        alt={attachment.fileName}
+        className="max-h-64 w-auto max-w-full border border-black/10"
+      />
+    );
+  }
+
+  return (
+    <a
+      href={attachment.fileUrl}
+      target="_blank"
+      rel="noopener noreferrer"
+      className={cn(
+        "flex items-center gap-2 rounded-lg border px-3 py-2 text-xs transition-colors",
+        isOutgoing
+          ? "border-white/20 bg-white/10 hover:bg-white/20"
+          : "border-border bg-muted/40 hover:bg-muted",
+      )}
+    >
+      <RiFile3Line className="size-4 shrink-0" />
+      <span className="min-w-0 flex-1 truncate font-medium">{attachment.fileName}</span>
+      {attachment.fileSize ? (
+        <span className="shrink-0 opacity-70">{formatFileSize(attachment.fileSize)}</span>
+      ) : null}
+      <RiDownloadLine className="size-3.5 shrink-0 opacity-70" />
+    </a>
+  );
+}
+
+function formatFileSize(bytes: number) {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function MessageAvatar({
+  label,
+  tone,
+}: {
+  label: string;
+  tone: "requester" | "staff" | "ai" | "internal";
+}) {
+  return (
+    <div
+      className={cn(
+        "mt-5 flex size-8 shrink-0 items-center justify-center rounded-full border text-xs font-semibold shadow-sm",
+        tone === "requester" && "border-border bg-background text-foreground",
+        tone === "staff" && "border-primary/30 bg-primary text-primary-foreground",
+        tone === "ai" && "border-violet-200 bg-violet-100 text-violet-700 dark:border-violet-900 dark:bg-violet-950 dark:text-violet-200",
+        tone === "internal" && "border-yellow-200 bg-yellow-100 text-yellow-800 dark:border-yellow-900 dark:bg-yellow-950 dark:text-yellow-200",
+      )}
+      aria-hidden="true"
+    >
+      {label}
+    </div>
+  );
+}
+
+function MessageTag({ children, tone }: { children: React.ReactNode; tone: "ai" | "internal" }) {
+  return (
+    <span
+      className={cn(
+        "rounded-full px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide",
+        tone === "ai" && "bg-violet-100 text-violet-700 dark:bg-violet-950 dark:text-violet-200",
+        tone === "internal" && "bg-yellow-100 text-yellow-800 dark:bg-yellow-950 dark:text-yellow-200",
+      )}
+    >
+      {children}
+    </span>
+  );
+}
+
+function getSenderName(msg: TicketDetailData["messages"][0]) {
+  if (msg.senderType === "ai_agent") return "AI Agent";
+  if (msg.senderType === "requester") return msg.requester?.displayName ?? "Pelapor";
+  if (msg.senderType === "staff") return msg.sender?.name ?? "Staf";
+  return "Sistem";
+}
+
+function getAvatarLabel(name: string, senderType: TicketDetailData["messages"][0]["senderType"]) {
+  if (senderType === "ai_agent") return "AI";
+
+  const initials = name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join("");
+
+  return initials || "?";
 }

@@ -1,6 +1,7 @@
 "use server";
 
-import { escalateTicket } from "@/services/ticket.service";
+import { buildStaffLifecycleActor } from "@/actions/lifecycle-actor";
+import { escalateTicketCommand } from "@/services/ticket-lifecycle.service";
 import { auth } from "@/lib/auth/auth";
 import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
@@ -18,9 +19,12 @@ export async function escalateTicketAction(data: {
     throw new Error("Unauthorized");
   }
 
-  await escalateTicket(data.ticketId, {
-    fromId: session.user.id,
-    toId: data.engineerId,
+  const actor = await buildStaffLifecycleActor(session.user);
+
+  await escalateTicketCommand({
+    ticketId: data.ticketId,
+    actor,
+    engineerId: data.engineerId,
     reason: data.reason,
   });
 

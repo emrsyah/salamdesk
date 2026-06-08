@@ -1,8 +1,44 @@
 import { db } from "@/db";
-import { knowledgeBase } from "@/db/schema/knowledge-base";
-import { eq, or, ilike, and } from "drizzle-orm";
+import { knowledgeBase, knowledgeChunks } from "@/db/schema/knowledge-base";
+import { and, asc, count, desc, eq, ilike, isNotNull, isNull, or, sql } from "drizzle-orm";
+import { chunkKnowledgeContent, type KnowledgeChunk } from "./knowledge-chunking.service";
+import { embedKnowledgeQuery, formatPgVector } from "./knowledge-embedding.service";
 
 export type KbArticle = typeof knowledgeBase.$inferSelect;
+
+async function replaceKnowledgeChunks(
+  documentId: string,
+  chunks: KnowledgeChunk[] | string,
+  embeddings?: number[][],
+  tx: Pick<typeof db, "delete" | "insert"> = db
+) {
+  const preparedChunks = typeof chunks === "string" ? chunkKnowledgeContent(chunks) : chunks;
+
+  await tx
+    .delete(knowledgeChunks)
+    .where(eq(knowledgeChunks.documentId, documentId))
+    .execute();
+
+  if (preparedChunks.length === 0) {
+    return;
+  }
+
+  await tx
+    .insert(knowledgeChunks)
+    .values(
+      preparedChunks.map((chunk, index) => ({
+        documentId,
+        content: chunk.content,
+        chunkIndex: chunk.chunkIndex,
+        tokenCount: chunk.tokenCount,
+        pageNumber: chunk.pageNumber,
+        heading: chunk.heading,
+        metadata: chunk.metadata,
+        embedding: embeddings?.[index],
+      }))
+    )
+    .execute();
+}
 
 /**
  * Search knowledge base articles by keyword.
@@ -18,10 +54,59 @@ export async function searchKnowledgeBase(
   const limit = options?.limit ?? 5;
   const pattern = `%${query}%`;
 
+  if (process.env.VOYAGE_API_KEY) {
+    try {
+      const queryEmbedding = await embedKnowledgeQuery(query);
+      const distance = sql<number>`${knowledgeChunks.embedding} <=> ${formatPgVector(queryEmbedding)}::vector`;
+      const vectorConditions = [
+        isNotNull(knowledgeChunks.embedding),
+        eq(knowledgeBase.ingestionStatus, "ready"),
+        eq(knowledgeBase.isActive, true),
+      ];
+
+      if (options?.moduleId) {
+        vectorConditions.push(eq(knowledgeBase.moduleId, options.moduleId));
+      }
+
+      const vectorRows = await db
+        .select({
+          document: knowledgeBase,
+          distance,
+        })
+        .from(knowledgeChunks)
+        .innerJoin(knowledgeBase, eq(knowledgeBase.id, knowledgeChunks.documentId))
+        .where(and(...vectorConditions))
+        .orderBy(asc(distance))
+        .limit(limit * 3)
+        .execute();
+
+      const seen = new Set<string>();
+      const documents: KbArticle[] = [];
+
+      for (const row of vectorRows) {
+        if (seen.has(row.document.id)) {
+          continue;
+        }
+
+        seen.add(row.document.id);
+        documents.push(row.document);
+
+        if (documents.length >= limit) {
+          return documents;
+        }
+      }
+    } catch (error) {
+      console.warn("[KB] Vector search failed, falling back to keyword search:", error);
+    }
+  }
+
   const conditions = [
+    eq(knowledgeBase.ingestionStatus, "ready"),
+    eq(knowledgeBase.isActive, true),
     or(
       ilike(knowledgeBase.title, pattern),
-      ilike(knowledgeBase.content, pattern)
+      ilike(knowledgeBase.content, pattern),
+      ilike(knowledgeChunks.content, pattern)
     ),
   ];
 
@@ -29,12 +114,29 @@ export async function searchKnowledgeBase(
     conditions.push(eq(knowledgeBase.moduleId, options.moduleId));
   }
 
-  return db
-    .select()
+  const rows = await db
+    .select({
+      document: knowledgeBase,
+    })
     .from(knowledgeBase)
+    .leftJoin(knowledgeChunks, eq(knowledgeChunks.documentId, knowledgeBase.id))
     .where(and(...conditions))
     .limit(limit)
     .execute();
+
+  const seen = new Set<string>();
+  const documents: KbArticle[] = [];
+
+  for (const row of rows) {
+    if (seen.has(row.document.id)) {
+      continue;
+    }
+
+    seen.add(row.document.id);
+    documents.push(row.document);
+  }
+
+  return documents;
 }
 
 /**
@@ -51,6 +153,16 @@ export async function getKbArticleById(
     .execute();
 
   return result[0] ?? null;
+}
+
+export async function getKbArticleChunkCount(id: string): Promise<number> {
+  const result = await db
+    .select({ value: count() })
+    .from(knowledgeChunks)
+    .where(eq(knowledgeChunks.documentId, id))
+    .execute();
+
+  return result[0]?.value ?? 0;
 }
 
 /**
@@ -82,16 +194,104 @@ export async function createKbArticle(data: {
   tags?: string[];
   createdById?: string | null;
 }): Promise<void> {
+  await db.transaction(async (tx) => {
+    await tx
+      .insert(knowledgeBase)
+      .values({
+        id: data.id,
+        title: data.title,
+        content: data.content,
+        sourceType: "manual",
+        ingestionStatus: "ready",
+        moduleId: data.moduleId ?? null,
+        tags: data.tags ?? [],
+        createdById: data.createdById ?? null,
+      })
+      .execute();
+
+    await replaceKnowledgeChunks(data.id, data.content, undefined, tx);
+  });
+}
+
+export async function createUploadedKnowledgeDocument(data: {
+  id: string;
+  title: string;
+  moduleId?: string | null;
+  tags?: string[];
+  createdById?: string | null;
+  originalFileName: string;
+  mimeType: string;
+  fileSize: number;
+  storageKey: string;
+  fileUrl: string;
+  checksum?: string | null;
+}) {
   await db
     .insert(knowledgeBase)
     .values({
       id: data.id,
       title: data.title,
-      content: data.content,
+      content: "",
+      sourceType: "upload",
+      ingestionStatus: "pending",
       moduleId: data.moduleId ?? null,
       tags: data.tags ?? [],
       createdById: data.createdById ?? null,
+      originalFileName: data.originalFileName,
+      mimeType: data.mimeType,
+      fileSize: data.fileSize,
+      storageKey: data.storageKey,
+      fileUrl: data.fileUrl,
+      checksum: data.checksum ?? null,
     })
+    .execute();
+}
+
+export async function markKnowledgeDocumentProcessing(id: string) {
+  await db
+    .update(knowledgeBase)
+    .set({
+      ingestionStatus: "processing",
+      ingestionError: null,
+      updatedAt: new Date(),
+    })
+    .where(eq(knowledgeBase.id, id))
+    .execute();
+}
+
+export async function completeKnowledgeDocumentIngestion(data: {
+  id: string;
+  content: string;
+  chunks: KnowledgeChunk[];
+  embeddings: number[][];
+}) {
+  await db.transaction(async (tx) => {
+    await tx
+      .update(knowledgeBase)
+      .set({
+        content: data.content,
+        ingestionStatus: "ready",
+        ingestionError: null,
+        updatedAt: new Date(),
+      })
+      .where(eq(knowledgeBase.id, data.id))
+      .execute();
+
+    await replaceKnowledgeChunks(data.id, data.chunks, data.embeddings, tx);
+  });
+}
+
+export async function failKnowledgeDocumentIngestion(id: string, error: unknown) {
+  const message = error instanceof Error ? error.message : "Unknown ingestion error";
+
+  await db
+    .update(knowledgeBase)
+    .set({
+      ingestionStatus: "failed",
+      ingestionError: message.slice(0, 2000),
+      updatedAt: new Date(),
+    })
+    .where(eq(knowledgeBase.id, id))
     .execute();
 }
 
@@ -105,12 +305,33 @@ export async function updateKbArticle(
     content: string;
     moduleId: string | null;
     tags: string[];
+    isActive: boolean;
   }>
+): Promise<void> {
+  await db.transaction(async (tx) => {
+    await tx
+      .update(knowledgeBase)
+      .set({
+        ...data,
+        updatedAt: new Date(),
+      })
+      .where(eq(knowledgeBase.id, id))
+      .execute();
+
+    if (data.content !== undefined) {
+      await replaceKnowledgeChunks(id, data.content, undefined, tx);
+    }
+  });
+}
+
+export async function setKbArticleActive(
+  id: string,
+  isActive: boolean
 ): Promise<void> {
   await db
     .update(knowledgeBase)
     .set({
-      ...data,
+      isActive,
       updatedAt: new Date(),
     })
     .where(eq(knowledgeBase.id, id))
@@ -128,7 +349,6 @@ export async function deleteKbArticle(id: string): Promise<void> {
 }
 
 import { tickets } from "@/db/schema/tickets";
-import { isNull, sql, desc } from "drizzle-orm";
 
 /**
  * Get KB Gap Detection report.

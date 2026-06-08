@@ -1,16 +1,15 @@
 "use client";
 
-import { RiInboxLine, RiUserLine, RiCheckLine, RiArrowRightUpLine, RiUserAddLine } from "@remixicon/react";
+import {
+  RiArrowRightUpLine,
+  RiCheckLine,
+  RiInboxLine,
+  RiRouteLine,
+  RiSparklingLine,
+  RiUserLine,
+} from "@remixicon/react";
 import { TicketSLABadge } from "./ticket-sla-badge";
 import { TicketDetailData } from "./ticket-detail";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -23,15 +22,14 @@ import {
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { useState } from "react";
-import { Badge } from "@/components/ui/badge";
 import { Label } from "../ui/label";
 import { formatTime } from "@/lib/utils";
+import type { TicketConfiguration } from "@/lib/tickets/ticket-configuration";
 
 
 const STATUS_LABEL: Record<string, string> = {
   open: "Terbuka",
   in_progress: "Sedang Dikerjakan",
-  waiting: "Menunggu",
   resolved: "Selesai",
   closed: "Ditutup",
 };
@@ -39,7 +37,6 @@ const STATUS_LABEL: Record<string, string> = {
 const STATUS_STYLE: Record<string, string> = {
   open: "bg-blue-50 text-blue-700 border-blue-200/50",
   in_progress: "bg-purple-50 text-purple-700 border-purple-200/50",
-  waiting: "bg-orange-50 text-orange-700 border-orange-200/50",
   resolved: "bg-green-50 text-green-700 border-green-200/50",
   closed: "bg-gray-50 text-gray-600 border-gray-200/50",
 };
@@ -64,17 +61,36 @@ const SOURCE_LABEL: Record<string, string> = {
   api: "API",
 };
 
-
 interface TicketDetailHeaderProps {
   ticket: TicketDetailData;
+  modules?: { id: string; name: string; color: string | null; slug?: string }[];
+  configuration?: TicketConfiguration;
   assignableStaff?: { id: string; name: string; email: string; role: string }[];
+  isRequesterPanelOpen?: boolean;
+  onToggleRequesterPanel?: () => void;
+  isCopilotOpen?: boolean;
+  onToggleCopilot?: () => void;
   onMutated?: () => void;
 }
 
-export function TicketDetailHeader({ ticket, assignableStaff = [], onMutated }: TicketDetailHeaderProps) {
+export function TicketDetailHeader({
+  ticket,
+  modules = [],
+  configuration,
+  assignableStaff = [],
+  isRequesterPanelOpen = false,
+  onToggleRequesterPanel,
+  isCopilotOpen = false,
+  onToggleCopilot,
+  onMutated,
+}: TicketDetailHeaderProps) {
   const [isResolveOpen, setIsResolveOpen] = useState(false);
   const [isEscalateOpen, setIsEscalateOpen] = useState(false);
+  const [isConfigureOpen, setIsConfigureOpen] = useState(false);
   const [selectedEngineerId, setSelectedEngineerId] = useState<string | null>(null);
+  const [selectedModuleId, setSelectedModuleId] = useState<string | null>(ticket.module?.id ?? null);
+  const [selectedAssigneeId, setSelectedAssigneeId] = useState<string | null>(ticket.assignee?.id ?? null);
+  const [selectedPriority, setSelectedPriority] = useState<TicketDetailData["priority"]>(ticket.priority);
   const [resolutionNote, setResolutionNote] = useState("");
   const [escalationReason, setEscalationReason] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -83,12 +99,43 @@ export function TicketDetailHeader({ ticket, assignableStaff = [], onMutated }: 
   const [selectedKbIds, setSelectedKbIds] = useState<string[]>([]);
 
   const shortId = `#${ticket.id.slice(0, 8).toUpperCase()}`;
+  const isClosed = ticket.status === "closed";
+  const isResolved = ticket.status === "resolved";
+  const canEditActiveMetadata = !isClosed && !isResolved;
+  const requesterName = ticket.requester?.displayName ?? ticket.createdBy?.name ?? "Tanpa pelapor";
+  const requesterDetail =
+    ticket.requester?.department?.name ??
+    ticket.requester?.primaryPhone ??
+    ticket.requester?.primaryEmail ??
+    "Belum ada detail kontak";
+  const hasResponseSla = Boolean(ticket.firstResponseDueAt);
+  const hasResolutionSla = Boolean(ticket.resolutionDueAt ?? ticket.slaDeadlineAt);
+  const enabledModules =
+    configuration?.enabledModuleIds && configuration.enabledModuleIds.length > 0
+      ? modules.filter((module) => configuration.enabledModuleIds.includes(module.id))
+      : modules;
 
-  async function handleAssign(assigneeId: string | null) {
+  function openConfigureDialog() {
+    setSelectedModuleId(ticket.module?.id ?? null);
+    setSelectedAssigneeId(
+      configuration?.moduleChangeClearsAssignee ? null : ticket.assignee?.id ?? null,
+    );
+    setSelectedPriority(ticket.priority);
+    setIsConfigureOpen(true);
+  }
+
+  async function handleSaveConfiguration() {
     setIsLoading(true);
     try {
-      const { assignTicketAction } = await import("@/actions/tickets.actions");
-      await assignTicketAction(ticket.id, assigneeId);
+      const { configureTicketAction } = await import("@/actions/tickets.actions");
+      const result = await configureTicketAction(ticket.id, {
+        moduleId: selectedModuleId,
+        assigneeId: selectedAssigneeId,
+        priority: selectedPriority,
+      });
+      if (result?.error) throw new Error(result.error);
+
+      setIsConfigureOpen(false);
       onMutated?.();
     } catch (error) {
       console.error(error);
@@ -149,106 +196,190 @@ export function TicketDetailHeader({ ticket, assignableStaff = [], onMutated }: 
     }
   }
 
-  return (
-    <div className="sticky top-0 bg-background border-b z-10 p-6 pb-4">
-      <div className="max-w-4xl mx-auto flex justify-between items-start gap-4">
-        <div className="min-w-0">
-          <div className="flex items-center gap-2 text-sm text-muted-foreground mb-2">
-            <span className="font-medium text-foreground/70">{shortId}</span>
-            <span>•</span>
-            <span>{ticket.module?.name ?? "Tidak ada modul"}</span>
-            <span>•</span>
-            <span>{formatTime(ticket.createdAt)}</span>
-          </div>
-          <h2 className="text-2xl font-bold tracking-tight">{ticket.title}</h2>
-          <div className="flex items-center gap-2 pt-3 text-xs flex-wrap">
-            <span
-              className={`flex items-center gap-1.5 rounded-full px-2.5 py-1 font-medium border ${STATUS_STYLE[ticket.status]}`}
-            >
-              <span className="size-1.5 rounded-full bg-current opacity-60 inline-block" />
-              {STATUS_LABEL[ticket.status]}
-            </span>
-            <span className={`font-medium px-2 py-1 rounded border ${PRIORITY_STYLE[ticket.priority]}`}>
-              {PRIORITY_LABEL[ticket.priority]}
-            </span>
-            <span className="flex items-center gap-1.5 text-muted-foreground">
-              <RiInboxLine className="size-3.5" />
-              {SOURCE_LABEL[ticket.source]}
-            </span>
-            {ticket.requester && (
-              <span className="text-muted-foreground flex items-center gap-1.5">
-                <RiUserLine className="size-3.5" />
-                {ticket.requester.displayName}
-                {ticket.requester.department ? ` - ${ticket.requester.department.name}` : ""}
-              </span>
-            )}
-            <TicketSLABadge
-              slaDeadlineAt={ticket.slaDeadlineAt}
-              slaStatus={ticket.slaStatus}
-            />
-          </div>
-        </div>
+  async function handleReopen() {
+    setIsLoading(true);
+    try {
+      const { reopenTicketAction } = await import("@/actions/tickets.actions");
+      await reopenTicketAction(ticket.id);
+      onMutated?.();
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setIsLoading(false);
+    }
+  }
 
-        <div className="flex items-center gap-2 shrink-0">
-          {/* Assignment Dropdown */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="icon" className="size-9">
-                <RiUserAddLine className="size-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-56">
-              <DropdownMenuLabel>Tugaskan Ke</DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => handleAssign(null)}>Lepas Tugas</DropdownMenuItem>
-              <DropdownMenuSeparator />
-              {assignableStaff.length === 0 ? (
-                <div className="p-2 text-xs text-muted-foreground">Tidak ada staf tersedia</div>
-              ) : (
-                assignableStaff.map((staff) => (
-                  <DropdownMenuItem key={staff.id} onClick={() => handleAssign(staff.id)}>
-                    {staff.name}
-                  </DropdownMenuItem>
-                ))
-              )}
-            </DropdownMenuContent>
-          </DropdownMenu>
+  async function handleClose() {
+    setIsLoading(true);
+    try {
+      const { closeTicketAction } = await import("@/actions/tickets.actions");
+      await closeTicketAction(ticket.id);
+      onMutated?.();
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  return (
+    <div className="sticky top-0 z-10 border-b bg-background">
+      <div className="flex w-full flex-col gap-2.5 px-8 py-3">
+        <div className="flex items-start justify-between gap-4">
+          <div className="min-w-0 flex-1 space-y-1.5">
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+              <span className="font-semibold text-foreground/75">{shortId}</span>
+              <span className="text-border">/</span>
+              <span className="flex items-center gap-1.5">
+                <RiInboxLine className="size-3.5" />
+                {SOURCE_LABEL[ticket.source]}
+              </span>
+              <span className="text-border">/</span>
+              <span>{formatTime(ticket.createdAt)}</span>
+            </div>
+            <h2 className="max-w-3xl break-words text-xl font-bold leading-tight tracking-tight">
+              {ticket.title}
+            </h2>
+          </div>
+
+          <div className="flex shrink-0 flex-wrap items-start justify-end gap-2">
+            <Button
+              variant={isCopilotOpen ? "secondary" : "outline"}
+              size="icon"
+              className="size-9"
+              onClick={onToggleCopilot}
+              aria-label="AI Copilot"
+            >
+              <RiSparklingLine className="size-4 text-amber-600 dark:text-amber-400" />
+            </Button>
+
+            <Button
+              variant={isRequesterPanelOpen ? "secondary" : "outline"}
+              size="icon"
+              className="size-9"
+              onClick={onToggleRequesterPanel}
+              aria-label="Profil pelapor"
+            >
+              <RiUserLine className="size-4" />
+            </Button>
+
+          {canEditActiveMetadata && (
+            <Dialog open={isConfigureOpen} onOpenChange={setIsConfigureOpen}>
+              <DialogTrigger asChild>
+                <Button variant="outline" className="gap-1.5" onClick={openConfigureDialog}>
+                  <RiRouteLine className="size-4" />
+                  Rute
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Rute Tiket</DialogTitle>
+                  <DialogDescription>
+                    Tentukan modul, penanggung jawab, dan prioritas operasional tiket ini.
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="py-4 space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="ticket-module" className="text-sm font-medium">Modul</Label>
+                    <select
+                      id="ticket-module"
+                      className="w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                      value={selectedModuleId ?? ""}
+                      onChange={(event) => {
+                        setSelectedModuleId(event.target.value || null);
+                        if (configuration?.moduleChangeClearsAssignee) {
+                          setSelectedAssigneeId(null);
+                        }
+                      }}
+                    >
+                      <option value="">-- Tidak ada modul --</option>
+                      {enabledModules.map((module) => (
+                        <option key={module.id} value={module.id}>{module.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="ticket-assignee" className="text-sm font-medium">Ditangani oleh</Label>
+                    <select
+                      id="ticket-assignee"
+                      className="w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                      value={selectedAssigneeId ?? ""}
+                      onChange={(event) => setSelectedAssigneeId(event.target.value || null)}
+                    >
+                      <option value="">-- Antrian modul --</option>
+                      {assignableStaff.map((staff) => (
+                        <option key={staff.id} value={staff.id}>{staff.name}</option>
+                      ))}
+                    </select>
+                    {configuration?.moduleChangeClearsAssignee && (
+                      <p className="text-xs text-muted-foreground">
+                        Mengubah modul akan mengembalikan tiket ke antrian modul kecuali penanggung jawab baru dipilih.
+                      </p>
+                    )}
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="ticket-priority" className="text-sm font-medium">Prioritas</Label>
+                    <select
+                      id="ticket-priority"
+                      className="w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                      value={selectedPriority}
+                      onChange={(event) => setSelectedPriority(event.target.value as TicketDetailData["priority"])}
+                    >
+                      <option value="low">Rendah</option>
+                      <option value="medium">Sedang</option>
+                      <option value="critical">Kritis</option>
+                    </select>
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setIsConfigureOpen(false)}>Batal</Button>
+                  <Button onClick={handleSaveConfiguration} disabled={isLoading}>
+                    {isLoading ? "Menyimpan..." : "Simpan Rute"}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          )}
 
           {/* Escalation Dialog */}
+          {canEditActiveMetadata && (
           <Dialog open={isEscalateOpen} onOpenChange={setIsEscalateOpen}>
             <DialogTrigger asChild>
-              <Button variant="outline" className="gap-1.5">
+              <Button variant="ghost" className="gap-1.5">
                 <RiArrowRightUpLine className="size-4" />
                 Eskalasi
               </Button>
             </DialogTrigger>
             <DialogContent>
               <DialogHeader>
-                <DialogTitle>Eskalasi Tiket</DialogTitle>
+                <DialogTitle>Eskalasi Bantuan</DialogTitle>
                 <DialogDescription>
-                  Gunakan ini jika tiket membutuhkan bantuan staf teknis khusus.
+                  Minta bantuan tambahan tanpa mengubah rute utama tiket. Gunakan saat kasus perlu perhatian teknis atau keputusan lanjutan.
                 </DialogDescription>
               </DialogHeader>
               <div className="py-4 space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="engineer" className="text-sm font-medium">Pilih Engineer (Opsional)</Label>
+                  <Label htmlFor="engineer" className="text-sm font-medium">Minta bantuan dari (opsional)</Label>
                   <select
                     id="engineer"
                     className="w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
                     value={selectedEngineerId || ""}
                     onChange={(e) => setSelectedEngineerId(e.target.value || null)}
                   >
-                    <option value="">-- Pilih Engineer --</option>
+                    <option value="">-- Tidak menunjuk orang tertentu --</option>
                     {assignableStaff.map((staff) => (
                       <option key={staff.id} value={staff.id}>{staff.name}</option>
                     ))}
                   </select>
+                  <p className="text-xs text-muted-foreground">
+                    Ini bukan pengganti penanggung jawab tiket. Ubah pemilik tiket dari Rute jika ownership perlu dipindahkan.
+                  </p>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="reason" className="text-sm font-medium">Alasan Eskalasi</Label>
+                  <Label htmlFor="reason" className="text-sm font-medium">Alasan eskalasi</Label>
                   <Textarea
                     id="reason"
-                    placeholder="Alasan eskalasi..."
+                    placeholder="Jelaskan bantuan yang dibutuhkan dan konteks yang sudah dicek..."
                     value={escalationReason}
                     onChange={(e) => setEscalationReason(e.target.value)}
                   />
@@ -257,13 +388,15 @@ export function TicketDetailHeader({ ticket, assignableStaff = [], onMutated }: 
               <DialogFooter>
                 <Button variant="outline" onClick={() => setIsEscalateOpen(false)}>Batal</Button>
                 <Button onClick={handleEscalate} disabled={isLoading || !escalationReason}>
-                  {isLoading ? "Memproses..." : "Eskalasi"}
+                  {isLoading ? "Memproses..." : "Kirim Eskalasi"}
                 </Button>
               </DialogFooter>
             </DialogContent>
           </Dialog>
+          )}
 
           {/* Resolve Dialog */}
+          {canEditActiveMetadata && (
           <Dialog open={isResolveOpen} onOpenChange={handleResolveOpenChange}>
             <DialogTrigger asChild>
               <Button variant="default" className="bg-yellow-400 text-yellow-950 hover:bg-yellow-500 gap-1.5 border-0">
@@ -325,6 +458,93 @@ export function TicketDetailHeader({ ticket, assignableStaff = [], onMutated }: 
               </DialogFooter>
             </DialogContent>
           </Dialog>
+          )}
+          {isResolved && (
+            <>
+              <Button variant="outline" onClick={handleReopen} disabled={isLoading}>
+                Buka Ulang
+              </Button>
+              <Button variant="default" onClick={handleClose} disabled={isLoading}>
+                Tutup
+              </Button>
+            </>
+          )}
+          </div>
+        </div>
+
+        <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2 text-sm">
+          <div className="flex min-w-0 items-center gap-2">
+            <span className="text-[11px] font-semibold uppercase text-muted-foreground">
+              Status
+            </span>
+            <span
+              className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium ${STATUS_STYLE[ticket.status]}`}
+            >
+              <span className="inline-block size-1.5 rounded-full bg-current opacity-60" />
+              {STATUS_LABEL[ticket.status]}
+            </span>
+            <span
+              className={`inline-flex rounded border px-2.5 py-1 text-xs font-medium ${PRIORITY_STYLE[ticket.priority]}`}
+            >
+              {PRIORITY_LABEL[ticket.priority]}
+            </span>
+          </div>
+
+          <span className="hidden h-5 w-px bg-border lg:block" />
+
+          <div className="flex min-w-0 items-center gap-1.5">
+            <RiUserLine className="size-3.5 shrink-0 text-muted-foreground" />
+            <span className="max-w-36 truncate font-medium text-foreground">
+              {requesterName}
+            </span>
+            <span className="max-w-32 truncate text-muted-foreground">
+              {requesterDetail}
+            </span>
+          </div>
+
+          <span className="hidden h-5 w-px bg-border lg:block" />
+
+          <div className="flex min-w-0 items-center gap-1.5">
+            {ticket.module?.color && (
+              <span
+                className="size-2 shrink-0 rounded-sm"
+                style={{ backgroundColor: ticket.module.color }}
+              />
+            )}
+            <span className="max-w-36 truncate font-medium text-foreground">
+              {ticket.module?.name ?? "Tidak ada modul"}
+            </span>
+            <span className="max-w-32 truncate text-muted-foreground">
+              {ticket.assignee?.name ?? "Belum ditugaskan"}
+            </span>
+          </div>
+
+          <span className="hidden h-5 w-px bg-border xl:block" />
+
+          <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+            {hasResponseSla || hasResolutionSla ? (
+              <>
+                {hasResponseSla && (
+                  <TicketSLABadge
+                    label="Respons"
+                    slaDeadlineAt={ticket.firstResponseDueAt ?? null}
+                    slaStatus={ticket.firstResponseSlaStatus ?? "safe"}
+                    completedAt={ticket.firstRespondedAt}
+                  />
+                )}
+                {hasResolutionSla && (
+                  <TicketSLABadge
+                    label="Resolusi"
+                    slaDeadlineAt={ticket.resolutionDueAt ?? ticket.slaDeadlineAt}
+                    slaStatus={ticket.resolutionSlaStatus ?? ticket.slaStatus}
+                    completedAt={ticket.resolvedAt}
+                  />
+                )}
+              </>
+            ) : (
+              <span className="text-xs text-muted-foreground">Tidak ada SLA</span>
+            )}
+          </div>
         </div>
       </div>
     </div>

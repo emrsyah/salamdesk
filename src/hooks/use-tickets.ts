@@ -1,48 +1,52 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import useSWR from "swr";
 import type { TicketListEntry } from "@/components/tickets/ticket-list-item";
+
+async function fetchJson<T>(url: string): Promise<T> {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error("Failed to fetch tickets");
+  return res.json() as Promise<T>;
+}
 
 /**
  * Client-side hook for fetching tickets.
- * Watches searchParams so any filter change (module, priority, assignee, etc.)
- * triggers a re-fetch WITHOUT a full page re-render.
+ * Watches only ticket filters so UI-only params like `selected` do not reload
+ * the list when the user moves between ticket details.
  */
-export function useTickets() {
+export function useTickets(initialTickets?: TicketListEntry[]) {
   const searchParams = useSearchParams();
-  const [tickets, setTickets] = useState<TicketListEntry[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
 
-  const fetchTickets = useCallback(async () => {
-    setIsLoading(true);
-    setError(null);
-
-    // Build query string from current search params, excluding UI-only params
+  const queryString = useMemo(() => {
     const params = new URLSearchParams();
     const filterKeys = ["assignee", "priority", "sla", "module", "status", "resolvedBy"];
     for (const key of filterKeys) {
       const value = searchParams.get(key);
       if (value) params.set(key, value);
     }
-
-    try {
-      const res = await fetch(`/api/tickets?${params.toString()}`);
-      if (!res.ok) throw new Error("Failed to fetch tickets");
-      const data = await res.json();
-      setTickets(data);
-    } catch (err) {
-      console.error("useTickets fetch error:", err);
-      setError("Gagal memuat tiket.");
-    } finally {
-      setIsLoading(false);
-    }
+    return params.toString();
   }, [searchParams]);
 
-  useEffect(() => {
-    fetchTickets();
-  }, [fetchTickets]);
+  const key = queryString ? `/api/tickets?${queryString}` : "/api/tickets";
+  const [initialKey] = useState(key);
+  const { data, error, isLoading, isValidating, mutate } = useSWR<
+    TicketListEntry[]
+  >(key, fetchJson, {
+    fallbackData: key === initialKey ? initialTickets : undefined,
+    keepPreviousData: true,
+  });
 
-  return { tickets, isLoading, error, refetch: fetchTickets };
+  const refetch = useCallback(() => {
+    void mutate();
+  }, [mutate]);
+
+  return {
+    tickets: data ?? [],
+    isLoading,
+    isRefreshing: isValidating && Boolean(data),
+    error: error ? "Gagal memuat tiket." : null,
+    refetch,
+  };
 }

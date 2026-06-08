@@ -1,4 +1,4 @@
-import { getKbArticleById } from "@/services/knowledge.service";
+import { getKbArticleById, getKbArticleChunkCount } from "@/services/knowledge.service";
 import { getAllModules } from "@/services/module.service";
 import { getSession } from "@/lib/auth/session";
 import { redirect, notFound } from "next/navigation";
@@ -7,6 +7,22 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { RiEditLine, RiArrowLeftLine } from "@remixicon/react";
 import Link from "next/link";
+
+const sourceTypeLabel: Record<string, string> = {
+  manual: "Teks manual",
+  pdf: "PDF",
+  docx: "DOCX",
+  txt: "TXT",
+  markdown: "Markdown",
+  note: "Catatan",
+};
+
+const ingestionStatusLabel: Record<string, string> = {
+  ready: "Siap digunakan",
+  pending: "Menunggu ingestion",
+  processing: "Sedang diproses",
+  failed: "Gagal diproses",
+};
 
 export default async function ViewKbArticlePage({ params }: { params: Promise<{ id: string }> }) {
   const session = await getSession();
@@ -22,7 +38,10 @@ export default async function ViewKbArticlePage({ params }: { params: Promise<{ 
     notFound();
   }
 
-  const modules = await getAllModules();
+  const [modules, chunkCount] = await Promise.all([
+    getAllModules(),
+    getKbArticleChunkCount(article.id),
+  ]);
   const moduleName = modules.find((m) => m.id === article.moduleId)?.name;
 
   return (
@@ -36,7 +55,11 @@ export default async function ViewKbArticlePage({ params }: { params: Promise<{ 
         <div className="flex justify-between items-start">
           <div>
             <h1 className="text-3xl font-bold tracking-tight mb-2">{article.title}</h1>
-            <div className="flex gap-2 items-center">
+            <div className="flex flex-wrap gap-2 items-center">
+              <Badge variant="secondary">{sourceTypeLabel[article.sourceType] ?? article.sourceType}</Badge>
+              <Badge variant={article.ingestionStatus === "ready" ? "outline" : "secondary"}>
+                {ingestionStatusLabel[article.ingestionStatus] ?? article.ingestionStatus}
+              </Badge>
               {moduleName && <Badge variant="outline">{moduleName}</Badge>}
               <span className="text-sm text-muted-foreground">
                 Diperbarui pada {new Intl.DateTimeFormat('id-ID', { dateStyle: 'long' }).format(article.updatedAt)}
@@ -49,6 +72,33 @@ export default async function ViewKbArticlePage({ params }: { params: Promise<{ 
             </Link>
           </Button>
         </div>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-3">
+        <Card size="sm">
+          <CardHeader>
+            <CardTitle className="text-sm text-muted-foreground">Sumber</CardTitle>
+          </CardHeader>
+          <CardContent className="text-base font-medium">
+            {sourceTypeLabel[article.sourceType] ?? article.sourceType}
+          </CardContent>
+        </Card>
+        <Card size="sm">
+          <CardHeader>
+            <CardTitle className="text-sm text-muted-foreground">Status Ingestion</CardTitle>
+          </CardHeader>
+          <CardContent className="text-base font-medium">
+            {ingestionStatusLabel[article.ingestionStatus] ?? article.ingestionStatus}
+          </CardContent>
+        </Card>
+        <Card size="sm">
+          <CardHeader>
+            <CardTitle className="text-sm text-muted-foreground">Chunk Pencarian</CardTitle>
+          </CardHeader>
+          <CardContent className="text-base font-medium">
+            {chunkCount} chunk
+          </CardContent>
+        </Card>
       </div>
 
       <Card>
