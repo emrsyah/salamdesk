@@ -1,11 +1,13 @@
-import { Queue } from "bullmq";
+import { Queue, type ConnectionOptions } from "bullmq";
 import { redisConnection } from "./redis";
+
+const connection = redisConnection as ConnectionOptions;
 
 /**
  * Inbound WA messages → processed by the worker to create/append tickets.
  */
 export const waInboundQueue = new Queue("wa-inbound", {
-  connection: redisConnection,
+  connection,
   defaultJobOptions: {
     attempts: 3,
     backoff: { type: "exponential", delay: 2000 },
@@ -18,7 +20,7 @@ export const waInboundQueue = new Queue("wa-inbound", {
  * Outbound WA messages → processed by the worker to call Baileys sock.sendMessage().
  */
 export const waOutboundQueue = new Queue("wa-outbound", {
-  connection: redisConnection,
+  connection,
   defaultJobOptions: {
     attempts: 3,
     backoff: { type: "exponential", delay: 2000 },
@@ -31,7 +33,7 @@ export const waOutboundQueue = new Queue("wa-outbound", {
  * AI triage jobs → processed by the worker to classify module/priority and search KB.
  */
 export const aiTriageQueue = new Queue("ai-triage", {
-  connection: redisConnection,
+  connection,
   defaultJobOptions: {
     attempts: 2,
     backoff: { type: "exponential", delay: 5000 },
@@ -41,7 +43,7 @@ export const aiTriageQueue = new Queue("ai-triage", {
 });
 
 export const ticketLifecycleQueue = new Queue("ticket-lifecycle", {
-  connection: redisConnection,
+  connection,
   defaultJobOptions: {
     attempts: 2,
     backoff: { type: "exponential", delay: 5000 },
@@ -51,7 +53,7 @@ export const ticketLifecycleQueue = new Queue("ticket-lifecycle", {
 });
 
 export const knowledgeIngestionQueue = new Queue("knowledge-ingestion", {
-  connection: redisConnection,
+  connection,
   defaultJobOptions: {
     attempts: 3,
     backoff: { type: "exponential", delay: 5000 },
