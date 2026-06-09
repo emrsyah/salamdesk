@@ -1,0 +1,25 @@
+# Build artifacts & deps — reinstalled inside the image
+node_modules
+.next
+out
+dist
+
+# Local env / secrets — passed in via --env-file or compose, never baked in
+.env
+.env.*
+!.env.worker.example
+
+# WhatsApp auth state — lives on the VPS volume, never in the image
+wa_auth
+
+# VCS / editor / OS noise
+.git
+.github
+.vscode
+.idea
+.DS_Store
+npm-debug.log*
+
+# Vercel-only / web-only stuff the worker doesn't need
+.vercel
+public

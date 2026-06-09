@@ -1,0 +1,43 @@
+# syntax=docker/dockerfile:1
+
+# ---------------------------------------------------------------------------
+# SalamDesk Worker image
+#
+# Runs the long-lived background process (Baileys WhatsApp socket + BullMQ
+# workers + repeat jobs + wa-control subscriber). This is the half of the app
+# that CANNOT run on Vercel — it needs an always-on process and a persistent
+# disk for the WhatsApp auth state (./wa_auth).
+#
+# The Next.js web app deploys separately to Vercel and is NOT built here.
+# ---------------------------------------------------------------------------
+
+# Debian slim (not alpine) — avoids musl issues with Baileys / liteparse / native deps.
+FROM node:22-slim AS deps
+
+WORKDIR /app
+
+# Install dependencies (incl. devDependencies — the worker runs via `tsx`,
+# which lives in devDependencies). Use the lockfile for reproducible installs.
+COPY package.json package-lock.json ./
+RUN npm ci
+
+# ---------------------------------------------------------------------------
+FROM node:22-slim AS runtime
+
+ENV NODE_ENV=production
+# Workers don't need Next telemetry / build steps.
+WORKDIR /app
+
+# Reuse the resolved node_modules from the deps stage.
+COPY --from=deps /app/node_modules ./node_modules
+
+# Copy only what the worker process needs at runtime.
+COPY package.json package-lock.json tsconfig.json ./
+COPY src ./src
+
+# Persistent WhatsApp auth lives here (mounted as a volume — see compose file).
+# Pre-create so the dir exists even before the first creds.update.
+RUN mkdir -p /app/wa_auth /app/tmp
+
+# tsx resolves the "@/*" path alias from tsconfig.json automatically.
+CMD ["npx", "tsx", "src/worker/index.ts"]

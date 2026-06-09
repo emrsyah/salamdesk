@@ -1,0 +1,32 @@
+# ---------------------------------------------------------------------------
+# SalamDesk — VPS stack (worker only)
+#
+# Run on your VPS with:
+#   docker compose -f docker-compose.worker.yml up -d --build
+#
+# Postgres and Redis are both managed externally:
+#   - DATABASE_URL → Neon / Supabase
+#   - REDIS_URL    → Upstash (TCP endpoint, rediss://) — shared with Vercel
+#
+# Both the Vercel app (producer) and this worker (consumer) point at the SAME
+# Upstash Redis, which is how enqueued jobs reach the worker.
+# ---------------------------------------------------------------------------
+
+services:
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.worker
+    restart: unless-stopped
+    env_file:
+      - .env.worker
+    environment:
+      KNOWLEDGE_INGESTION_TMP_DIR: /app/tmp
+    volumes:
+      # Persist WhatsApp session so you don't re-scan the QR on every restart.
+      - wa-auth:/app/wa_auth
+    # First boot prints a QR in the logs — scan it with WhatsApp:
+    #   docker compose -f docker-compose.worker.yml logs -f worker
+
+volumes:
+  wa-auth:
