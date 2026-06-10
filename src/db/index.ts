@@ -15,7 +15,12 @@ const globalForDb = globalThis as unknown as {
   conn: postgres.Sql | undefined;
 };
 
-const queryClient = globalForDb.conn ?? postgres(process.env.DATABASE_URL, { max: 10 });
+// prepare:false is REQUIRED when connecting through Supabase's transaction-mode
+// pooler (port 6543): Supavisor does not support client-side prepared statements
+// in transaction mode, which can silently corrupt/misroute statements inside
+// db.transaction() blocks.
+const queryClient =
+  globalForDb.conn ?? postgres(process.env.DATABASE_URL, { max: 10, prepare: false });
 if (process.env.NODE_ENV !== "production") globalForDb.conn = queryClient;
 
 export const db = drizzle(queryClient, { schema });
