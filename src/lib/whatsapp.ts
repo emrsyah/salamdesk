@@ -86,6 +86,8 @@ export async function disconnectWhatsApp(): Promise<void> {
   }
 
   await redisConnection.del("wa-qr");
+  await redisConnection.del("wa-account");
+  await redisConnection.del("wa-connected-at");
   await redisConnection.set("wa-status", "connecting");
 
   // Reconnect with a clean slate so a new QR is generated for re-linking.
@@ -143,6 +145,22 @@ export async function connectToWhatsApp(): Promise<void> {
         console.log("[WA] Connected to WhatsApp ✓");
         await redisConnection.del("wa-qr");
         await redisConnection.set("wa-status", "connected");
+
+        // Persist the linked account so the web UI can show which number is
+        // connected. `sock.user.id` looks like "<number>:<device>@s.whatsapp.net";
+        // we keep just the dialable number for display.
+        const userId = sock?.user?.id ?? "";
+        const number = userId.split(":")[0]?.split("@")[0] ?? "";
+        await redisConnection.set(
+          "wa-account",
+          JSON.stringify({ number, name: sock?.user?.name ?? null }),
+        );
+        // Only stamp connected-at on a fresh link, not on every silent
+        // reconnect, so the UI shows true session uptime.
+        const existingSince = await redisConnection.get("wa-connected-at");
+        if (!existingSince) {
+          await redisConnection.set("wa-connected-at", new Date().toISOString());
+        }
       }
 
       if (connection === "close") {
@@ -152,6 +170,11 @@ export async function connectToWhatsApp(): Promise<void> {
         console.log(
           `[WA] Connection closed (code: ${statusCode}). ${loggedOut ? "Logged out — delete ./wa_auth and restart." : "Reconnecting…"}`,
         );
+
+        // The linked account is gone the moment the socket closes; clear it so
+        // the UI never shows a stale number during reconnect/QR.
+        await redisConnection.del("wa-account");
+        await redisConnection.del("wa-connected-at");
 
         if (loggedOut) {
           // Skip when we triggered the logout ourselves — disconnectWhatsApp()

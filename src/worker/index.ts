@@ -76,6 +76,15 @@ const outboundWorker = new Worker<WaOutboundJob>(
     // jid already carries the correct domain (@lid or @s.whatsapp.net) — send
     // it verbatim. Reconstructing "<num>@s.whatsapp.net" from a LID silently
     // sends to a non-existent number (sendMessage doesn't throw on bad JIDs).
+    if (!jid?.includes("@")) {
+      // A bare value means the ticket predates the full-JID fix — back-fill
+      // with: bun run tsx scripts/migrate-wa-jid.ts --apply
+      throw new Error(
+        `Invalid WhatsApp JID "${jid}" — expected "<id>@s.whatsapp.net" or "<id>@lid". ` +
+          `Run scripts/migrate-wa-jid.ts to fix legacy tickets.`,
+      );
+    }
+
     if (attachments.length === 0) {
       await sock.sendMessage(jid, { text });
     } else {
