@@ -142,7 +142,7 @@ function buildData(range: RangeKey) {
 
   const priorityDist = [
     { name: "critical", label: "Kritis", value: jitter(totalCreated * 0.18) },
-    { name: "medium", label: "Sedang", value: jitter(totalCreated * 0.5) },
+    { name: "medium", label: "Normal", value: jitter(totalCreated * 0.5) },
     { name: "low", label: "Rendah", value: jitter(totalCreated * 0.32) },
   ]
 
@@ -154,7 +154,7 @@ function buildData(range: RangeKey) {
   }
   const slaByPriority = [
     { priority: "Kritis", ...mkSla(priorityDist[0].value, 0.24) },
-    { priority: "Sedang", ...mkSla(priorityDist[1].value, 0.11) },
+    { priority: "Normal", ...mkSla(priorityDist[1].value, 0.11) },
     { priority: "Rendah", ...mkSla(priorityDist[2].value, 0.05) },
   ]
   const totalSla = slaByPriority.reduce(
@@ -256,7 +256,7 @@ const statusConfig = {
 const priorityConfig = {
   value: { label: "Tiket" },
   critical: { label: "Kritis", color: "#dc2626" },
-  medium: { label: "Sedang", color: "#d97706" },
+  medium: { label: "Normal", color: "#d97706" },
   low: { label: "Rendah", color: "#2563eb" },
 } satisfies ChartConfig
 
@@ -336,7 +336,7 @@ export default function DashboardPage() {
         <div>
           <h1 className="text-2xl font-bold">Dashboard</h1>
           <p className="text-muted-foreground">
-            Ringkasan performa helpdesk SIMRS · {rangeLabel}{" "}
+            Ringkasan performa helpdesk SIMRS Â· {rangeLabel}{" "}
             <span className="text-xs">(data dummy)</span>
           </p>
         </div>
