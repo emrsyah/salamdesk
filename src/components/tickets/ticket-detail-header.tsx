@@ -4,6 +4,7 @@ import {
   RiArrowRightUpLine,
   RiCheckLine,
   RiInboxLine,
+  RiMoreLine,
   RiRouteLine,
   RiSparklingLine,
   RiUserLine,
@@ -18,18 +19,33 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
 import { useState } from "react";
 import { Label } from "../ui/label";
 import { formatTime } from "@/lib/utils";
 import type { TicketConfiguration } from "@/lib/tickets/ticket-configuration";
+import { InlinePicker } from "./ticket-inline-picker";
+import { useTicketDetailMutation } from "@/hooks/use-ticket-detail-mutation";
+import { toast } from "sonner";
 
 
 const STATUS_LABEL: Record<string, string> = {
   open: "Terbuka",
-  in_progress: "Sedang Dikerjakan",
+  in_progress: "Dikerjakan",
   resolved: "Selesai",
   closed: "Ditutup",
 };
@@ -43,7 +59,7 @@ const STATUS_STYLE: Record<string, string> = {
 
 const PRIORITY_LABEL: Record<string, string> = {
   low: "Rendah",
-  medium: "Sedang",
+  medium: "Normal",
   critical: "Kritis",
 };
 
@@ -94,7 +110,7 @@ export function TicketDetailHeader({
   const [resolutionNote, setResolutionNote] = useState("");
   const [escalationReason, setEscalationReason] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  
+
   const [kbArticles, setKbArticles] = useState<{ id: string; title: string }[]>([]);
   const [selectedKbIds, setSelectedKbIds] = useState<string[]>([]);
 
@@ -115,6 +131,53 @@ export function TicketDetailHeader({
       ? modules.filter((module) => configuration.enabledModuleIds.includes(module.id))
       : modules;
 
+  const { optimisticUpdate } = useTicketDetailMutation(ticket.id);
+
+  type ConfigurePatch = {
+    moduleId?: string | null;
+    assigneeId?: string | null;
+    priority?: TicketDetailData["priority"];
+  };
+
+  /** Mirrors configureTicketCommand's effect on the detail shape, locally. */
+  function applyConfigurePatch(
+    current: TicketDetailData,
+    patch: ConfigurePatch,
+  ): TicketDetailData {
+    const next = { ...current };
+
+    if (patch.moduleId !== undefined) {
+      const module = enabledModules.find((m) => m.id === patch.moduleId);
+      next.module =
+        patch.moduleId && module
+          ? { id: module.id, name: module.name, color: module.color ?? null }
+          : null;
+    }
+
+    if (patch.assigneeId !== undefined) {
+      const staff = assignableStaff.find((s) => s.id === patch.assigneeId);
+      next.assignee =
+        patch.assigneeId && staff ? { id: staff.id, name: staff.name } : null;
+    }
+
+    if (patch.priority) next.priority = patch.priority;
+
+    // Routing changes also move the status (same rule as the server command).
+    if (patch.moduleId !== undefined || patch.assigneeId !== undefined) {
+      const toAssigneeId =
+        patch.assigneeId !== undefined ? patch.assigneeId : current.assignee?.id ?? null;
+      next.status = toAssigneeId ? "in_progress" : "open";
+    }
+
+    return next;
+  }
+
+  async function runConfigureAction(patch: ConfigurePatch) {
+    const { configureTicketAction } = await import("@/actions/tickets.actions");
+    const result = await configureTicketAction(ticket.id, patch);
+    if (result?.error) throw new Error(result.error);
+  }
+
   function openConfigureDialog() {
     setSelectedModuleId(ticket.module?.id ?? null);
     setSelectedAssigneeId(
@@ -125,20 +188,39 @@ export function TicketDetailHeader({
   }
 
   async function handleSaveConfiguration() {
+    const patch: ConfigurePatch = {
+      moduleId: selectedModuleId,
+      assigneeId: selectedAssigneeId,
+      priority: selectedPriority,
+    };
+    setIsConfigureOpen(false);
     setIsLoading(true);
     try {
-      const { configureTicketAction } = await import("@/actions/tickets.actions");
-      const result = await configureTicketAction(ticket.id, {
-        moduleId: selectedModuleId,
-        assigneeId: selectedAssigneeId,
-        priority: selectedPriority,
-      });
-      if (result?.error) throw new Error(result.error);
-
-      setIsConfigureOpen(false);
+      await optimisticUpdate(
+        (current) => applyConfigurePatch(current, patch),
+        () => runConfigureAction(patch),
+      );
       onMutated?.();
     } catch (error) {
       console.error(error);
+      toast.error("Gagal menyimpan rute tiket.");
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  /** Saves a single metadata field from an inline picker (no dialog). */
+  async function handleInlineConfigure(patch: ConfigurePatch) {
+    setIsLoading(true);
+    try {
+      await optimisticUpdate(
+        (current) => applyConfigurePatch(current, patch),
+        () => runConfigureAction(patch),
+      );
+      onMutated?.();
+    } catch (error) {
+      console.error(error);
+      toast.error("Gagal menyimpan perubahan tiket.");
     } finally {
       setIsLoading(false);
     }
@@ -158,19 +240,34 @@ export function TicketDetailHeader({
   }
 
   async function handleResolve() {
+    const note = resolutionNote;
+    const kbIds = selectedKbIds;
+    setIsResolveOpen(false);
     setIsLoading(true);
     try {
-      const { resolveTicketAction } = await import("@/actions/tickets.actions");
-      await resolveTicketAction(ticket.id, {
-        resolutionNote,
-        resolvedKbIds: selectedKbIds.length > 0 ? selectedKbIds : undefined,
-      });
-      setIsResolveOpen(false);
+      await optimisticUpdate(
+        (current) => ({
+          ...current,
+          status: "resolved",
+          resolvedAt: new Date().toISOString(),
+        }),
+        async () => {
+          const { resolveTicketAction } = await import("@/actions/tickets.actions");
+          const result = await resolveTicketAction(ticket.id, {
+            resolutionNote: note,
+            resolvedKbIds: kbIds.length > 0 ? kbIds : undefined,
+          });
+          if (result?.error) throw new Error(result.error);
+        },
+      );
       setResolutionNote("");
       setSelectedKbIds([]);
       onMutated?.();
     } catch (error) {
       console.error(error);
+      // Note and KB selection are kept so reopening the dialog restores them.
+      setIsResolveOpen(true);
+      toast.error("Gagal menyelesaikan tiket.");
     } finally {
       setIsLoading(false);
     }
@@ -199,11 +296,22 @@ export function TicketDetailHeader({
   async function handleReopen() {
     setIsLoading(true);
     try {
-      const { reopenTicketAction } = await import("@/actions/tickets.actions");
-      await reopenTicketAction(ticket.id);
+      await optimisticUpdate(
+        (current) => ({
+          ...current,
+          status: current.assignee ? "in_progress" : "open",
+          resolvedAt: null,
+        }),
+        async () => {
+          const { reopenTicketAction } = await import("@/actions/tickets.actions");
+          const result = await reopenTicketAction(ticket.id);
+          if (result?.error) throw new Error(result.error);
+        },
+      );
       onMutated?.();
     } catch (error) {
       console.error(error);
+      toast.error("Gagal membuka ulang tiket.");
     } finally {
       setIsLoading(false);
     }
@@ -212,11 +320,18 @@ export function TicketDetailHeader({
   async function handleClose() {
     setIsLoading(true);
     try {
-      const { closeTicketAction } = await import("@/actions/tickets.actions");
-      await closeTicketAction(ticket.id);
+      await optimisticUpdate(
+        (current) => ({ ...current, status: "closed" }),
+        async () => {
+          const { closeTicketAction } = await import("@/actions/tickets.actions");
+          const result = await closeTicketAction(ticket.id);
+          if (result?.error) throw new Error(result.error);
+        },
+      );
       onMutated?.();
     } catch (error) {
       console.error(error);
+      toast.error("Gagal menutup tiket.");
     } finally {
       setIsLoading(false);
     }
@@ -242,252 +357,136 @@ export function TicketDetailHeader({
             </h2>
           </div>
 
-          <div className="flex shrink-0 flex-wrap items-start justify-end gap-2">
-            <Button
-              variant={isCopilotOpen ? "secondary" : "outline"}
-              size="icon"
-              className="size-9"
-              onClick={onToggleCopilot}
-              aria-label="AI Copilot"
-            >
-              <RiSparklingLine className="size-4 text-amber-600 dark:text-amber-400" />
-            </Button>
-
-            <Button
-              variant={isRequesterPanelOpen ? "secondary" : "outline"}
-              size="icon"
-              className="size-9"
-              onClick={onToggleRequesterPanel}
-              aria-label="Profil pelapor"
-            >
-              <RiUserLine className="size-4" />
-            </Button>
-
-          {canEditActiveMetadata && (
-            <Dialog open={isConfigureOpen} onOpenChange={setIsConfigureOpen}>
-              <DialogTrigger asChild>
-                <Button variant="outline" className="gap-1.5" onClick={openConfigureDialog}>
-                  <RiRouteLine className="size-4" />
-                  Rute
-                </Button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Rute Tiket</DialogTitle>
-                  <DialogDescription>
-                    Tentukan modul, penanggung jawab, dan prioritas operasional tiket ini.
-                  </DialogDescription>
-                </DialogHeader>
-                <div className="py-4 space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="ticket-module" className="text-sm font-medium">Modul</Label>
-                    <select
-                      id="ticket-module"
-                      className="w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
-                      value={selectedModuleId ?? ""}
-                      onChange={(event) => {
-                        setSelectedModuleId(event.target.value || null);
-                        if (configuration?.moduleChangeClearsAssignee) {
-                          setSelectedAssigneeId(null);
-                        }
-                      }}
-                    >
-                      <option value="">-- Tidak ada modul --</option>
-                      {enabledModules.map((module) => (
-                        <option key={module.id} value={module.id}>{module.name}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="ticket-assignee" className="text-sm font-medium">Ditangani oleh</Label>
-                    <select
-                      id="ticket-assignee"
-                      className="w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
-                      value={selectedAssigneeId ?? ""}
-                      onChange={(event) => setSelectedAssigneeId(event.target.value || null)}
-                    >
-                      <option value="">-- Antrian modul --</option>
-                      {assignableStaff.map((staff) => (
-                        <option key={staff.id} value={staff.id}>{staff.name}</option>
-                      ))}
-                    </select>
-                    {configuration?.moduleChangeClearsAssignee && (
-                      <p className="text-xs text-muted-foreground">
-                        Mengubah modul akan mengembalikan tiket ke antrian modul kecuali penanggung jawab baru dipilih.
-                      </p>
-                    )}
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="ticket-priority" className="text-sm font-medium">Prioritas</Label>
-                    <select
-                      id="ticket-priority"
-                      className="w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
-                      value={selectedPriority}
-                      onChange={(event) => setSelectedPriority(event.target.value as TicketDetailData["priority"])}
-                    >
-                      <option value="low">Rendah</option>
-                      <option value="medium">Sedang</option>
-                      <option value="critical">Kritis</option>
-                    </select>
-                  </div>
-                </div>
-                <DialogFooter>
-                  <Button variant="outline" onClick={() => setIsConfigureOpen(false)}>Batal</Button>
-                  <Button onClick={handleSaveConfiguration} disabled={isLoading}>
-                    {isLoading ? "Menyimpan..." : "Simpan Rute"}
+          {/* Two clusters with distinct mental models, separated by a divider:
+              workflow actions (change the ticket) on the left, panel toggles
+              (change the layout) pinned to the right edge. */}
+          <TooltipProvider>
+            <div className="flex shrink-0 items-center gap-2">
+              {canEditActiveMetadata && (
+                <>
+                  <Button variant="outline" className="gap-1.5" onClick={openConfigureDialog}>
+                    <RiRouteLine className="size-4" />
+                    Rute
                   </Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
-          )}
 
-          {/* Escalation Dialog */}
-          {canEditActiveMetadata && (
-          <Dialog open={isEscalateOpen} onOpenChange={setIsEscalateOpen}>
-            <DialogTrigger asChild>
-              <Button variant="ghost" className="gap-1.5">
-                <RiArrowRightUpLine className="size-4" />
-                Eskalasi
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Eskalasi Bantuan</DialogTitle>
-                <DialogDescription>
-                  Minta bantuan tambahan tanpa mengubah rute utama tiket. Gunakan saat kasus perlu perhatian teknis atau keputusan lanjutan.
-                </DialogDescription>
-              </DialogHeader>
-              <div className="py-4 space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="engineer" className="text-sm font-medium">Minta bantuan dari (opsional)</Label>
-                  <select
-                    id="engineer"
-                    className="w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
-                    value={selectedEngineerId || ""}
-                    onChange={(e) => setSelectedEngineerId(e.target.value || null)}
+                  <Button
+                    variant="default"
+                    className="gap-1.5 border-0 bg-yellow-400 text-yellow-950 hover:bg-yellow-500"
+                    onClick={() => handleResolveOpenChange(true)}
                   >
-                    <option value="">-- Tidak menunjuk orang tertentu --</option>
-                    {assignableStaff.map((staff) => (
-                      <option key={staff.id} value={staff.id}>{staff.name}</option>
-                    ))}
-                  </select>
-                  <p className="text-xs text-muted-foreground">
-                    Ini bukan pengganti penanggung jawab tiket. Ubah pemilik tiket dari Rute jika ownership perlu dipindahkan.
-                  </p>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="reason" className="text-sm font-medium">Alasan eskalasi</Label>
-                  <Textarea
-                    id="reason"
-                    placeholder="Jelaskan bantuan yang dibutuhkan dan konteks yang sudah dicek..."
-                    value={escalationReason}
-                    onChange={(e) => setEscalationReason(e.target.value)}
-                  />
-                </div>
-              </div>
-              <DialogFooter>
-                <Button variant="outline" onClick={() => setIsEscalateOpen(false)}>Batal</Button>
-                <Button onClick={handleEscalate} disabled={isLoading || !escalationReason}>
-                  {isLoading ? "Memproses..." : "Kirim Eskalasi"}
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
-          )}
+                    <RiCheckLine className="size-4" /> Selesai
+                  </Button>
 
-          {/* Resolve Dialog */}
-          {canEditActiveMetadata && (
-          <Dialog open={isResolveOpen} onOpenChange={handleResolveOpenChange}>
-            <DialogTrigger asChild>
-              <Button variant="default" className="bg-yellow-400 text-yellow-950 hover:bg-yellow-500 gap-1.5 border-0">
-                <RiCheckLine className="size-4" /> Selesai
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Selesaikan Tiket</DialogTitle>
-                <DialogDescription>
-                  Berikan catatan penyelesaian agar reporter tahu apa yang sudah dilakukan.
-                </DialogDescription>
-              </DialogHeader>
-              <div className="py-4 space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="resolutionNote" className="text-sm font-medium">Catatan Penyelesaian</Label>
-                  <Textarea
-                    id="resolutionNote"
-                    placeholder="Catatan penyelesaian..."
-                    value={resolutionNote}
-                    onChange={(e) => setResolutionNote(e.target.value)}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium">Artikel Knowledge Base yang Membantu (Opsional)</Label>
-                  <div className="max-h-40 overflow-y-auto border rounded-md p-2 space-y-2">
-                    {kbArticles.length === 0 ? (
-                      <div className="text-xs text-muted-foreground p-2">Memuat atau tidak ada artikel...</div>
-                    ) : (
-                      kbArticles.map((kb) => (
-                        <div key={kb.id} className="flex items-center space-x-2">
-                          <input
-                            type="checkbox"
-                            id={`kb-${kb.id}`}
-                            className="rounded border-gray-300 text-blue-600 shadow-sm focus:border-blue-300 focus:ring focus:ring-blue-200 focus:ring-opacity-50"
-                            checked={selectedKbIds.includes(kb.id)}
-                            onChange={(e) => {
-                              if (e.target.checked) {
-                                setSelectedKbIds((prev) => [...prev, kb.id]);
-                              } else {
-                                setSelectedKbIds((prev) => prev.filter((id) => id !== kb.id));
-                              }
-                            }}
-                          />
-                          <label htmlFor={`kb-${kb.id}`} className="text-sm cursor-pointer">
-                            {kb.title}
-                          </label>
-                        </div>
-                      ))
-                    )}
-                  </div>
-                </div>
-              </div>
-              <DialogFooter>
-                <Button variant="outline" onClick={() => setIsResolveOpen(false)}>Batal</Button>
-                <Button onClick={handleResolve} disabled={isLoading || !resolutionNote}>
-                  {isLoading ? "Memproses..." : "Selesaikan"}
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
-          )}
-          {isResolved && (
-            <>
-              <Button variant="outline" onClick={handleReopen} disabled={isLoading}>
-                Buka Ulang
-              </Button>
-              <Button variant="default" onClick={handleClose} disabled={isLoading}>
-                Tutup
-              </Button>
-            </>
-          )}
-          </div>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="size-9"
+                        aria-label="Aksi lainnya"
+                      >
+                        <RiMoreLine className="size-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem onSelect={() => setIsEscalateOpen(true)}>
+                        <RiArrowRightUpLine className="size-4" />
+                        Eskalasi bantuan…
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </>
+              )}
+
+              {isResolved && (
+                <>
+                  <Button variant="outline" onClick={handleReopen} disabled={isLoading}>
+                    Buka Ulang
+                  </Button>
+                  <Button variant="default" onClick={handleClose} disabled={isLoading}>
+                    Tutup
+                  </Button>
+                </>
+              )}
+
+              <Separator orientation="vertical" className="mx-1 h-6" />
+
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant={isCopilotOpen ? "secondary" : "ghost"}
+                    size="icon"
+                    className="size-9"
+                    onClick={onToggleCopilot}
+                    aria-label="AI Copilot"
+                    aria-pressed={isCopilotOpen}
+                  >
+                    <RiSparklingLine className="size-4 text-amber-600 dark:text-amber-400" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>AI Copilot</TooltipContent>
+              </Tooltip>
+
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant={isRequesterPanelOpen ? "secondary" : "ghost"}
+                    size="icon"
+                    className="size-9"
+                    onClick={onToggleRequesterPanel}
+                    aria-label="Profil pelapor"
+                    aria-pressed={isRequesterPanelOpen}
+                  >
+                    <RiUserLine className="size-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Profil pelapor</TooltipContent>
+              </Tooltip>
+            </div>
+          </TooltipProvider>
         </div>
 
         <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2 text-sm">
           <div className="flex min-w-0 items-center gap-2">
-            <span className="text-[11px] font-semibold uppercase text-muted-foreground">
-              Status
-            </span>
             <span
               className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium ${STATUS_STYLE[ticket.status]}`}
             >
               <span className="inline-block size-1.5 rounded-full bg-current opacity-60" />
               {STATUS_LABEL[ticket.status]}
             </span>
-            <span
-              className={`inline-flex rounded border px-2.5 py-1 text-xs font-medium ${PRIORITY_STYLE[ticket.priority]}`}
-            >
-              {PRIORITY_LABEL[ticket.priority]}
-            </span>
+            {canEditActiveMetadata ? (
+              <InlinePicker
+                options={[
+                  { value: "low", label: "Rendah" },
+                  { value: "medium", label: "Normal" },
+                  { value: "critical", label: "Kritis" },
+                ]}
+                value={ticket.priority}
+                searchable={false}
+                disabled={isLoading}
+                onSelect={(next) => {
+                  if (next) {
+                    handleInlineConfigure({
+                      priority: next as TicketDetailData["priority"],
+                    });
+                  }
+                }}
+              >
+                <button
+                  type="button"
+                  title="Ubah prioritas"
+                  className={`inline-flex cursor-pointer rounded border px-2.5 py-1 text-xs font-medium transition-shadow hover:ring-2 hover:ring-ring/30 ${PRIORITY_STYLE[ticket.priority]}`}
+                >
+                  {PRIORITY_LABEL[ticket.priority]}
+                </button>
+              </InlinePicker>
+            ) : (
+              <span
+                className={`inline-flex rounded border px-2.5 py-1 text-xs font-medium ${PRIORITY_STYLE[ticket.priority]}`}
+              >
+                {PRIORITY_LABEL[ticket.priority]}
+              </span>
+            )}
           </div>
 
           <span className="hidden h-5 w-px bg-border lg:block" />
@@ -504,20 +503,88 @@ export function TicketDetailHeader({
 
           <span className="hidden h-5 w-px bg-border lg:block" />
 
-          <div className="flex min-w-0 items-center gap-1.5">
-            {ticket.module?.color && (
-              <span
-                className="size-2 shrink-0 rounded-sm"
-                style={{ backgroundColor: ticket.module.color }}
-              />
-            )}
-            <span className="max-w-36 truncate font-medium text-foreground">
-              {ticket.module?.name ?? "Tidak ada modul"}
-            </span>
-            <span className="max-w-32 truncate text-muted-foreground">
-              {ticket.assignee?.name ?? "Belum ditugaskan"}
-            </span>
-          </div>
+          {/* Module and assignee edit in place — each value is its own picker. */}
+          {canEditActiveMetadata ? (
+            <div className="flex min-w-0 items-center gap-1">
+              <InlinePicker
+                options={[
+                  { value: null, label: "Tidak ada modul", color: null },
+                  ...enabledModules.map((module) => ({
+                    value: module.id,
+                    label: module.name,
+                    color: module.color,
+                  })),
+                ]}
+                value={ticket.module?.id ?? null}
+                searchPlaceholder="Cari modul…"
+                disabled={isLoading}
+                onSelect={(next) =>
+                  handleInlineConfigure({
+                    moduleId: next,
+                    ...(configuration?.moduleChangeClearsAssignee
+                      ? { assigneeId: null }
+                      : {}),
+                  })
+                }
+              >
+                <button
+                  type="button"
+                  title="Ubah modul"
+                  className="flex min-w-0 cursor-pointer items-center gap-1.5 rounded-md px-1.5 py-0.5 transition-colors hover:bg-muted"
+                >
+                  {ticket.module?.color && (
+                    <span
+                      className="size-2 shrink-0 rounded-sm"
+                      style={{ backgroundColor: ticket.module.color }}
+                    />
+                  )}
+                  <span className="max-w-36 truncate font-medium text-foreground">
+                    {ticket.module?.name ?? "Tidak ada modul"}
+                  </span>
+                </button>
+              </InlinePicker>
+
+              <InlinePicker
+                options={[
+                  { value: null, label: "Antrian modul", description: "tanpa penanggung jawab" },
+                  ...assignableStaff.map((staff) => ({
+                    value: staff.id,
+                    label: staff.name,
+                    description: staff.role,
+                  })),
+                ]}
+                value={ticket.assignee?.id ?? null}
+                searchPlaceholder="Cari staf…"
+                disabled={isLoading}
+                onSelect={(next) => handleInlineConfigure({ assigneeId: next })}
+              >
+                <button
+                  type="button"
+                  title="Ubah penanggung jawab"
+                  className="flex min-w-0 cursor-pointer items-center gap-1.5 rounded-md px-1.5 py-0.5 transition-colors hover:bg-muted"
+                >
+                  <span className="max-w-32 truncate text-muted-foreground">
+                    {ticket.assignee?.name ?? "Belum ditugaskan"}
+                  </span>
+                </button>
+              </InlinePicker>
+            </div>
+          ) : (
+            <div className="flex min-w-0 items-center gap-1.5">
+              {ticket.module?.color && (
+                <span
+                  className="size-2 shrink-0 rounded-sm"
+                  style={{ backgroundColor: ticket.module.color }}
+                />
+              )}
+              <span className="max-w-36 truncate font-medium text-foreground">
+                {ticket.module?.name ?? "Tidak ada modul"}
+              </span>
+              <span className="max-w-32 truncate text-muted-foreground">
+                {ticket.assignee?.name ?? "Belum ditugaskan"}
+              </span>
+            </div>
+          )}
 
           <span className="hidden h-5 w-px bg-border xl:block" />
 
@@ -547,6 +614,181 @@ export function TicketDetailHeader({
           </div>
         </div>
       </div>
+
+      {/* Rute dialog */}
+      <Dialog open={isConfigureOpen} onOpenChange={setIsConfigureOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Rute Tiket</DialogTitle>
+            <DialogDescription>
+              Tentukan modul, penanggung jawab, dan prioritas operasional tiket ini.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4 space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="ticket-module" className="text-sm font-medium">Modul</Label>
+              <select
+                id="ticket-module"
+                className="w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                value={selectedModuleId ?? ""}
+                onChange={(event) => {
+                  setSelectedModuleId(event.target.value || null);
+                  if (configuration?.moduleChangeClearsAssignee) {
+                    setSelectedAssigneeId(null);
+                  }
+                }}
+              >
+                <option value="">-- Tidak ada modul --</option>
+                {enabledModules.map((module) => (
+                  <option key={module.id} value={module.id}>{module.name}</option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="ticket-assignee" className="text-sm font-medium">Ditangani oleh</Label>
+              <select
+                id="ticket-assignee"
+                className="w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                value={selectedAssigneeId ?? ""}
+                onChange={(event) => setSelectedAssigneeId(event.target.value || null)}
+              >
+                <option value="">-- Antrian modul --</option>
+                {assignableStaff.map((staff) => (
+                  <option key={staff.id} value={staff.id}>{staff.name}</option>
+                ))}
+              </select>
+              {configuration?.moduleChangeClearsAssignee && (
+                <p className="text-xs text-muted-foreground">
+                  Mengubah modul akan mengembalikan tiket ke antrian modul kecuali penanggung jawab baru dipilih.
+                </p>
+              )}
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="ticket-priority" className="text-sm font-medium">Prioritas</Label>
+              <select
+                id="ticket-priority"
+                className="w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                value={selectedPriority}
+                onChange={(event) => setSelectedPriority(event.target.value as TicketDetailData["priority"])}
+              >
+                <option value="low">Rendah</option>
+                <option value="medium">Normal</option>
+                <option value="critical">Kritis</option>
+              </select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsConfigureOpen(false)}>Batal</Button>
+            <Button onClick={handleSaveConfiguration} disabled={isLoading}>
+              {isLoading ? "Menyimpan..." : "Simpan Rute"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Eskalasi dialog */}
+      <Dialog open={isEscalateOpen} onOpenChange={setIsEscalateOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Eskalasi Bantuan</DialogTitle>
+            <DialogDescription>
+              Minta bantuan tambahan tanpa mengubah rute utama tiket. Gunakan saat kasus perlu perhatian teknis atau keputusan lanjutan.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4 space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="engineer" className="text-sm font-medium">Minta bantuan dari (opsional)</Label>
+              <select
+                id="engineer"
+                className="w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                value={selectedEngineerId || ""}
+                onChange={(e) => setSelectedEngineerId(e.target.value || null)}
+              >
+                <option value="">-- Tidak menunjuk orang tertentu --</option>
+                {assignableStaff.map((staff) => (
+                  <option key={staff.id} value={staff.id}>{staff.name}</option>
+                ))}
+              </select>
+              <p className="text-xs text-muted-foreground">
+                Ini bukan pengganti penanggung jawab tiket. Ubah pemilik tiket dari Rute jika ownership perlu dipindahkan.
+              </p>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="reason" className="text-sm font-medium">Alasan eskalasi</Label>
+              <Textarea
+                id="reason"
+                placeholder="Jelaskan bantuan yang dibutuhkan dan konteks yang sudah dicek..."
+                value={escalationReason}
+                onChange={(e) => setEscalationReason(e.target.value)}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsEscalateOpen(false)}>Batal</Button>
+            <Button onClick={handleEscalate} disabled={isLoading || !escalationReason}>
+              {isLoading ? "Memproses..." : "Kirim Eskalasi"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Selesai dialog */}
+      <Dialog open={isResolveOpen} onOpenChange={handleResolveOpenChange}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Selesaikan Tiket</DialogTitle>
+            <DialogDescription>
+              Berikan catatan penyelesaian agar reporter tahu apa yang sudah dilakukan.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4 space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="resolutionNote" className="text-sm font-medium">Catatan Penyelesaian</Label>
+              <Textarea
+                id="resolutionNote"
+                placeholder="Catatan penyelesaian..."
+                value={resolutionNote}
+                onChange={(e) => setResolutionNote(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">Artikel Knowledge Base yang Membantu (Opsional)</Label>
+              <div className="max-h-40 overflow-y-auto border rounded-md p-2 space-y-2">
+                {kbArticles.length === 0 ? (
+                  <div className="text-xs text-muted-foreground p-2">Memuat atau tidak ada artikel...</div>
+                ) : (
+                  kbArticles.map((kb) => (
+                    <div key={kb.id} className="flex items-center space-x-2">
+                      <input
+                        type="checkbox"
+                        id={`kb-${kb.id}`}
+                        className="rounded border-gray-300 text-blue-600 shadow-sm focus:border-blue-300 focus:ring focus:ring-blue-200 focus:ring-opacity-50"
+                        checked={selectedKbIds.includes(kb.id)}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setSelectedKbIds((prev) => [...prev, kb.id]);
+                          } else {
+                            setSelectedKbIds((prev) => prev.filter((id) => id !== kb.id));
+                          }
+                        }}
+                      />
+                      <label htmlFor={`kb-${kb.id}`} className="text-sm cursor-pointer">
+                        {kb.title}
+                      </label>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsResolveOpen(false)}>Batal</Button>
+            <Button onClick={handleResolve} disabled={isLoading || !resolutionNote}>
+              {isLoading ? "Memproses..." : "Selesaikan"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

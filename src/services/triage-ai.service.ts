@@ -80,6 +80,58 @@ Berikan penilaian prioritas dan alasannya dalam Bahasa Indonesia.`,
   return object;
 }
 
+export type RefineMode = "perbaiki" | "perpendek" | "ramah" | "formal";
+
+const REFINE_INSTRUCTIONS: Record<RefineMode, string> = {
+  perbaiki:
+    "Rapikan tulisan ini: perbaiki ejaan, tata bahasa, tanda baca, dan kejelasan kalimat. JANGAN mengubah makna, menambah informasi baru, atau menghilangkan poin.",
+  perpendek:
+    "Persingkat balasan ini. Pertahankan semua poin dan langkah penting, buang basa-basi dan pengulangan.",
+  ramah:
+    "Ubah nadanya menjadi lebih hangat dan ramah, tetap profesional. Jangan menambah informasi baru.",
+  formal:
+    "Ubah gaya bahasanya menjadi lebih formal dan baku, cocok untuk komunikasi resmi rumah sakit. Jangan menambah informasi baru.",
+};
+
+const RefinedReplySchema = z.object({
+  refinedText: z.string().describe("The rewritten reply text in Indonesian."),
+});
+
+/**
+ * Rewrite an agent-typed (or AI-drafted) reply according to one refine mode,
+ * or a free-form instruction written by the agent ("tambahkan salam penutup").
+ * Used by the copilot quick actions and the reply box "Rapikan" menu.
+ */
+export async function refineReplyText(input: {
+  text: string;
+  mode?: RefineMode;
+  customInstruction?: string | null;
+  ticketTitle?: string | null;
+}): Promise<string> {
+  const instruction =
+    input.customInstruction?.trim().slice(0, 500) ||
+    REFINE_INSTRUCTIONS[input.mode ?? "perbaiki"];
+
+  const { object } = await generateObject({
+    model: getAiModel(),
+    schema: RefinedReplySchema,
+    prompt: `Kamu adalah asisten penulisan untuk staf helpdesk SIMRS RSUD Karawang.
+Teks di bawah adalah draf balasan staf kepada pelapor tiket${input.ticketTitle ? ` berjudul "${input.ticketTitle}"` : ""}.
+
+Instruksi dari staf: ${instruction}
+
+Aturan:
+- Balas dalam Bahasa Indonesia.
+- Kembalikan HANYA teks balasan yang sudah diubah, tanpa pengantar atau komentar.
+- Jangan mengarang fakta, nama, atau langkah yang tidak ada di teks asli.
+
+Draf balasan:
+${input.text}`,
+  });
+
+  return object.refinedText.trim();
+}
+
 export async function evaluateKbMatch(
   title: string,
   description: string | null,

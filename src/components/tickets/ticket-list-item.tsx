@@ -39,7 +39,7 @@ const PRIORITY_STYLE: Record<TicketListEntry["priority"], string> = {
 
 const PRIORITY_LABEL: Record<TicketListEntry["priority"], string> = {
   low: "Rendah",
-  medium: "Sedang",
+  medium: "Normal",
   critical: "Kritis",
 };
 

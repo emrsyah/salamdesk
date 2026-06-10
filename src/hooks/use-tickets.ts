@@ -36,6 +36,8 @@ export function useTickets(initialTickets?: TicketListEntry[]) {
   >(key, fetchJson, {
     fallbackData: key === initialKey ? initialTickets : undefined,
     keepPreviousData: true,
+    // New tickets/reopens arrive from the worker process — poll for them.
+    refreshInterval: 30_000,
   });
 
   const refetch = useCallback(() => {

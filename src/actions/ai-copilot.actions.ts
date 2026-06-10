@@ -6,7 +6,7 @@ import { db } from "@/db";
 import { tickets } from "@/db/schema/tickets";
 import { auth } from "@/lib/auth/auth";
 import { getKbArticleById, searchKnowledgeBase } from "@/services/knowledge.service";
-import { evaluateKbMatch } from "@/services/triage-ai.service";
+import { evaluateKbMatch, refineReplyText, type RefineMode } from "@/services/triage-ai.service";
 
 export type CopilotArticle = {
   id: string;
@@ -65,6 +65,32 @@ export async function searchKnowledgeForTicketAction(
     title: article.title,
     snippet: article.content.slice(0, 180),
   }));
+}
+
+/**
+ * Rewrite reply text per one refine mode (shorten, friendlier, etc.).
+ * Powers the copilot draft quick actions and the reply box "Rapikan" menu.
+ */
+export async function refineReplyTextAction(
+  ticketId: string,
+  text: string,
+  mode: RefineMode | "custom",
+  customInstruction?: string,
+): Promise<string> {
+  await requireSession();
+  const trimmed = text.trim();
+  if (!trimmed) throw new Error("Teks kosong.");
+  if (mode === "custom" && !customInstruction?.trim()) {
+    throw new Error("Instruksi kosong.");
+  }
+
+  const ticket = await loadTicketContext(ticketId);
+  return refineReplyText({
+    text: trimmed.slice(0, 8000),
+    mode: mode === "custom" ? undefined : mode,
+    customInstruction: mode === "custom" ? customInstruction : null,
+    ticketTitle: ticket.title,
+  });
 }
 
 /**

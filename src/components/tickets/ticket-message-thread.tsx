@@ -82,7 +82,13 @@ function MessageBubble({ msg }: { msg: TicketDetailData["messages"][0] }) {
   }
 
   return (
-    <div className={cn("flex gap-3", isOutgoing && !msg.isInternalNote ? "justify-end" : "justify-start")}>
+    <div
+      className={cn(
+        "flex gap-3",
+        isOutgoing && !msg.isInternalNote ? "justify-end" : "justify-start",
+        msg.pending && "opacity-60",
+      )}
+    >
       {!isOutgoing || msg.isInternalNote ? (
         <MessageAvatar label={avatarLabel} tone={msg.isInternalNote ? "internal" : "requester"} />
       ) : null}
@@ -95,7 +101,7 @@ function MessageBubble({ msg }: { msg: TicketDetailData["messages"][0] }) {
           )}
         >
           <span className="font-medium text-foreground/75">{senderName}</span>
-          <span>{formatTime(msg.createdAt)}</span>
+          <span>{msg.pending ? "Mengirim…" : formatTime(msg.createdAt)}</span>
           {isAi ? <MessageTag tone="ai">AI</MessageTag> : null}
           {msg.isInternalNote ? <MessageTag tone="internal">Internal</MessageTag> : null}
         </div>

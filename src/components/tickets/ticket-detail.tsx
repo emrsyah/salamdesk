@@ -64,6 +64,8 @@ export type TicketDetailData = {
     senderType: "requester" | "staff" | "ai_agent" | "system";
     isInternalNote: boolean;
     createdAt: Date | string;
+    /** Client-only: message shown optimistically while the send is in flight. */
+    pending?: boolean;
     sender: { id: string; name: string } | null;
     requester: { id: string; displayName: string } | null;
     attachments?: {

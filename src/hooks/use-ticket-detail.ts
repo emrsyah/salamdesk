@@ -25,6 +25,9 @@ export function useTicketDetail(initialTicket?: TicketDetailData | null) {
   const { data, error, isLoading, isValidating, mutate } = useSWR(key, fetchTicket, {
     fallbackData: initialTicket?.id === selectedId ? initialTicket : undefined,
     keepPreviousData: true,
+    // Inbound WhatsApp messages are written by the worker process — poll so
+    // they appear without a manual refresh. Paused while the tab is hidden.
+    refreshInterval: 15_000,
   });
 
   const refetch = useCallback(() => {

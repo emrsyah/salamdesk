@@ -3,15 +3,20 @@
 import { useEffect, useRef, useState } from "react";
 import {
   RiArrowDownSLine,
+  RiArrowGoBackLine,
   RiAttachment2,
   RiChatQuoteLine,
   RiCloseLine,
   RiFile3Line,
   RiLockLine,
+  RiMagicLine,
   RiSendPlane2Line,
   RiSparklingLine,
 } from "@remixicon/react";
+import { toast } from "sonner";
 import { useUploadThing } from "@/lib/uploadthing";
+import { useTicketDetailMutation } from "@/hooks/use-ticket-detail-mutation";
+import { authClient } from "@/lib/auth/auth-client";
 import { AttachmentImage } from "./attachment-image";
 import { Button } from "@/components/ui/button";
 import {
@@ -25,6 +30,14 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { cn, formatTime } from "@/lib/utils";
 import type { TicketDetailData } from "./ticket-detail";
+import type { RefineMode } from "@/services/triage-ai.service";
+
+const REFINE_ACTIONS: { mode: RefineMode; label: string; hint: string }[] = [
+  { mode: "perbaiki", label: "Perbaiki & rapikan", hint: "Ejaan, tata bahasa, kejelasan" },
+  { mode: "perpendek", label: "Perpendek", hint: "Buang basa-basi, poin tetap" },
+  { mode: "ramah", label: "Lebih ramah", hint: "Nada hangat, tetap profesional" },
+  { mode: "formal", label: "Lebih formal", hint: "Bahasa baku untuk komunikasi resmi" },
+];
 
 type PendingAttachment = {
   fileName: string;
@@ -55,6 +68,8 @@ export function TicketReplyBox({
   onReplySent,
 }: TicketReplyBoxProps) {
   const [content, setContent] = useState("");
+  const { optimisticUpdate } = useTicketDetailMutation(ticketId);
+  const { data: session } = authClient.useSession();
 
   // Apply a copilot draft when its nonce changes (a fresh insert request).
   useEffect(() => {
@@ -70,6 +85,46 @@ export function TicketReplyBox({
   // Files already uploaded to uploadthing, waiting to be attached on send.
   const [attachments, setAttachments] = useState<PendingAttachment[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // AI refine ("Rapikan") state: which mode is running, and the pre-refine
+  // text so the agent can undo with one click.
+  const [refiningMode, setRefiningMode] = useState<RefineMode | "custom" | null>(null);
+  const [preRefineContent, setPreRefineContent] = useState<string | null>(null);
+  const [isCustomRefineOpen, setIsCustomRefineOpen] = useState(false);
+  const [customInstruction, setCustomInstruction] = useState("");
+
+  async function handleRefine(mode: RefineMode | "custom", instruction?: string) {
+    if (!content.trim() || refiningMode) return;
+    const original = content;
+    setRefiningMode(mode);
+    try {
+      const { refineReplyTextAction } = await import("@/actions/ai-copilot.actions");
+      const refined = await refineReplyTextAction(ticketId, original, mode, instruction);
+      setPreRefineContent(original);
+      setContent(refined);
+      if (mode === "custom") {
+        setIsCustomRefineOpen(false);
+        setCustomInstruction("");
+      }
+    } catch (error) {
+      console.error("Refine failed", error);
+      toast.error("Gagal merapikan teks. Coba lagi.");
+    } finally {
+      setRefiningMode(null);
+    }
+  }
+
+  function submitCustomRefine() {
+    const instruction = customInstruction.trim();
+    if (!instruction) return;
+    void handleRefine("custom", instruction);
+  }
+
+  function undoRefine() {
+    if (preRefineContent === null) return;
+    setContent(preRefineContent);
+    setPreRefineContent(null);
+  }
 
   const { startUpload, isUploading } = useUploadThing("ticketAttachmentUploader", {
     onClientUploadComplete: (results) => {
@@ -100,30 +155,73 @@ export function TicketReplyBox({
     setAttachments((prev) => prev.filter((a) => a.storageKey !== storageKey));
   }
 
+  function buildOptimisticMessage(
+    text: string,
+    isInternalNote: boolean,
+    files: PendingAttachment[],
+  ): TicketDetailData["messages"][number] {
+    return {
+      id: `optimistic-${crypto.randomUUID()}`,
+      content: text,
+      senderType: "staff",
+      isInternalNote,
+      createdAt: new Date().toISOString(),
+      sender: session?.user
+        ? { id: session.user.id, name: session.user.name }
+        : null,
+      requester: null,
+      attachments: files.map((file) => ({
+        id: `optimistic-${file.storageKey}`,
+        fileName: file.fileName,
+        fileUrl: file.fileUrl,
+        mimeType: file.mimeType,
+        fileSize: file.fileSize,
+      })),
+      pending: true,
+    };
+  }
+
   async function handleSubmit() {
     const hasText = content.trim().length > 0;
     if ((!hasText && attachments.length === 0) || isLoading || isUploading) return;
 
+    // Snapshot + clear the composer immediately; restore on failure.
+    const sentContent = content;
+    const sentAttachments = attachments;
+    setContent("");
+    setAttachments([]);
+    setPreRefineContent(null);
     setIsLoading(true);
+
+    const optimisticMessage = buildOptimisticMessage(sentContent, false, sentAttachments);
+
     try {
-      const { sendReplyAction } = await import("@/actions/messages.actions");
-      await sendReplyAction({
-        ticketId,
-        content,
-        isInternalNote: false,
-        attachments: attachments.map(({ fileName, fileUrl, storageKey, mimeType, fileSize }) => ({
-          fileName,
-          fileUrl,
-          storageKey,
-          mimeType,
-          fileSize,
-        })),
-      });
-      setContent("");
-      setAttachments([]);
+      await optimisticUpdate(
+        (ticket) => ({ ...ticket, messages: [...ticket.messages, optimisticMessage] }),
+        async () => {
+          const { sendReplyAction } = await import("@/actions/messages.actions");
+          await sendReplyAction({
+            ticketId,
+            content: sentContent,
+            isInternalNote: false,
+            attachments: sentAttachments.map(
+              ({ fileName, fileUrl, storageKey, mimeType, fileSize }) => ({
+                fileName,
+                fileUrl,
+                storageKey,
+                mimeType,
+                fileSize,
+              }),
+            ),
+          });
+        },
+      );
       onReplySent?.();
     } catch (error) {
       console.error(error);
+      setContent(sentContent);
+      setAttachments(sentAttachments);
+      toast.error("Gagal mengirim balasan. Pesan dikembalikan ke kotak balasan.");
     } finally {
       setIsLoading(false);
     }
@@ -132,19 +230,30 @@ export function TicketReplyBox({
   async function handleInternalSubmit() {
     if (!internalContent.trim() || isInternalLoading) return;
 
+    const sentContent = internalContent;
+    setInternalContent("");
+    setIsInternalPanelOpen(true);
     setIsInternalLoading(true);
+
+    const optimisticMessage = buildOptimisticMessage(sentContent, true, []);
+
     try {
-      const { sendReplyAction } = await import("@/actions/messages.actions");
-      await sendReplyAction({
-        ticketId,
-        content: internalContent,
-        isInternalNote: true,
-      });
-      setInternalContent("");
-      setIsInternalPanelOpen(true);
+      await optimisticUpdate(
+        (ticket) => ({ ...ticket, messages: [...ticket.messages, optimisticMessage] }),
+        async () => {
+          const { sendReplyAction } = await import("@/actions/messages.actions");
+          await sendReplyAction({
+            ticketId,
+            content: sentContent,
+            isInternalNote: true,
+          });
+        },
+      );
       onReplySent?.();
     } catch (error) {
       console.error(error);
+      setInternalContent(sentContent);
+      toast.error("Gagal menyimpan catatan internal. Teks dikembalikan.");
     } finally {
       setIsInternalLoading(false);
     }
@@ -250,6 +359,52 @@ export function TicketReplyBox({
           </Button>
 
           <div className="flex items-center gap-1">
+          {content.trim() && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 gap-1.5 text-xs"
+                  disabled={refiningMode !== null}
+                >
+                  {refiningMode ? (
+                    <span className="size-3.5 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                  ) : (
+                    <RiMagicLine className="size-3.5 text-violet-600 dark:text-violet-400" />
+                  )}
+                  {refiningMode
+                    ? (REFINE_ACTIONS.find((a) => a.mode === refiningMode)?.label ??
+                      "Menerapkan…")
+                    : "Rapikan"}
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-60">
+                <DropdownMenuLabel>Ubah tulisanmu dengan AI</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                {REFINE_ACTIONS.map((action) => (
+                  <DropdownMenuItem
+                    key={action.mode}
+                    onSelect={() => handleRefine(action.mode)}
+                    className="flex flex-col items-start gap-0.5 py-2"
+                  >
+                    <span className="font-medium">{action.label}</span>
+                    <span className="text-[10px] text-muted-foreground">{action.hint}</span>
+                  </DropdownMenuItem>
+                ))}
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  onSelect={() => setIsCustomRefineOpen(true)}
+                  className="flex flex-col items-start gap-0.5 py-2"
+                >
+                  <span className="font-medium">Instruksi sendiri…</span>
+                  <span className="text-[10px] text-muted-foreground">
+                    Tulis sendiri apa yang ingin diubah
+                  </span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
           {onRequestDraft && (
             <Button
               variant="ghost"
@@ -328,12 +483,70 @@ export function TicketReplyBox({
           </div>
         )}
 
+        {isCustomRefineOpen && (
+          <div className="mb-2 flex items-center gap-2 rounded-lg border border-violet-200 bg-violet-50/60 p-2 dark:border-violet-900/60 dark:bg-violet-950/20">
+            <RiMagicLine className="size-4 shrink-0 text-violet-600 dark:text-violet-400" />
+            <input
+              autoFocus
+              value={customInstruction}
+              onChange={(event) => setCustomInstruction(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  event.preventDefault();
+                  submitCustomRefine();
+                }
+                if (event.key === "Escape") {
+                  setIsCustomRefineOpen(false);
+                  setCustomInstruction("");
+                }
+              }}
+              placeholder='Apa yang ingin diubah? Contoh: "tambahkan salam penutup", "jadikan langkah bernomor"'
+              maxLength={500}
+              disabled={refiningMode !== null}
+              className="h-7 w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground/70 disabled:opacity-50"
+            />
+            <Button
+              size="sm"
+              className="h-7 shrink-0 bg-violet-600 text-white hover:bg-violet-700"
+              disabled={!customInstruction.trim() || refiningMode !== null}
+              onClick={submitCustomRefine}
+            >
+              {refiningMode === "custom" ? (
+                <span className="size-3.5 animate-spin rounded-full border-2 border-current border-t-transparent" />
+              ) : (
+                "Terapkan"
+              )}
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="size-7 shrink-0 text-muted-foreground"
+              onClick={() => {
+                setIsCustomRefineOpen(false);
+                setCustomInstruction("");
+              }}
+              aria-label="Tutup instruksi AI"
+            >
+              <RiCloseLine className="size-4" />
+            </Button>
+          </div>
+        )}
+
         <div className="group relative">
           <Textarea
             placeholder="Tulis balasan untuk reporter..."
-            className="min-h-[104px] resize-none bg-muted/30 pr-12 pb-12 transition-all duration-200 focus-visible:ring-blue-400 focus-visible:ring-offset-0"
+            className={cn(
+              "min-h-[104px] resize-none bg-muted/30 pr-12 pb-12 transition-all duration-200 focus-visible:ring-blue-400 focus-visible:ring-offset-0",
+              refiningMode && "animate-pulse opacity-60",
+            )}
             value={content}
-            onChange={(e) => setContent(e.target.value)}
+            readOnly={refiningMode !== null}
+            onChange={(e) => {
+              setContent(e.target.value);
+              // Manual edits invalidate the AI-undo snapshot — restoring it
+              // now would clobber the agent's own changes.
+              if (preRefineContent !== null) setPreRefineContent(null);
+            }}
             onKeyDown={(e) => {
               if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
                 handleSubmit();
@@ -377,7 +590,22 @@ export function TicketReplyBox({
           </Button>
         </div>
         <div className="mt-2 flex items-center justify-between px-1 text-[10px] text-muted-foreground">
-          <span>Pesan ini akan dikirim ke reporter.</span>
+          {preRefineContent !== null ? (
+            <span className="flex items-center gap-1.5">
+              <RiMagicLine className="size-3 text-violet-600 dark:text-violet-400" />
+              Teks diubah AI.
+              <button
+                type="button"
+                onClick={undoRefine}
+                className="flex items-center gap-0.5 font-medium text-foreground underline-offset-2 hover:underline"
+              >
+                <RiArrowGoBackLine className="size-3" />
+                Kembalikan tulisan asli
+              </button>
+            </span>
+          ) : (
+            <span>Pesan ini akan dikirim ke reporter.</span>
+          )}
           <span>
             Tekan <kbd className="rounded border bg-muted/50 px-1 font-sans">Ctrl + Enter</kbd>{" "}
             untuk kirim

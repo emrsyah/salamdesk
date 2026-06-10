@@ -44,7 +44,7 @@ type SortKey = "newest" | "oldest" | "priority" | "sla";
 const PRIORITY_FILTER_LABELS: Record<PriorityFilter, string> = {
   all: "Semua prioritas",
   critical: "Kritis",
-  medium: "Sedang",
+  medium: "Normal",
   low: "Rendah",
 };
 
@@ -343,7 +343,7 @@ export function TicketList({ tickets, modules, configuration, configurationContr
                   className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:opacity-50"
                 >
                   <option value="low">Rendah</option>
-                  <option value="medium">Sedang</option>
+                  <option value="medium">Normal</option>
                   <option value="critical">Kritis</option>
                 </select>
               </div>

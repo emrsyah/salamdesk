@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
+  RiArrowGoBackLine,
   RiBookOpenLine,
   RiCloseLine,
   RiCornerDownLeftLine,
@@ -14,7 +15,14 @@ import type {
   CopilotArticle,
   CopilotDraft,
 } from "@/actions/ai-copilot.actions";
+import type { RefineMode } from "@/services/triage-ai.service";
 import type { TicketDetailData } from "./ticket-detail";
+
+const DRAFT_QUICK_ACTIONS: { mode: RefineMode; label: string }[] = [
+  { mode: "perpendek", label: "Perpendek" },
+  { mode: "ramah", label: "Lebih ramah" },
+  { mode: "formal", label: "Lebih formal" },
+];
 
 interface TicketAiCopilotPanelProps {
   ticket: TicketDetailData;
@@ -47,6 +55,8 @@ export function TicketAiCopilotPanel({
 
   const [draft, setDraft] = useState<CopilotDraft | null>(null);
   const [draftingKbId, setDraftingKbId] = useState<string | null>(null);
+  const [refiningMode, setRefiningMode] = useState<RefineMode | null>(null);
+  const [previousDraftText, setPreviousDraftText] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const ticketId = ticket.id;
@@ -84,6 +94,7 @@ export function TicketAiCopilotPanel({
         );
         const result = await draftReplyFromKbAction(ticketId, kbId);
         setDraft(result);
+        setPreviousDraftText(null);
       } catch (err) {
         console.error("Copilot draft failed", err);
         setError("Gagal membuat draf. Coba lagi.");
@@ -93,6 +104,39 @@ export function TicketAiCopilotPanel({
     },
     [ticketId],
   );
+
+  const runRefine = useCallback(
+    async (mode: RefineMode) => {
+      if (!draft?.suggestedReply || refiningMode) return;
+      const currentText = draft.suggestedReply;
+      setRefiningMode(mode);
+      setError(null);
+      try {
+        const { refineReplyTextAction } = await import(
+          "@/actions/ai-copilot.actions"
+        );
+        const refined = await refineReplyTextAction(ticketId, currentText, mode);
+        setPreviousDraftText(currentText);
+        setDraft((current) =>
+          current ? { ...current, suggestedReply: refined } : current,
+        );
+      } catch (err) {
+        console.error("Copilot refine failed", err);
+        setError("Gagal mengubah draf. Coba lagi.");
+      } finally {
+        setRefiningMode(null);
+      }
+    },
+    [draft, refiningMode, ticketId],
+  );
+
+  function undoRefine() {
+    if (previousDraftText === null) return;
+    setDraft((current) =>
+      current ? { ...current, suggestedReply: previousDraftText } : current,
+    );
+    setPreviousDraftText(null);
+  }
 
   // Initial ticket-based retrieval when the panel opens.
   useEffect(() => {
@@ -182,12 +226,48 @@ export function TicketAiCopilotPanel({
               </p>
               {draft.suggestedReply ? (
                 <>
-                  <p className="whitespace-pre-wrap text-sm leading-relaxed text-amber-900 dark:text-amber-200">
+                  <p
+                    className={`whitespace-pre-wrap text-sm leading-relaxed text-amber-900 transition-opacity dark:text-amber-200 ${refiningMode ? "opacity-50" : ""}`}
+                  >
                     {draft.suggestedReply}
                   </p>
+
+                  {/* Quick refinements — rewrite the draft in place. */}
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    {DRAFT_QUICK_ACTIONS.map((action) => (
+                      <button
+                        key={action.mode}
+                        type="button"
+                        disabled={refiningMode !== null}
+                        onClick={() => runRefine(action.mode)}
+                        className="rounded-full border border-amber-300/70 bg-background/60 px-2.5 py-1 text-xs font-medium text-amber-900 transition-colors hover:bg-amber-100 disabled:opacity-50 dark:border-amber-800 dark:text-amber-200 dark:hover:bg-amber-900/40"
+                      >
+                        {refiningMode === action.mode ? (
+                          <span className="flex items-center gap-1.5">
+                            <span className="size-3 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                            {action.label}
+                          </span>
+                        ) : (
+                          action.label
+                        )}
+                      </button>
+                    ))}
+                    {previousDraftText !== null && !refiningMode && (
+                      <button
+                        type="button"
+                        onClick={undoRefine}
+                        className="ml-auto flex items-center gap-1 text-xs text-amber-700 underline-offset-2 hover:underline dark:text-amber-400"
+                      >
+                        <RiArrowGoBackLine className="size-3" />
+                        Kembalikan
+                      </button>
+                    )}
+                  </div>
+
                   <Button
                     size="sm"
                     className="w-full bg-amber-500 text-amber-950 hover:bg-amber-600"
+                    disabled={refiningMode !== null}
                     onClick={() => onUseDraft(draft.suggestedReply!)}
                   >
                     Gunakan balasan ini

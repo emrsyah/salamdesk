@@ -57,7 +57,7 @@ function normalizeStatus(status: RequesterTicketHistoryItem["status"] | "waiting
 
 const PRIORITY_LABEL: Record<RequesterTicketHistoryItem["priority"], string> = {
   low: "Rendah",
-  medium: "Sedang",
+  medium: "Normal",
   critical: "Kritis",
 };
 
