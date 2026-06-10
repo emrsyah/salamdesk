@@ -13,7 +13,12 @@ import {
 } from "@/services/knowledge.service";
 
 function getTempDir() {
-  return process.env.KNOWLEDGE_INGESTION_TMP_DIR ?? path.join(os.tmpdir(), "salamdesk-knowledge-ingestion");
+  // `||` (not `??`) — an empty KNOWLEDGE_INGESTION_TMP_DIR="" in .env must
+  // also fall back, otherwise we try to mkdir("").
+  return (
+    process.env.KNOWLEDGE_INGESTION_TMP_DIR?.trim() ||
+    path.join(os.tmpdir(), "salamdesk-knowledge-ingestion")
+  );
 }
 
 async function downloadToTempFile(jobId: string | undefined, data: KnowledgeIngestionJob) {

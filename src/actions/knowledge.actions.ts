@@ -94,6 +94,24 @@ export async function setKbArticleActiveAction(id: string, isActive: boolean) {
   updateTag("knowledge-base");
 }
 
+export async function retryKbIngestionAction(id: string) {
+  const session = await auth.api.getSession({
+    headers: await headers(),
+  });
+
+  if (!session) {
+    throw new Error("Unauthorized");
+  }
+
+  const { requeueKnowledgeDocumentIngestion } = await import(
+    "@/services/knowledge.service"
+  );
+  await requeueKnowledgeDocumentIngestion(id);
+
+  revalidatePath("/app/knowledge");
+  updateTag("knowledge-base");
+}
+
 export async function getAllKbArticlesAction(moduleId?: string) {
   const session = await auth.api.getSession({
     headers: await headers(),

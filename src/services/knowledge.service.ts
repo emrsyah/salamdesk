@@ -247,6 +247,41 @@ export async function createUploadedKnowledgeDocument(data: {
     .execute();
 }
 
+/**
+ * Re-enqueue ingestion for an uploaded document (e.g. after a failure).
+ * Resets the status to "pending" so the UI reflects the retry immediately.
+ */
+export async function requeueKnowledgeDocumentIngestion(id: string) {
+  const [doc] = await db
+    .select({
+      id: knowledgeBase.id,
+      fileUrl: knowledgeBase.fileUrl,
+      originalFileName: knowledgeBase.originalFileName,
+      mimeType: knowledgeBase.mimeType,
+    })
+    .from(knowledgeBase)
+    .where(eq(knowledgeBase.id, id));
+
+  if (!doc) throw new Error("Dokumen tidak ditemukan.");
+  if (!doc.fileUrl) {
+    throw new Error("Dokumen ini bukan hasil upload — tidak ada file untuk diproses ulang.");
+  }
+
+  await db
+    .update(knowledgeBase)
+    .set({ ingestionStatus: "pending", ingestionError: null, updatedAt: new Date() })
+    .where(eq(knowledgeBase.id, id))
+    .execute();
+
+  const { KNOWLEDGE_INGESTION_JOBS, knowledgeIngestionQueue } = await import("@/lib/queue");
+  await knowledgeIngestionQueue.add(KNOWLEDGE_INGESTION_JOBS.ingestDocument, {
+    documentId: doc.id,
+    fileUrl: doc.fileUrl,
+    fileName: doc.originalFileName ?? "document",
+    mimeType: doc.mimeType ?? "application/octet-stream",
+  });
+}
+
 export async function markKnowledgeDocumentProcessing(id: string) {
   await db
     .update(knowledgeBase)

@@ -4,7 +4,8 @@ import { redirect } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { KbCreateDialog } from "@/components/knowledge/kb-create-surface";
 import { KbListClient } from "@/components/knowledge/kb-list-client";
-import { getCachedKbArticles, getCachedAllModules } from "@/lib/cache";
+import { getCachedAllModules } from "@/lib/cache";
+import { getAllKbArticles } from "@/services/knowledge.service";
 import { getSession } from "@/lib/auth/session";
 
 export default async function KnowledgePage() {
@@ -14,8 +15,11 @@ export default async function KnowledgePage() {
     redirect("/");
   }
 
+  // KB articles are read uncached: ingestion status changes come from the
+  // worker process (which can't invalidate Next's cache tag), and the list
+  // client polls this page while documents are processing.
   const [kbArticles, modules] = await Promise.all([
-    getCachedKbArticles(),
+    getAllKbArticles(),
     getCachedAllModules(),
   ]);
 

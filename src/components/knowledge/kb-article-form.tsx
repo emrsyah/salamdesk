@@ -103,40 +103,15 @@ export function KbArticleForm({ initialData, modules, onCancel }: KbArticleFormP
 
         <FormField
           control={form.control}
-          name="moduleId"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Modul (Opsional)</FormLabel>
-              <FormControl>
-                <select
-                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                  {...field}
-                >
-                  <option value="">-- Tidak ada modul --</option>
-                  {modules.map((m) => (
-                    <option key={m.id} value={m.id}>
-                      {m.name}
-                    </option>
-                  ))}
-                </select>
-              </FormControl>
-              <FormDescription>Pilih modul jika dokumen ini spesifik untuk satu modul.</FormDescription>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-
-        <FormField
-          control={form.control}
           name="content"
           render={({ field }) => (
             <FormItem>
               <FormLabel>Konten</FormLabel>
               <FormControl>
-                <Textarea 
-                  placeholder="Isi dokumen pengetahuan..."
-                  className="min-h-[260px]"
-                  {...field} 
+                <Textarea
+                  placeholder="Tulis langkah penyelesaian, penyebab umum, atau panduan — ini yang dibaca AI saat menjawab tiket."
+                  className="min-h-[240px]"
+                  {...field}
                 />
               </FormControl>
               <FormMessage />
@@ -144,19 +119,66 @@ export function KbArticleForm({ initialData, modules, onCancel }: KbArticleFormP
           )}
         />
 
-        <FormField
-          control={form.control}
-          name="tags"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Tags (Opsional)</FormLabel>
-              <FormControl>
-                <Input placeholder="login, password, error (pisahkan dengan koma)" {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+        <div className="grid gap-4 sm:grid-cols-2">
+          <FormField
+            control={form.control}
+            name="moduleId"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Modul (Opsional)</FormLabel>
+                <FormControl>
+                  <select
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                    {...field}
+                  >
+                    <option value="">Semua modul</option>
+                    {modules.map((m) => (
+                      <option key={m.id} value={m.id}>
+                        {m.name}
+                      </option>
+                    ))}
+                  </select>
+                </FormControl>
+                <FormDescription>Persempit jika dokumen ini spesifik untuk satu modul.</FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name="tags"
+            render={({ field }) => {
+              const previewTags = (field.value ?? "")
+                .split(",")
+                .map((tag) => tag.trim())
+                .filter(Boolean);
+              return (
+                <FormItem>
+                  <FormLabel>Tags (Opsional)</FormLabel>
+                  <FormControl>
+                    <Input placeholder="login, password, error" {...field} />
+                  </FormControl>
+                  {previewTags.length > 0 ? (
+                    <div className="flex flex-wrap gap-1.5 pt-1">
+                      {previewTags.map((tag) => (
+                        <span
+                          key={tag}
+                          className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground"
+                        >
+                          {tag}
+                        </span>
+                      ))}
+                    </div>
+                  ) : (
+                    <FormDescription>Pisahkan dengan koma.</FormDescription>
+                  )}
+                  <FormMessage />
+                </FormItem>
+              );
+            }}
+          />
+        </div>
 
         <div className="flex justify-end gap-2">
           <Button type="button" variant="outline" onClick={onCancel ?? (() => router.back())} disabled={isLoading}>

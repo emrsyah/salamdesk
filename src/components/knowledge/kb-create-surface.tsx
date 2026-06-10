@@ -63,7 +63,7 @@ function KbCreateTabs({
       </TabsContent>
 
       <TabsContent value="upload" className="outline-none">
-        <div className="rounded-2xl border border-dashed bg-muted/20 p-5">
+        <div className="rounded-2xl border bg-background p-5">
           <KbDocumentUpload
             modules={modules}
             defaultTitle={defaultTitle}
