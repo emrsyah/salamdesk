@@ -90,9 +90,18 @@ export function TicketListItem({ ticket, isSelected }: TicketListItemProps) {
 
   return (
     <div
+      role="button"
+      tabIndex={0}
+      aria-pressed={isSelected}
       onClick={handleClick}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          handleClick();
+        }
+      }}
       className={cn(
-        "border-b border-l-4 p-4 cursor-pointer transition-colors hover:bg-muted/45",
+        "border-b border-l-4 p-4 cursor-pointer transition-colors hover:bg-muted/45 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
         isSelected
           ? "border-l-primary bg-muted/25"
           : "border-l-transparent",

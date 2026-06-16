@@ -47,6 +47,10 @@ type PendingAttachment = {
   fileSize: number;
 };
 
+// Stable empty-array default so callers that omit these props don't get a
+// fresh reference each render (which would defeat downstream memoization).
+const EMPTY_ARRAY: never[] = [];
+
 interface TicketReplyBoxProps {
   ticketId: string;
   moduleId?: string | null;
@@ -61,8 +65,8 @@ interface TicketReplyBoxProps {
 
 export function TicketReplyBox({
   ticketId,
-  quickReplies = [],
-  internalNotes = [],
+  quickReplies = EMPTY_ARRAY,
+  internalNotes = EMPTY_ARRAY,
   draftInsert,
   onRequestDraft,
   onReplySent,

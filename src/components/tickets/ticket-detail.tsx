@@ -79,6 +79,10 @@ export type TicketDetailData = {
   aiSuggestions?: AiSuggestionData[];
 };
 
+// Stable empty-array default so an omitted prop keeps the same reference
+// across renders instead of allocating a fresh array each time.
+const EMPTY_ARRAY: never[] = [];
+
 interface TicketDetailProps {
   ticket: TicketDetailData | null | undefined;
   quickReplies?: { id: string; label: string; content: string }[];
@@ -92,7 +96,7 @@ export function TicketDetail({
   ticket,
   quickReplies,
   assignableStaff,
-  modules = [],
+  modules = EMPTY_ARRAY,
   configuration,
   onMutated,
 }: TicketDetailProps) {

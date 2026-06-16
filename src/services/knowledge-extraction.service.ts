@@ -39,10 +39,10 @@ export async function extractKnowledgeDocument(input: {
   if (isPdf(input)) {
     const parser = new LiteParse({ ocrEnabled: true });
     const result = await parser.parse(input.filePath);
-    const pages = result.pages?.map((page) => ({
-      pageNumber: page.pageNum,
-      text: page.textItems.map((item) => "text" in item ? item.text : item.str).join(" ").trim(),
-    })).filter((page) => page.text.length > 0);
+    const pages = result.pages?.flatMap((page) => {
+      const text = page.textItems.map((item) => "text" in item ? item.text : item.str).join(" ").trim();
+      return text.length > 0 ? [{ pageNumber: page.pageNum, text }] : [];
+    });
 
     return {
       text: result.text.trim(),

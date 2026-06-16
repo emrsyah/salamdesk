@@ -57,7 +57,10 @@ export function KbArticleForm({ initialData, modules, onCancel }: KbArticleFormP
     setIsLoading(true);
     try {
       const parsedTags = values.tags
-        ? values.tags.split(",").map((t) => t.trim()).filter(Boolean)
+        ? values.tags.split(",").flatMap((t) => {
+            const trimmed = t.trim();
+            return trimmed ? [trimmed] : [];
+          })
         : [];
 
       const payload = {
@@ -149,10 +152,10 @@ export function KbArticleForm({ initialData, modules, onCancel }: KbArticleFormP
             control={form.control}
             name="tags"
             render={({ field }) => {
-              const previewTags = (field.value ?? "")
-                .split(",")
-                .map((tag) => tag.trim())
-                .filter(Boolean);
+              const previewTags = (field.value ?? "").split(",").flatMap((tag) => {
+                const trimmed = tag.trim();
+                return trimmed ? [trimmed] : [];
+              });
               return (
                 <FormItem>
                   <FormLabel>Tags (Opsional)</FormLabel>

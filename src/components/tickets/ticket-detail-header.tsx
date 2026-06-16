@@ -77,6 +77,10 @@ const SOURCE_LABEL: Record<string, string> = {
   api: "API",
 };
 
+// Stable empty-array default so omitted list props keep a constant reference
+// across renders instead of allocating a new array each time.
+const EMPTY_ARRAY: never[] = [];
+
 interface TicketDetailHeaderProps {
   ticket: TicketDetailData;
   modules?: { id: string; name: string; color: string | null; slug?: string }[];
@@ -91,9 +95,9 @@ interface TicketDetailHeaderProps {
 
 export function TicketDetailHeader({
   ticket,
-  modules = [],
+  modules = EMPTY_ARRAY,
   configuration,
-  assignableStaff = [],
+  assignableStaff = EMPTY_ARRAY,
   isRequesterPanelOpen = false,
   onToggleRequesterPanel,
   isCopilotOpen = false,

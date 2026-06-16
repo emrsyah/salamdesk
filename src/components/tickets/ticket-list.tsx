@@ -101,6 +101,12 @@ const TAB_STATUSES: Record<Tab, TicketListEntry["status"][]> = {
   done: ["resolved", "closed"],
 };
 
+// Set form for O(1) membership checks in the per-ticket counting loop.
+const TAB_STATUS_SETS: Record<Tab, Set<TicketListEntry["status"]>> = {
+  inbox: new Set(TAB_STATUSES.inbox),
+  done: new Set(TAB_STATUSES.done),
+};
+
 const TAB_LABELS: Record<Tab, string> = {
   inbox: "Inbox",
   done: "Selesai",
@@ -206,8 +212,8 @@ export function TicketList({ tickets, modules, configuration, configurationContr
     () => {
       const acc = { inbox: 0, done: 0 };
       for (const t of tickets) {
-        if (TAB_STATUSES.inbox.includes(t.status)) acc.inbox++;
-        else if (TAB_STATUSES.done.includes(t.status)) acc.done++;
+        if (TAB_STATUS_SETS.inbox.has(t.status)) acc.inbox++;
+        else if (TAB_STATUS_SETS.done.has(t.status)) acc.done++;
       }
       return acc;
     },

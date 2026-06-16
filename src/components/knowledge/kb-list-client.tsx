@@ -225,9 +225,8 @@ export function KbListClient({ articles, modules }: KbListClientProps) {
       <div className="mb-6 space-y-3">
         {/* Status chips double as a summary and a filter. */}
         <div className="flex flex-wrap items-center gap-2">
-          {statusChips
-            .filter((chip) => chip.show)
-            .map((chip) => (
+          {statusChips.flatMap((chip) =>
+            !chip.show ? [] : [(
               <button
                 key={chip.key}
                 type="button"
@@ -257,7 +256,8 @@ export function KbListClient({ articles, modules }: KbListClientProps) {
                   {chip.count}
                 </span>
               </button>
-            ))}
+            )]
+          )}
         </div>
 
         <div className="flex flex-col gap-3 sm:flex-row">

@@ -96,16 +96,20 @@ export function HelpdeskSidebar({ user, modules, slaConfigs, ...props }: Helpdes
     [isAdmin]
   );
 
-  const moduleNavItems: NavItem[] = useMemo(() => modules.filter((m) => m.isActive).map((m) => ({
-    title: m.name,
-    url: `/app/tickets?module=${m.slug}`,
-    icon: (
-      <span
-        className="size-3.5 rounded-sm inline-block shrink-0"
-        style={{ backgroundColor: m.color ?? "#94a3b8" }}
-      />
-    ),
-  })), [modules]);
+  const moduleNavItems: NavItem[] = useMemo(() => modules.flatMap((m) =>
+    m.isActive
+      ? [{
+          title: m.name,
+          url: `/app/tickets?module=${m.slug}`,
+          icon: (
+            <span
+              className="size-3.5 rounded-sm inline-block shrink-0"
+              style={{ backgroundColor: m.color ?? "#94a3b8" }}
+            />
+          ),
+        }]
+      : []
+  ), [modules]);
 
 
   const isItemActive = (item: NavItem): boolean => {
