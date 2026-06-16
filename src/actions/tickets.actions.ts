@@ -1,6 +1,6 @@
 "use server";
 
-import { buildStaffLifecycleActor } from "@/actions/lifecycle-actor";
+import { buildStaffLifecycleActor } from "@/lib/lifecycle-actor";
 import {
   createTicket,
 } from "@/services/ticket.service";

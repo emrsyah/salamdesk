@@ -29,12 +29,14 @@ export async function processInboundWaMessage(job: WaInboundJob): Promise<{
   const { jid, phone, text, pushName } = job;
 
   // 1. Resolve or create the requester profile (keyed on phone for readability)
-  const requesterId = await findOrCreateRequesterByPhone(phone, pushName);
-
   // 2. Find the latest ticket for this contact. We key on the full addressing
   //    JID (stored in waPhone) so outbound replies route to the exact JID —
   //    a phone number alone can't distinguish @lid from @s.whatsapp.net.
-  const existingTicket = await findLatestTicketByWaPhone(jid);
+  // These two lookups are independent, so run them together.
+  const [requesterId, existingTicket] = await Promise.all([
+    findOrCreateRequesterByPhone(phone, pushName),
+    findLatestTicketByWaPhone(jid),
+  ]);
 
   if (existingTicket && (existingTicket.status === "open" || existingTicket.status === "in_progress")) {
     // Append to the existing conversation thread

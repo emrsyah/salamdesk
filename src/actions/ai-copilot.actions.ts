@@ -103,9 +103,10 @@ export async function draftReplyFromKbAction(
   kbId: string,
 ): Promise<CopilotDraft> {
   await requireSession();
-  const ticket = await loadTicketContext(ticketId);
-
-  const article = await getKbArticleById(kbId);
+  const [ticket, article] = await Promise.all([
+    loadTicketContext(ticketId),
+    getKbArticleById(kbId),
+  ]);
   if (!article) throw new Error(`KB article ${kbId} not found`);
 
   const evaluation = await evaluateKbMatch(

@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { HelpdeskSidebar } from "@/components/helpdesk-sidebar";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -28,7 +29,9 @@ export default async function DashboardLayout({ children }: { children: React.Re
   return (
     <TooltipProvider>
       <SidebarProvider className="h-svh min-h-0 overflow-hidden">
-        <HelpdeskSidebar user={user} modules={sidebarModules} slaConfigs={allSlaConfigs} />
+        <Suspense fallback={null}>
+          <HelpdeskSidebar user={user} modules={sidebarModules} slaConfigs={allSlaConfigs} />
+        </Suspense>
         <SidebarInset className="min-h-0 overflow-hidden">
           <header className="flex md:hidden h-16 shrink-0 items-center gap-2 border-b px-4">
             <div className="h-4 w-px bg-border" />

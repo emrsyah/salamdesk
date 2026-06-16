@@ -20,8 +20,11 @@ export async function POST() {
 
   try {
     // Optimistic status so the UI reflects the action before the worker reacts.
-    await redisConnection.set("wa-status", "connecting");
-    await redisConnection.del("wa-qr");
+    // Set both keys together, then signal the worker once state is in place.
+    await Promise.all([
+      redisConnection.set("wa-status", "connecting"),
+      redisConnection.del("wa-qr"),
+    ]);
     const receivers = await redisConnection.publish("wa-control", "disconnect");
 
     if (receivers === 0) {

@@ -125,7 +125,10 @@ export async function updateAiConfig(update: AiConfigUpdate): Promise<AiConfig> 
     patch.skipCriticalPriority = update.skipCriticalPriority;
   if (update.requireKbGrounding !== undefined) patch.requireKbGrounding = update.requireKbGrounding;
   if (update.blockedKeywords !== undefined)
-    patch.blockedKeywords = update.blockedKeywords.map((k) => k.trim()).filter(Boolean);
+    patch.blockedKeywords = update.blockedKeywords.flatMap((k) => {
+      const trimmed = k.trim();
+      return trimmed ? [trimmed] : [];
+    });
   if (update.maxAutoRepliesPerTicket !== undefined)
     patch.maxAutoRepliesPerTicket = Math.max(1, Math.round(update.maxAutoRepliesPerTicket));
 

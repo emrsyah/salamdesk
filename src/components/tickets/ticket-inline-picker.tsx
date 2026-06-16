@@ -80,6 +80,7 @@ export function InlinePicker({
               <RiSearchLine className="size-3.5 shrink-0 text-muted-foreground" />
               <input
                 autoFocus
+                aria-label={searchPlaceholder}
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
                 onKeyDown={(event) => {

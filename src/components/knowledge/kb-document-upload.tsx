@@ -102,7 +102,10 @@ export function KbDocumentUpload({
 
   async function handleSubmit() {
     if (!file || !title.trim() || isUploading) return;
-    const parsedTags = tags.split(",").map((tag) => tag.trim()).filter(Boolean);
+    const parsedTags = tags.split(",").flatMap((tag) => {
+      const trimmed = tag.trim();
+      return trimmed ? [trimmed] : [];
+    });
     setProgress(0);
     await startUpload([file], {
       title: title.trim(),
@@ -173,6 +176,7 @@ export function KbDocumentUpload({
       <input
         ref={fileInputRef}
         type="file"
+        aria-label="Unggah dokumen"
         accept={ACCEPTED_EXTENSIONS.join(",")}
         className="hidden"
         onChange={(event) => {

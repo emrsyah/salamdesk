@@ -488,6 +488,7 @@ export function TicketReplyBox({
             <RiMagicLine className="size-4 shrink-0 text-violet-600 dark:text-violet-400" />
             <input
               autoFocus
+              aria-label="Instruksi AI"
               value={customInstruction}
               onChange={(event) => setCustomInstruction(event.target.value)}
               onKeyDown={(event) => {
@@ -557,6 +558,7 @@ export function TicketReplyBox({
             ref={fileInputRef}
             type="file"
             multiple
+            aria-label="Lampirkan berkas"
             accept="image/*,application/pdf,text/plain"
             className="hidden"
             onChange={(e) => handleFilesSelected(e.target.files)}

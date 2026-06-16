@@ -169,25 +169,26 @@ export async function triageTicket(
       }
     }
 
-    await db
-      .update(tickets)
-      .set({
-        moduleId: classifiedModuleId ?? ticket.moduleId,
-        moduleConfidence: confidenceToDb(moduleConfidence),
-        moduleSetBy: classifiedModuleId && !ticket.moduleId ? "ai" : ticket.moduleId ? "user" : null,
-        priority: result.priority,
-        updatedAt: new Date(),
-      })
-      .where(eq(tickets.id, ticketId));
-
-    await db.insert(aiSuggestions).values({
-      ticketId,
-      suggestedKbId: result.kbArticleId,
-      confidenceScore: confidenceToDb(result.replyConfidence),
-      wasHelpful: null,
-    });
-
-    const priorAutoReplies = await countAutoReplies(ticketId);
+    // These two writes and the prior-reply count are independent of each other.
+    const [, , priorAutoReplies] = await Promise.all([
+      db
+        .update(tickets)
+        .set({
+          moduleId: classifiedModuleId ?? ticket.moduleId,
+          moduleConfidence: confidenceToDb(moduleConfidence),
+          moduleSetBy: classifiedModuleId && !ticket.moduleId ? "ai" : ticket.moduleId ? "user" : null,
+          priority: result.priority,
+          updatedAt: new Date(),
+        })
+        .where(eq(tickets.id, ticketId)),
+      db.insert(aiSuggestions).values({
+        ticketId,
+        suggestedKbId: result.kbArticleId,
+        confidenceScore: confidenceToDb(result.replyConfidence),
+        wasHelpful: null,
+      }),
+      countAutoReplies(ticketId),
+    ]);
 
     const policy = canAutoReply(
       {

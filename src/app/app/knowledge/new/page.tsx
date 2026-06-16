@@ -10,8 +10,7 @@ export default async function NewKbArticlePage(props: { searchParams: Promise<{ 
     redirect("/");
   }
 
-  const searchParams = await props.searchParams;
-  const modules = await getAllModules();
+  const [searchParams, modules] = await Promise.all([props.searchParams, getAllModules()]);
 
   return (
     <KbCreatePageSurface

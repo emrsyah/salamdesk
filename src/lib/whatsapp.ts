@@ -85,10 +85,13 @@ export async function disconnectWhatsApp(): Promise<void> {
     console.error("[WA] Failed to clear auth directory:", err);
   }
 
-  await redisConnection.del("wa-qr");
-  await redisConnection.del("wa-account");
-  await redisConnection.del("wa-connected-at");
-  await redisConnection.set("wa-status", "connecting");
+  // Independent key resets — run them together.
+  await Promise.all([
+    redisConnection.del("wa-qr"),
+    redisConnection.del("wa-account"),
+    redisConnection.del("wa-connected-at"),
+    redisConnection.set("wa-status", "connecting"),
+  ]);
 
   // Reconnect with a clean slate so a new QR is generated for re-linking.
   connectToWhatsApp().catch((err) => {

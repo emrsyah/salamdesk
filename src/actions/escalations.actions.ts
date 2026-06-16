@@ -1,6 +1,6 @@
 "use server";
 
-import { buildStaffLifecycleActor } from "@/actions/lifecycle-actor";
+import { buildStaffLifecycleActor } from "@/lib/lifecycle-actor";
 import { escalateTicketCommand } from "@/services/ticket-lifecycle.service";
 import { auth } from "@/lib/auth/auth";
 import { headers } from "next/headers";

@@ -23,7 +23,12 @@
       "Bash(npx tsc *)",
       "Bash(npx drizzle-kit *)",
       "Bash(npx eslint *)",
-      "Bash(npx react-doctor@latest --verbose)"
+      "Bash(npx react-doctor@latest --verbose)",
+      "Bash(node -e \"const p=require\\('./package.json'\\); console.log\\('next:', p.dependencies.next\\)\")",
+      "Bash(npm install *)",
+      "Bash(node -e \"console.log\\('next:', require\\('./node_modules/next/package.json'\\).version\\)\")",
+      "Bash(node -e \"let s='';process.stdin.on\\('data',d=>s+=d\\).on\\('end',\\(\\)=>console.log\\(JSON.stringify\\(JSON.parse\\(s\\).scripts,null,2\\)\\)\\)\")",
+      "Bash(npx react-doctor@latest)"
     ]
   },
   "enableAllProjectMcpServers": true,
