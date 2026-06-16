@@ -8,7 +8,22 @@
       "Bash(rtk tree *)",
       "Bash(rtk tsc *)",
       "Bash(bun add *)",
-      "WebSearch"
+      "WebSearch",
+      "PowerShell(bun run *)",
+      "PowerShell(Remove-Item *)",
+      "PowerShell(bunx tsc --noEmit)",
+      "PowerShell(Select-String *)",
+      "PowerShell($files = @\\(\"src/components/tickets/requester-side-panel.tsx\", \"src/components/tickets/ticket-list.tsx\", \"src/components/tickets/ticket-list-item.tsx\", \"src/app/app/dashboard/page.tsx\"\\); $enc = New-Object System.Text.UTF8Encoding\\($false\\); foreach \\($f in $files\\) { $p = \\(Resolve-Path $f\\).Path; $text = [System.IO.File]::ReadAllText\\($p\\); [System.IO.File]::WriteAllText\\($p, $text, $enc\\) }; git diff src/components/tickets/ticket-list-item.tsx | Select-Object -First 10)",
+      "Bash(echo \"=== exit: $? \\(1 = no mojibake found\\) ===\")",
+      "Bash(git add *)",
+      "Bash(git commit -q -m '@ *)",
+      "Bash(git commit *)",
+      "Bash(sed -n '1,30p' src/services/ai.service.ts)",
+      "Bash(node -e \"const p=require\\('./package.json'\\); console.log\\(JSON.stringify\\(p.scripts,null,2\\)\\); console.log\\('drizzle-kit:', \\(p.devDependencies&&p.devDependencies['drizzle-kit']\\)||\\(p.dependencies&&p.dependencies['drizzle-kit']\\)\\)\")",
+      "Bash(npx tsc *)",
+      "Bash(npx drizzle-kit *)",
+      "Bash(npx eslint *)",
+      "Bash(npx react-doctor@latest --verbose)"
     ]
   },
   "enableAllProjectMcpServers": true,

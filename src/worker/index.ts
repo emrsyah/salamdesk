@@ -19,6 +19,7 @@ import { Worker, type ConnectionOptions } from "bullmq";
 import { connectToWhatsApp, disconnectWhatsApp, getSocket } from "@/lib/whatsapp";
 import { processInboundWaMessage } from "./bot";
 import { createTriageWorker } from "./triage.worker";
+import { createAutoReplyWorker } from "./auto-reply.worker";
 import { createTicketLifecycleWorker } from "./ticket-lifecycle.worker";
 import { createKnowledgeIngestionWorker } from "./knowledge-ingestion.worker";
 import { ticketLifecycleQueue, TICKET_LIFECYCLE_JOBS, type WaInboundJob, type WaOutboundJob } from "@/lib/queue";
@@ -126,6 +127,9 @@ outboundWorker.on("failed", (job, err) => {
 const triageWorker = createTriageWorker(connection);
 console.log("[WORKER] AI triage worker started.");
 
+const autoReplyWorker = createAutoReplyWorker(connection);
+console.log("[WORKER] AI auto-reply (delayed) worker started.");
+
 const ticketLifecycleWorker = createTicketLifecycleWorker(connection);
 console.log("[WORKER] Ticket lifecycle worker started.");
 
@@ -192,6 +196,7 @@ async function shutdown() {
     inboundWorker.close(),
     outboundWorker.close(),
     triageWorker.close(),
+    autoReplyWorker.close(),
     ticketLifecycleWorker.close(),
     knowledgeIngestionWorker.close(),
     controlRedis.quit(),

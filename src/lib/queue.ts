@@ -52,6 +52,20 @@ export const ticketLifecycleQueue = new Queue("ticket-lifecycle", {
   },
 });
 
+/**
+ * Delayed AI auto-replies → a drafted reply is held for N minutes so an agent
+ * can intercept; the worker re-checks for human activity before sending.
+ */
+export const aiAutoReplyQueue = new Queue("ai-auto-reply", {
+  connection,
+  defaultJobOptions: {
+    attempts: 2,
+    backoff: { type: "exponential", delay: 5000 },
+    removeOnComplete: 500,
+    removeOnFail: 200,
+  },
+});
+
 export const knowledgeIngestionQueue = new Queue("knowledge-ingestion", {
   connection,
   defaultJobOptions: {
@@ -103,6 +117,17 @@ export type WaOutboundJob = {
 export type AiTriageJob = {
   ticketId: string;
   trigger?: "intake" | "manual" | "message_added" | "retry";
+};
+
+export type AiAutoReplyJob = {
+  ticketId: string;
+  content: string;
+  source: string;
+  // Full WhatsApp JID to send to, or null for non-WA sources.
+  jid: string | null;
+  // ISO timestamp the reply was drafted/queued — used to detect whether a human
+  // replied during the hold window.
+  queuedAt: string;
 };
 
 export type TicketLifecycleJob = Record<string, never>;
