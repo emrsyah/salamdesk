@@ -40,7 +40,7 @@ export default async function EditKbArticlePage({ params }: { params: Promise<{ 
               id: article.id,
               title: article.title,
               content: article.content,
-              moduleId: article.moduleId,
+              moduleIds: article.moduleIds,
               tags: article.tags || [],
             }}
           />

@@ -28,7 +28,9 @@
       "Bash(npm install *)",
       "Bash(node -e \"console.log\\('next:', require\\('./node_modules/next/package.json'\\).version\\)\")",
       "Bash(node -e \"let s='';process.stdin.on\\('data',d=>s+=d\\).on\\('end',\\(\\)=>console.log\\(JSON.stringify\\(JSON.parse\\(s\\).scripts,null,2\\)\\)\\)\")",
-      "Bash(npx react-doctor@latest)"
+      "Bash(npx react-doctor@latest)",
+      "PowerShell(npm run *)",
+      "PowerShell(npx eslint src/components/tickets/ticket-ai-copilot-panel.tsx src/components/knowledge/kb-article-form.tsx src/components/knowledge/kb-document-upload.tsx src/services/knowledge.service.ts src/db/schema/knowledge-base.ts 2>&1 | Select-Object -First 40)"
     ]
   },
   "enableAllProjectMcpServers": true,

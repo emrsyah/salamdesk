@@ -36,7 +36,7 @@ type KbArticle = {
   mimeType: string | null;
   fileSize: number | null;
   isActive: boolean;
-  moduleId: string | null;
+  moduleIds: string[];
   tags: string[] | null;
   updatedAt: Date;
 };
@@ -118,7 +118,8 @@ export function KbListClient({ articles, modules }: KbListClientProps) {
       article.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
       article.content.toLowerCase().includes(searchQuery.toLowerCase());
 
-    const matchesModule = selectedModuleId === "all" || article.moduleId === selectedModuleId;
+    const matchesModule =
+      selectedModuleId === "all" || article.moduleIds.includes(selectedModuleId);
 
     const matchesStatus =
       statusFilter === "all"
@@ -301,7 +302,7 @@ export function KbListClient({ articles, modules }: KbListClientProps) {
             const inFlight = isInFlight(kb.ingestionStatus);
             const failed = kb.ingestionStatus === "failed";
             const active = getArticleActiveState(kb);
-            const module = kb.moduleId ? modules.find((m) => m.id === kb.moduleId) : null;
+            const articleModules = modules.filter((m) => kb.moduleIds.includes(m.id));
 
             return (
               <Card
@@ -355,15 +356,18 @@ export function KbListClient({ articles, modules }: KbListClientProps) {
                           Nonaktif
                         </Badge>
                       )}
-                      {module && (
-                        <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+                      {articleModules.map((module) => (
+                        <span
+                          key={module.id}
+                          className="inline-flex items-center gap-1.5 text-xs text-muted-foreground"
+                        >
                           <span
                             className="size-2 rounded-sm"
                             style={{ backgroundColor: module.color ?? "var(--muted-foreground)" }}
                           />
                           {module.name}
                         </span>
-                      )}
+                      ))}
                       {kb.tags?.slice(0, 3).map((tag) => (
                         <Badge key={tag} variant="secondary" className="px-1.5 py-0 text-[10px] font-normal">
                           {tag}

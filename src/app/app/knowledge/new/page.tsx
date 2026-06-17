@@ -16,7 +16,7 @@ export default async function NewKbArticlePage(props: { searchParams: Promise<{ 
     <KbCreatePageSurface
       modules={modules}
       defaultTitle={searchParams.title || ""}
-      defaultModuleId={searchParams.moduleId || null}
+      defaultModuleIds={searchParams.moduleId ? [searchParams.moduleId] : []}
     />
   );
 }

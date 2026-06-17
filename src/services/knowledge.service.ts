@@ -41,18 +41,28 @@ async function replaceKnowledgeChunks(
 }
 
 /**
- * Search knowledge base articles by keyword.
- * Uses simple ILIKE matching across title, content, and tags.
- * No vector embeddings yet — pure SQL full-text-like search.
+ * Search knowledge base articles, optionally scoped to a module.
  *
- * Returns up to `limit` results, optionally scoped to a module.
+ * Vector search (Voyage embeddings) when available, falling back to ILIKE
+ * keyword matching across title, content, and chunk text.
+ *
+ * Module scoping:
+ *  - `scope: "module"` (the default when a `moduleId` is given) restricts
+ *    results to articles tagged with that module.
+ *  - `scope: "all"` ignores the module and ranks purely by relevance — used as
+ *    the "expand search" fallback when an agent finds nothing in their module.
  */
 export async function searchKnowledgeBase(
   query: string,
-  options?: { moduleId?: string; limit?: number }
+  options?: { moduleId?: string; scope?: "module" | "all"; limit?: number }
 ): Promise<KbArticle[]> {
   const limit = options?.limit ?? 5;
   const pattern = `%${query}%`;
+  const scope = options?.scope ?? (options?.moduleId ? "module" : "all");
+  const moduleFilter =
+    scope === "module" && options?.moduleId
+      ? sql`${knowledgeBase.moduleIds} && ARRAY[${options.moduleId}]::uuid[]`
+      : null;
 
   if (process.env.VOYAGE_API_KEY) {
     try {
@@ -64,8 +74,8 @@ export async function searchKnowledgeBase(
         eq(knowledgeBase.isActive, true),
       ];
 
-      if (options?.moduleId) {
-        vectorConditions.push(eq(knowledgeBase.moduleId, options.moduleId));
+      if (moduleFilter) {
+        vectorConditions.push(moduleFilter);
       }
 
       const vectorRows = await db
@@ -95,6 +105,10 @@ export async function searchKnowledgeBase(
           return documents;
         }
       }
+
+      if (documents.length > 0) {
+        return documents;
+      }
     } catch (error) {
       console.warn("[KB] Vector search failed, falling back to keyword search:", error);
     }
@@ -110,8 +124,8 @@ export async function searchKnowledgeBase(
     ),
   ];
 
-  if (options?.moduleId) {
-    conditions.push(eq(knowledgeBase.moduleId, options.moduleId));
+  if (moduleFilter) {
+    conditions.push(moduleFilter);
   }
 
   const rows = await db
@@ -171,14 +185,14 @@ export async function getKbArticleChunkCount(id: string): Promise<number> {
 export async function getAllKbArticles(options?: {
   moduleId?: string;
 }): Promise<KbArticle[]> {
-  const conditions = options?.moduleId
-    ? [eq(knowledgeBase.moduleId, options.moduleId)]
-    : [];
+  const moduleFilter = options?.moduleId
+    ? sql`${knowledgeBase.moduleIds} && ARRAY[${options.moduleId}]::uuid[]`
+    : undefined;
 
   return db
     .select()
     .from(knowledgeBase)
-    .where(conditions.length > 0 ? and(...conditions) : undefined)
+    .where(moduleFilter)
     .orderBy(knowledgeBase.createdAt)
     .execute();
 }
@@ -190,7 +204,7 @@ export async function createKbArticle(data: {
   id: string;
   title: string;
   content: string;
-  moduleId?: string | null;
+  moduleIds?: string[];
   tags?: string[];
   createdById?: string | null;
 }): Promise<void> {
@@ -203,7 +217,7 @@ export async function createKbArticle(data: {
         content: data.content,
         sourceType: "manual",
         ingestionStatus: "ready",
-        moduleId: data.moduleId ?? null,
+        moduleIds: data.moduleIds ?? [],
         tags: data.tags ?? [],
         createdById: data.createdById ?? null,
       })
@@ -216,7 +230,7 @@ export async function createKbArticle(data: {
 export async function createUploadedKnowledgeDocument(data: {
   id: string;
   title: string;
-  moduleId?: string | null;
+  moduleIds?: string[];
   tags?: string[];
   createdById?: string | null;
   originalFileName: string;
@@ -234,7 +248,7 @@ export async function createUploadedKnowledgeDocument(data: {
       content: "",
       sourceType: "upload",
       ingestionStatus: "pending",
-      moduleId: data.moduleId ?? null,
+      moduleIds: data.moduleIds ?? [],
       tags: data.tags ?? [],
       createdById: data.createdById ?? null,
       originalFileName: data.originalFileName,
@@ -338,7 +352,7 @@ export async function updateKbArticle(
   data: Partial<{
     title: string;
     content: string;
-    moduleId: string | null;
+    moduleIds: string[];
     tags: string[];
     isActive: boolean;
   }>

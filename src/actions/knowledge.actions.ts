@@ -14,7 +14,7 @@ import { z } from "zod";
 const kbArticleSchema = z.object({
   title: z.string().min(1, "Title is required"),
   content: z.string().min(1, "Content is required"),
-  moduleId: z.string().nullable().optional(),
+  moduleIds: z.array(z.string().uuid()).optional(),
   tags: z.array(z.string()).optional(),
 });
 
@@ -33,7 +33,7 @@ export async function createKbArticleAction(data: z.infer<typeof kbArticleSchema
     id: crypto.randomUUID(),
     title: parsed.title,
     content: parsed.content,
-    moduleId: parsed.moduleId,
+    moduleIds: parsed.moduleIds,
     tags: parsed.tags,
     createdById: session.user.id,
   });

@@ -1,4 +1,4 @@
-import { relations } from "drizzle-orm";
+import { relations, sql } from "drizzle-orm";
 import {
     boolean,
     index,
@@ -21,7 +21,11 @@ export const knowledgeDocuments = pgTable("knowledge_documents", {
     content: text("content").notNull(),
     summary: text("summary"),
     sourceType: text("source_type").notNull().default("manual"),
-    moduleId: uuid("module_id").references(() => modules.id, { onDelete: "set null" }),
+    // An article can be relevant to several modules (e.g. a shared "reset
+    // password" guide). Stored as a UUID array rather than a junction table to
+    // match the existing array conventions (tags, tickets.resolvedKbIds) and to
+    // keep the already-complex vector search query joinless.
+    moduleIds: uuid("module_ids").array().notNull().default(sql`'{}'::uuid[]`),
     tags: text("tags").array(),
     originalFileName: text("original_file_name"),
     mimeType: text("mime_type"),
@@ -36,7 +40,7 @@ export const knowledgeDocuments = pgTable("knowledge_documents", {
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
 }, (table) => [
-    index("knowledge_documents_module_id_idx").on(table.moduleId),
+    index("knowledge_documents_module_ids_idx").using("gin", table.moduleIds),
     index("knowledge_documents_source_type_idx").on(table.sourceType),
     index("knowledge_documents_ingestion_status_idx").on(table.ingestionStatus),
     index("knowledge_documents_is_active_idx").on(table.isActive),
@@ -77,8 +81,9 @@ export const quickReplies = pgTable("quick_replies", {
     createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
-export const knowledgeDocumentsRelations = relations(knowledgeDocuments, ({ one, many }) => ({
-    module: one(modules, { fields: [knowledgeDocuments.moduleId], references: [modules.id] }),
+export const knowledgeDocumentsRelations = relations(knowledgeDocuments, ({ many }) => ({
+    // Module association is a UUID array (`moduleIds`), not a FK — there is no
+    // Drizzle relation for it; resolve module names from the modules list.
     chunks: many(knowledgeChunks),
     aiSuggestions: many(aiSuggestions),
 }));

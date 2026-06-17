@@ -22,7 +22,7 @@ const MAX_FILE_SIZE = 32 * 1024 * 1024; // mirrors the uploadthing endpoint limi
 type KbDocumentUploadProps = {
   modules: { id: string; name: string }[];
   defaultTitle?: string;
-  defaultModuleId?: string | null;
+  defaultModuleIds?: string[];
 };
 
 function fileExtension(name: string) {
@@ -51,12 +51,19 @@ function FileTypeIcon({ name }: { name: string }) {
 export function KbDocumentUpload({
   modules,
   defaultTitle = "",
-  defaultModuleId = null,
+  defaultModuleIds = [],
 }: KbDocumentUploadProps) {
   const router = useRouter();
   const [title, setTitle] = useState(defaultTitle);
-  const [moduleId, setModuleId] = useState(defaultModuleId ?? "");
+  const [moduleIds, setModuleIds] = useState<string[]>(defaultModuleIds);
   const [tags, setTags] = useState("");
+
+  const toggleModule = (id: string) =>
+    setModuleIds((current) =>
+      current.includes(id)
+        ? current.filter((value) => value !== id)
+        : [...current, id],
+    );
   const [file, setFile] = useState<File | null>(null);
   const [isDragOver, setIsDragOver] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -109,7 +116,7 @@ export function KbDocumentUpload({
     setProgress(0);
     await startUpload([file], {
       title: title.trim(),
-      moduleId: moduleId || null,
+      moduleIds,
       tags: parsedTags,
     });
   }
@@ -203,21 +210,33 @@ export function KbDocumentUpload({
 
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-2">
-          <Label htmlFor="upload-module">Modul (Opsional)</Label>
-          <select
-            id="upload-module"
-            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-            value={moduleId}
-            onChange={(event) => setModuleId(event.target.value)}
-            disabled={isUploading}
-          >
-            <option value="">Semua modul</option>
-            {modules.map((module) => (
-              <option key={module.id} value={module.id}>
-                {module.name}
-              </option>
-            ))}
-          </select>
+          <Label>Modul (Opsional)</Label>
+          {modules.length === 0 ? (
+            <p className="text-sm text-muted-foreground">Belum ada modul.</p>
+          ) : (
+            <div className="flex flex-wrap gap-1.5">
+              {modules.map((module) => {
+                const isOn = moduleIds.includes(module.id);
+                return (
+                  <button
+                    key={module.id}
+                    type="button"
+                    aria-pressed={isOn}
+                    disabled={isUploading}
+                    onClick={() => toggleModule(module.id)}
+                    className={
+                      "rounded-full border px-3 py-1 text-xs font-medium transition-colors disabled:opacity-50 " +
+                      (isOn
+                        ? "border-foreground bg-foreground text-background"
+                        : "border-border bg-background text-muted-foreground hover:bg-muted")
+                    }
+                  >
+                    {module.name}
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </div>
 
         <div className="space-y-2">

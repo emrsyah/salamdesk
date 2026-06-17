@@ -24,14 +24,14 @@ type Module = { id: string; name: string };
 type KbCreateSurfaceProps = {
   modules: Module[];
   defaultTitle?: string;
-  defaultModuleId?: string | null;
+  defaultModuleIds?: string[];
   onCancel?: () => void;
 };
 
 function KbCreateTabs({
   modules,
   defaultTitle = "",
-  defaultModuleId = null,
+  defaultModuleIds = [],
   onCancel,
 }: KbCreateSurfaceProps) {
   return (
@@ -56,7 +56,7 @@ function KbCreateTabs({
               id: "",
               title: defaultTitle,
               content: "",
-              moduleId: defaultModuleId,
+              moduleIds: defaultModuleIds,
             }}
           />
         </div>
@@ -67,7 +67,7 @@ function KbCreateTabs({
           <KbDocumentUpload
             modules={modules}
             defaultTitle={defaultTitle}
-            defaultModuleId={defaultModuleId}
+            defaultModuleIds={defaultModuleIds}
           />
         </div>
       </TabsContent>
@@ -78,7 +78,7 @@ function KbCreateTabs({
 export function KbCreateDialog({
   modules,
   defaultTitle,
-  defaultModuleId,
+  defaultModuleIds,
 }: KbCreateSurfaceProps) {
   const [open, setOpen] = useState(false);
 
@@ -106,7 +106,7 @@ export function KbCreateDialog({
           <KbCreateTabs
             modules={modules}
             defaultTitle={defaultTitle}
-            defaultModuleId={defaultModuleId}
+            defaultModuleIds={defaultModuleIds}
             onCancel={() => setOpen(false)}
           />
         </div>

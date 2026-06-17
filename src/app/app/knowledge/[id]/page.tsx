@@ -42,7 +42,7 @@ export default async function ViewKbArticlePage({ params }: { params: Promise<{ 
     getAllModules(),
     getKbArticleChunkCount(article.id),
   ]);
-  const moduleName = modules.find((m) => m.id === article.moduleId)?.name;
+  const articleModules = modules.filter((m) => article.moduleIds.includes(m.id));
 
   return (
     <div className="p-8 max-w-4xl mx-auto space-y-6">
@@ -60,7 +60,9 @@ export default async function ViewKbArticlePage({ params }: { params: Promise<{ 
               <Badge variant={article.ingestionStatus === "ready" ? "outline" : "secondary"}>
                 {ingestionStatusLabel[article.ingestionStatus] ?? article.ingestionStatus}
               </Badge>
-              {moduleName && <Badge variant="outline">{moduleName}</Badge>}
+              {articleModules.map((m) => (
+                <Badge key={m.id} variant="outline">{m.name}</Badge>
+              ))}
               <span className="text-sm text-muted-foreground">
                 Diperbarui pada {new Intl.DateTimeFormat('id-ID', { dateStyle: 'long' }).format(article.updatedAt)}
               </span>

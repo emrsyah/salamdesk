@@ -23,7 +23,7 @@ import { toast } from "sonner";
 const formSchema = z.object({
   title: z.string().min(1, "Judul wajib diisi"),
   content: z.string().min(1, "Konten wajib diisi"),
-  moduleId: z.string().optional(),
+  moduleIds: z.array(z.string()).optional(),
   tags: z.string().optional(),
 });
 
@@ -32,7 +32,7 @@ type KbArticleFormProps = {
     id: string;
     title: string;
     content: string;
-    moduleId?: string | null;
+    moduleIds?: string[] | null;
     tags?: string[];
   };
   modules: { id: string; name: string }[];
@@ -48,7 +48,7 @@ export function KbArticleForm({ initialData, modules, onCancel }: KbArticleFormP
     defaultValues: {
       title: initialData?.title || "",
       content: initialData?.content || "",
-      moduleId: initialData?.moduleId || "",
+      moduleIds: initialData?.moduleIds ?? [],
       tags: initialData?.tags?.join(", ") || "",
     },
   });
@@ -66,7 +66,7 @@ export function KbArticleForm({ initialData, modules, onCancel }: KbArticleFormP
       const payload = {
         title: values.title,
         content: values.content,
-        moduleId: values.moduleId || null,
+        moduleIds: values.moduleIds ?? [],
         tags: parsedTags,
       };
 
@@ -125,27 +125,52 @@ export function KbArticleForm({ initialData, modules, onCancel }: KbArticleFormP
         <div className="grid gap-4 sm:grid-cols-2">
           <FormField
             control={form.control}
-            name="moduleId"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Modul (Opsional)</FormLabel>
-                <FormControl>
-                  <select
-                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                    {...field}
-                  >
-                    <option value="">Semua modul</option>
-                    {modules.map((m) => (
-                      <option key={m.id} value={m.id}>
-                        {m.name}
-                      </option>
-                    ))}
-                  </select>
-                </FormControl>
-                <FormDescription>Persempit jika dokumen ini spesifik untuk satu modul.</FormDescription>
-                <FormMessage />
-              </FormItem>
-            )}
+            name="moduleIds"
+            render={({ field }) => {
+              const selected = field.value ?? [];
+              const toggle = (id: string) =>
+                field.onChange(
+                  selected.includes(id)
+                    ? selected.filter((value) => value !== id)
+                    : [...selected, id],
+                );
+              return (
+                <FormItem>
+                  <FormLabel>Modul (Opsional)</FormLabel>
+                  <FormControl>
+                    {modules.length === 0 ? (
+                      <p className="text-sm text-muted-foreground">Belum ada modul.</p>
+                    ) : (
+                      <div className="flex flex-wrap gap-1.5">
+                        {modules.map((m) => {
+                          const isOn = selected.includes(m.id);
+                          return (
+                            <button
+                              key={m.id}
+                              type="button"
+                              aria-pressed={isOn}
+                              onClick={() => toggle(m.id)}
+                              className={
+                                "rounded-full border px-3 py-1 text-xs font-medium transition-colors " +
+                                (isOn
+                                  ? "border-foreground bg-foreground text-background"
+                                  : "border-border bg-background text-muted-foreground hover:bg-muted")
+                              }
+                            >
+                              {m.name}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </FormControl>
+                  <FormDescription>
+                    Pilih satu atau beberapa modul. Kosongkan jika berlaku untuk semua modul.
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              );
+            }}
           />
 
           <FormField

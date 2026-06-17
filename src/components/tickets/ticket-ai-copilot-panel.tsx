@@ -14,6 +14,7 @@ import { Input } from "@/components/ui/input";
 import type {
   CopilotArticle,
   CopilotDraft,
+  CopilotSearchScope,
 } from "@/actions/ai-copilot.actions";
 import type { RefineMode } from "@/services/triage-ai.service";
 import type { TicketDetailData } from "./ticket-detail";
@@ -52,6 +53,7 @@ export function TicketAiCopilotPanel({
   const [articles, setArticles] = useState<CopilotArticle[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
+  const [scope, setScope] = useState<CopilotSearchScope>("module");
 
   const [draft, setDraft] = useState<CopilotDraft | null>(null);
   const [draftingKbId, setDraftingKbId] = useState<string | null>(null);
@@ -62,14 +64,19 @@ export function TicketAiCopilotPanel({
   const ticketId = ticket.id;
 
   const runSearch = useCallback(
-    async (searchQuery: string) => {
+    async (searchQuery: string, searchScope: CopilotSearchScope = "module") => {
       setIsSearching(true);
       setError(null);
+      setScope(searchScope);
       try {
         const { searchKnowledgeForTicketAction } = await import(
           "@/actions/ai-copilot.actions"
         );
-        const results = await searchKnowledgeForTicketAction(ticketId, searchQuery);
+        const results = await searchKnowledgeForTicketAction(
+          ticketId,
+          searchQuery,
+          searchScope,
+        );
         setArticles(results);
         setHasSearched(true);
         return results;
@@ -161,7 +168,7 @@ export function TicketAiCopilotPanel({
 
   function handleSearchSubmit(event: React.FormEvent) {
     event.preventDefault();
-    void runSearch(query);
+    void runSearch(query, scope);
   }
 
   const confidencePct = draft ? Math.round(draft.confidence * 100) : 0;
@@ -284,24 +291,75 @@ export function TicketAiCopilotPanel({
 
         {/* Related articles */}
         <div className="space-y-2">
-          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-            Artikel terkait
-          </p>
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Artikel terkait
+            </p>
+            {/* Explicit scope toggle: this module vs. every module. */}
+            <div className="flex items-center rounded-full border p-0.5 text-[11px]">
+              {(
+                [
+                  { value: "module", label: "Modul ini" },
+                  { value: "all", label: "Semua" },
+                ] as const
+              ).map((option) => (
+                <button
+                  key={option.value}
+                  type="button"
+                  aria-pressed={scope === option.value}
+                  disabled={isSearching}
+                  onClick={() => {
+                    if (scope !== option.value) void runSearch(query, option.value);
+                  }}
+                  className={
+                    "rounded-full px-2 py-0.5 font-medium transition-colors disabled:opacity-50 " +
+                    (scope === option.value
+                      ? "bg-foreground text-background"
+                      : "text-muted-foreground hover:text-foreground")
+                  }
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+          </div>
           {isSearching ? (
             <p className="text-sm text-muted-foreground">Mencari...</p>
           ) : articles.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              {hasSearched
-                ? "Tidak ada artikel yang cocok."
-                : "Belum ada artikel."}
-            </p>
+            <div className="rounded-md border border-dashed p-3 text-sm text-muted-foreground">
+              {!hasSearched ? (
+                "Belum ada artikel."
+              ) : scope === "module" ? (
+                <div className="space-y-2">
+                  <p>Tidak ada artikel di modul ini.</p>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-7 gap-1.5 text-xs"
+                    onClick={() => void runSearch(query, "all")}
+                  >
+                    <RiBookOpenLine className="size-3.5" />
+                    Cari di semua modul
+                  </Button>
+                </div>
+              ) : (
+                "Tidak ada artikel yang cocok di semua modul."
+              )}
+            </div>
           ) : (
             articles.map((article) => (
               <div
                 key={article.id}
                 className="rounded-md border p-3 transition-colors hover:bg-muted/40"
               >
-                <p className="line-clamp-2 text-sm font-medium">{article.title}</p>
+                <div className="flex items-start justify-between gap-2">
+                  <p className="line-clamp-2 text-sm font-medium">{article.title}</p>
+                  {article.isFromOtherModule && (
+                    <span className="shrink-0 rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+                      Modul lain
+                    </span>
+                  )}
+                </div>
                 <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">
                   {article.snippet}…
                 </p>

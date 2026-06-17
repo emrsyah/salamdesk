@@ -2,7 +2,7 @@ import { pgTable, text, uuid, boolean, timestamp, integer } from "drizzle-orm/pg
 import { relations } from "drizzle-orm";
 import { users } from "./users";
 import { tickets } from "./tickets";
-import { knowledgeBase, quickReplies } from "./knowledge-base";
+import { quickReplies } from "./knowledge-base";
 import { ticketPriorityEnum } from "./enums";
 
 export const modules = pgTable("modules", {
@@ -31,7 +31,6 @@ export const slaConfigs = pgTable("sla_configs", {
 export const modulesRelations = relations(modules, ({ many }) => ({
     tickets: many(tickets),
     slaConfigs: many(slaConfigs),
-    knowledgeBase: many(knowledgeBase),
     quickReplies: many(quickReplies),
     userModules: many(userModules),
 }));

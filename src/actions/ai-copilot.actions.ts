@@ -12,7 +12,12 @@ export type CopilotArticle = {
   id: string;
   title: string;
   snippet: string;
+  moduleIds: string[];
+  /** True when the article shares no module with the current ticket. */
+  isFromOtherModule: boolean;
 };
+
+export type CopilotSearchScope = "module" | "all";
 
 export type CopilotDraft = {
   isRelevant: boolean;
@@ -40,11 +45,17 @@ async function loadTicketContext(ticketId: string) {
 /**
  * On-demand knowledge base retrieval for the copilot panel.
  * When `query` is empty, falls back to the ticket's own title + description,
- * mirroring how intake triage searches. Module-scoped to reduce noise.
+ * mirroring how intake triage searches.
+ *
+ * `scope` controls module filtering:
+ *  - "module" (default): only articles tagged with the ticket's module.
+ *  - "all": ignore the module and rank purely by relevance — the "expand
+ *    search" the panel offers when nothing matched within the module.
  */
 export async function searchKnowledgeForTicketAction(
   ticketId: string,
   query: string,
+  scope: CopilotSearchScope = "module",
 ): Promise<CopilotArticle[]> {
   await requireSession();
   const ticket = await loadTicketContext(ticketId);
@@ -57,6 +68,7 @@ export async function searchKnowledgeForTicketAction(
 
   const articles = await searchKnowledgeBase(effectiveQuery, {
     moduleId: ticket.moduleId ?? undefined,
+    scope,
     limit: 5,
   });
 
@@ -64,6 +76,10 @@ export async function searchKnowledgeForTicketAction(
     id: article.id,
     title: article.title,
     snippet: article.content.slice(0, 180),
+    moduleIds: article.moduleIds,
+    isFromOtherModule: ticket.moduleId
+      ? !article.moduleIds.includes(ticket.moduleId)
+      : false,
   }));
 }
 

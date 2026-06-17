@@ -181,7 +181,7 @@ async function seedKb() {
       id: crypto.randomUUID(),
       title: article.title,
       content: article.content,
-      moduleId,
+      moduleIds: [moduleId],
       tags: article.tags,
       createdById: null,
     });

@@ -9,7 +9,7 @@ const f = createUploadthing();
 
 const uploadInputSchema = z.object({
   title: z.string().min(1),
-  moduleId: z.string().nullable().optional(),
+  moduleIds: z.array(z.string()).optional(),
   tags: z.array(z.string()).optional(),
 });
 
@@ -29,7 +29,7 @@ export const uploadRouter = {
       return {
         userId: session.user.id,
         title: input.title,
-        moduleId: input.moduleId ?? null,
+        moduleIds: input.moduleIds ?? [],
         tags: input.tags ?? [],
       };
     })
@@ -40,7 +40,7 @@ export const uploadRouter = {
       await createUploadedKnowledgeDocument({
         id: documentId,
         title: metadata.title,
-        moduleId: metadata.moduleId,
+        moduleIds: metadata.moduleIds,
         tags: metadata.tags,
         createdById: metadata.userId,
         originalFileName: file.name,
