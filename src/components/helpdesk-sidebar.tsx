@@ -30,6 +30,7 @@ import {
   RiErrorWarningLine,
   RiHospitalLine,
   RiInboxLine,
+  RiRobot2Line,
   RiSettings3Line,
   RiSparklingLine,
   RiTeamLine,
@@ -67,6 +68,7 @@ const ANTRIAN_ITEMS: NavItem[] = [
 const LAINNYA_ITEMS: NavItem[] = [
   { title: "Dashboard", url: "/app/dashboard", icon: <RiDashboardLine />, isLainnya: true },
   { title: "Knowledge Base", url: "/app/knowledge", icon: <RiBook3Line />, isLainnya: true },
+  { title: "AI Agent", url: "/app/agent", icon: <RiRobot2Line />, isLainnya: true, adminOnly: true },
   //{ title: "Analytics", url: "/app/analytic", icon: <RiBarChartBoxLine />, isLainnya: true },
   { title: "Users", url: "/app/users", icon: <RiTeamLine />, isLainnya: true, adminOnly: true },
   { title: "WhatsApp", url: "/app/whatsapp", icon: <RiCommandLine />, isLainnya: true, adminOnly: true },
