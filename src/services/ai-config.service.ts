@@ -1,6 +1,7 @@
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { aiConfigs } from "@/db/schema/ai-config";
+import { DEFAULT_BUSINESS_HOURS, type BusinessHours } from "@/lib/agent/business-hours";
 
 /**
  * Runtime shape of the AI behaviour config, with numeric thresholds parsed from
@@ -20,6 +21,15 @@ export type AiConfig = {
   requireKbGrounding: boolean;
   blockedKeywords: string[];
   maxAutoRepliesPerTicket: number;
+  // Behavior / voice
+  agentName: string;
+  persona: string;
+  tone: string;
+  language: string;
+  replySignature: string;
+  guardrails: string;
+  // Schedule
+  businessHours: BusinessHours;
 };
 
 /** Defaults used when no config row exists yet (mirror the migration defaults). */
@@ -52,6 +62,13 @@ export const DEFAULT_AI_CONFIG: AiConfig = {
     "error massal",
   ],
   maxAutoRepliesPerTicket: 1,
+  agentName: "Asisten",
+  persona: "",
+  tone: "",
+  language: "id",
+  replySignature: "",
+  guardrails: "",
+  businessHours: DEFAULT_BUSINESS_HOURS,
 };
 
 type AiConfigRow = typeof aiConfigs.$inferSelect;
@@ -71,6 +88,13 @@ function rowToConfig(row: AiConfigRow): AiConfig {
     requireKbGrounding: row.requireKbGrounding,
     blockedKeywords: row.blockedKeywords,
     maxAutoRepliesPerTicket: row.maxAutoRepliesPerTicket,
+    agentName: row.agentName,
+    persona: row.persona,
+    tone: row.tone,
+    language: row.language,
+    replySignature: row.replySignature,
+    guardrails: row.guardrails,
+    businessHours: (row.businessHours as BusinessHours | null) ?? DEFAULT_BUSINESS_HOURS,
   };
 }
 
@@ -131,6 +155,13 @@ export async function updateAiConfig(update: AiConfigUpdate): Promise<AiConfig> 
     });
   if (update.maxAutoRepliesPerTicket !== undefined)
     patch.maxAutoRepliesPerTicket = Math.max(1, Math.round(update.maxAutoRepliesPerTicket));
+  if (update.agentName !== undefined) patch.agentName = update.agentName.trim();
+  if (update.persona !== undefined) patch.persona = update.persona.trim();
+  if (update.tone !== undefined) patch.tone = update.tone.trim();
+  if (update.language !== undefined) patch.language = update.language.trim();
+  if (update.replySignature !== undefined) patch.replySignature = update.replySignature.trim();
+  if (update.guardrails !== undefined) patch.guardrails = update.guardrails.trim();
+  if (update.businessHours !== undefined) patch.businessHours = update.businessHours;
 
   let row: AiConfigRow;
   if (existing) {
