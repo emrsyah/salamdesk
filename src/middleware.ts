@@ -27,7 +27,7 @@ export async function middleware(request: NextRequest) {
     }
 
     // Role-based access control for admin-only routes
-    const adminRoutes = ["/app/users", "/app/settings"];
+    const adminRoutes = ["/app/users", "/app/settings", "/app/agent"];
     if (adminRoutes.some((route) => pathname.startsWith(route))) {
       const userRole = (session.user as { role?: string })?.role;
       if (!["owner", "admin"].includes(userRole ?? "")) {
