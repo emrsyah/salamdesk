@@ -7,6 +7,7 @@ import { tickets } from "@/db/schema/tickets";
 import { auth } from "@/lib/auth/auth";
 import { getKbArticleById, searchKnowledgeBase } from "@/services/knowledge.service";
 import { evaluateKbMatch, refineReplyText, type RefineMode } from "@/services/triage-ai.service";
+import { exaSearch } from "@/services/exa.service";
 
 export type CopilotArticle = {
   id: string;
@@ -18,6 +19,12 @@ export type CopilotArticle = {
 };
 
 export type CopilotSearchScope = "module" | "all";
+
+export type CopilotWebResult = {
+  title: string;
+  url: string;
+  snippet: string;
+};
 
 export type CopilotDraft = {
   isRelevant: boolean;
@@ -80,6 +87,29 @@ export async function searchKnowledgeForTicketAction(
     isFromOtherModule: ticket.moduleId
       ? !article.moduleIds.includes(ticket.moduleId)
       : false,
+  }));
+}
+
+/**
+ * Web search (Exa) for the copilot panel. Falls back to the ticket title when
+ * the query is empty. Requires EXA_API_KEY; surfaces a clear error otherwise so
+ * the UI can degrade gracefully.
+ */
+export async function webSearchForTicketAction(
+  ticketId: string,
+  query: string,
+): Promise<CopilotWebResult[]> {
+  await requireSession();
+  const effectiveQuery = query.trim()
+    ? query.trim()
+    : (await loadTicketContext(ticketId)).title;
+  if (!effectiveQuery) return [];
+
+  const results = await exaSearch(effectiveQuery, 5);
+  return results.map((r) => ({
+    title: r.title || r.url,
+    url: r.url,
+    snippet: r.text.slice(0, 180),
   }));
 }
 
