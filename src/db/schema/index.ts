@@ -6,6 +6,7 @@ export * from "./tickets";
 export * from "./knowledge-base";
 export * from "./triage";
 export * from "./ai-config";
+export * from "./agent";
 export * from "./notifications";
 export * from "./api-keys";
 // Export Better Auth session/account/verification tables directly
