@@ -21,14 +21,78 @@ export function extractJsonPath(value: unknown, path: string): unknown {
     );
 }
 
-const BLOCKED_HOSTS = ["localhost", "127.0.0.1", "0.0.0.0", "169.254.169.254", "::1"];
+/** Parse an IPv4 host in any encoding (dotted decimal/octal/hex, or a single
+ * integer) into 4 octets, or null if it isn't an IPv4 literal. */
+function parseIpv4(host: string): number[] | null {
+  const toNum = (s: string): number | null => {
+    if (s === "") return null;
+    let n: number;
+    if (/^0x[0-9a-f]+$/i.test(s)) n = parseInt(s, 16);
+    else if (/^0[0-7]+$/.test(s)) n = parseInt(s, 8);
+    else if (/^\d+$/.test(s)) n = parseInt(s, 10);
+    else return null;
+    return Number.isFinite(n) ? n : null;
+  };
+  const parts = host.split(".");
+  if (parts.length === 1) {
+    const n = toNum(parts[0]);
+    if (n === null || n < 0 || n > 0xffffffff) return null;
+    return [(n >>> 24) & 255, (n >>> 16) & 255, (n >>> 8) & 255, n & 255];
+  }
+  if (parts.length === 4) {
+    const nums = parts.map(toNum);
+    if (nums.some((x) => x === null || x < 0 || x > 255)) return null;
+    return nums as number[];
+  }
+  return null;
+}
 
+function isBlockedIpv4(octets: number[]): boolean {
+  const [a, b] = octets;
+  return (
+    a === 0 || // 0.0.0.0/8 "this network"
+    a === 127 || // loopback 127/8
+    a === 10 || // private
+    (a === 169 && b === 254) || // link-local (cloud metadata)
+    (a === 192 && b === 168) || // private
+    (a === 172 && b >= 16 && b <= 31) // private
+  );
+}
+
+/**
+ * Guard tool target hosts against SSRF. Denylist-by-normalization: we reject
+ * loopback/private/link-local in any IP encoding plus internal IPv6 ranges.
+ * Note: the executor also disables redirects, since a public host can 30x to an
+ * internal one carrying the credential header.
+ */
 export function isHostAllowed(url: string): boolean {
   try {
     const u = new URL(url);
     if (u.protocol !== "https:" && u.protocol !== "http:") return false;
-    if (BLOCKED_HOSTS.includes(u.hostname)) return false;
-    if (/^10\.|^192\.168\.|^172\.(1[6-9]|2\d|3[01])\./.test(u.hostname)) return false;
+    // hostname keeps brackets for IPv6 literals ("[::1]") — strip them.
+    const host = u.hostname.toLowerCase().replace(/^\[|\]$/g, "");
+    if (host === "localhost" || host.endsWith(".localhost")) return false;
+
+    if (host.includes(":")) {
+      // IPv6 literal
+      if (host === "::1") return false; // loopback
+      if (host.startsWith("fc") || host.startsWith("fd")) return false; // ULA fc00::/7
+      if (/^fe[89ab]/.test(host)) return false; // link-local fe80::/10
+      if (host.startsWith("::ffff:")) {
+        const rest = host.slice(7);
+        // Node compresses ::ffff:169.254.169.254 to hex (::ffff:a9fe:a9fe).
+        let mapped = parseIpv4(rest);
+        if (!mapped && /^[0-9a-f]{1,4}:[0-9a-f]{1,4}$/.test(rest)) {
+          const [hi, lo] = rest.split(":").map((h) => parseInt(h, 16));
+          mapped = [(hi >> 8) & 255, hi & 255, (lo >> 8) & 255, lo & 255];
+        }
+        if (mapped && isBlockedIpv4(mapped)) return false;
+      }
+      return true;
+    }
+
+    const octets = parseIpv4(host);
+    if (octets && isBlockedIpv4(octets)) return false;
     return true;
   } catch {
     return false;
@@ -87,7 +151,9 @@ export async function executeHttpTool(
   const pathVars: Record<string, unknown> = {};
   const query = new URLSearchParams();
   for (const p of cfg.params) {
-    if (p.in === "path") pathVars[p.name] = args[p.name];
+    // Encode path values so a value can't rewrite the host/path
+    // (e.g. id = "@evil.com/" or "../admin").
+    if (p.in === "path") pathVars[p.name] = encodeURIComponent(String(args[p.name] ?? ""));
     if (p.in === "query" && args[p.name] != null) query.set(p.name, String(args[p.name]));
   }
   let url = interpolate(cfg.urlTemplate, pathVars);
@@ -103,8 +169,14 @@ export async function executeHttpTool(
     method: cfg.method,
     headers,
     body,
+    // Do NOT follow redirects: a public host could 30x to an internal address
+    // (e.g. cloud metadata) and fetch would carry the credential header along.
+    redirect: "manual",
     signal: AbortSignal.timeout(10_000),
   });
+  if (res.status >= 300 && res.status < 400) {
+    return { ok: false, status: res.status, error: "Redirects are not allowed for tool calls." };
+  }
   const text = await res.text();
   let parsed: unknown = text;
   try {
