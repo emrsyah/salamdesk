@@ -1,4 +1,4 @@
-import { boolean, index, jsonb, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { boolean, index, integer, jsonb, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 
 export const agentCredentials = pgTable("agent_credentials", {
@@ -34,3 +34,21 @@ export const agentToolsRelations = relations(agentTools, ({ one }) => ({
     references: [agentCredentials.id],
   }),
 }));
+
+export const agentProcedures = pgTable(
+  "agent_procedures",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    title: text("title").notNull(),
+    // The semantic matcher the selection LLM reads to decide when to engage.
+    whenToUse: text("when_to_use").notNull().default(""),
+    // TipTap/ProseMirror JSON document. Custom inline `mention` nodes carry
+    // attrs { kind: 'tool'|'kb'|'module'|'time', refId, label }.
+    content: jsonb("content").notNull(),
+    enabled: boolean("enabled").notNull().default(true),
+    order: integer("order").notNull().default(0),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (t) => [index("agent_procedures_enabled_idx").on(t.enabled)]
+);
