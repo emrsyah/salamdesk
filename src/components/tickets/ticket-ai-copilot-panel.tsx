@@ -6,6 +6,7 @@ import {
   RiBookOpenLine,
   RiCloseLine,
   RiCornerDownLeftLine,
+  RiGlobalLine,
   RiSearchLine,
   RiSparklingLine,
 } from "@remixicon/react";
@@ -15,6 +16,7 @@ import type {
   CopilotArticle,
   CopilotDraft,
   CopilotSearchScope,
+  CopilotWebResult,
 } from "@/actions/ai-copilot.actions";
 import type { RefineMode } from "@/services/triage-ai.service";
 import type { TicketDetailData } from "./ticket-detail";
@@ -54,6 +56,9 @@ export function TicketAiCopilotPanel({
   const [isSearching, setIsSearching] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
   const [scope, setScope] = useState<CopilotSearchScope>("module");
+  const [webResults, setWebResults] = useState<CopilotWebResult[]>([]);
+  const [isSearchingWeb, setIsSearchingWeb] = useState(false);
+  const [hasSearchedWeb, setHasSearchedWeb] = useState(false);
 
   const [draft, setDraft] = useState<CopilotDraft | null>(null);
   const [draftingKbId, setDraftingKbId] = useState<string | null>(null);
@@ -169,6 +174,21 @@ export function TicketAiCopilotPanel({
   function handleSearchSubmit(event: React.FormEvent) {
     event.preventDefault();
     void runSearch(query, scope);
+  }
+
+  async function runWebSearch() {
+    setIsSearchingWeb(true);
+    setError(null);
+    try {
+      const { webSearchForTicketAction } = await import("@/actions/ai-copilot.actions");
+      setWebResults(await webSearchForTicketAction(ticketId, query));
+      setHasSearchedWeb(true);
+    } catch (err) {
+      console.error("Copilot web search failed", err);
+      setError("Pencarian web gagal. Pastikan integrasi Exa aktif.");
+    } finally {
+      setIsSearchingWeb(false);
+    }
   }
 
   const confidencePct = draft ? Math.round(draft.confidence * 100) : 0;
@@ -374,6 +394,42 @@ export function TicketAiCopilotPanel({
                   {draftingKbId === article.id ? "Membuat draf..." : "Buat draf"}
                 </Button>
               </div>
+            ))
+          )}
+        </div>
+
+        {/* Web search (Exa) */}
+        <div className="space-y-2">
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Pencarian web
+            </p>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 gap-1.5 text-xs"
+              disabled={isSearchingWeb}
+              onClick={() => void runWebSearch()}
+            >
+              <RiGlobalLine className="size-3.5" />
+              {isSearchingWeb ? "Mencari…" : "Cari web"}
+            </Button>
+          </div>
+          {hasSearchedWeb && !isSearchingWeb && webResults.length === 0 ? (
+            <p className="text-sm text-muted-foreground">Tidak ada hasil web.</p>
+          ) : (
+            webResults.map((result) => (
+              <a
+                key={result.url}
+                href={result.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="block rounded-md border p-3 transition-colors hover:bg-muted/40"
+              >
+                <p className="line-clamp-2 text-sm font-medium">{result.title}</p>
+                <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{result.snippet}…</p>
+                <p className="mt-1 truncate text-[11px] text-muted-foreground/70">{result.url}</p>
+              </a>
             ))
           )}
         </div>

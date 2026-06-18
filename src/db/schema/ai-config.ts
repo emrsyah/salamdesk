@@ -1,4 +1,4 @@
-import { boolean, integer, numeric, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { boolean, integer, jsonb, numeric, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
 
 /**
  * Organisation-wide AI behaviour configuration.
@@ -59,6 +59,18 @@ export const aiConfigs = pgTable("ai_configs", {
     ]),
   // Cap auto-replies per ticket (e.g. 1 = only the first inbound).
   maxAutoRepliesPerTicket: integer("max_auto_replies_per_ticket").notNull().default(1),
+
+  // ---- Behavior / voice --------------------------------------------------
+  agentName: text("agent_name").notNull().default("Asisten"),
+  persona: text("persona").notNull().default(""),
+  tone: text("tone").notNull().default(""),
+  language: text("language").notNull().default("id"),
+  replySignature: text("reply_signature").notNull().default(""),
+  guardrails: text("guardrails").notNull().default(""),
+
+  // ---- Schedule ----------------------------------------------------------
+  // BusinessHours JSON (see src/lib/agent/business-hours.ts) | null = always-on.
+  businessHours: jsonb("business_hours"),
 
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),

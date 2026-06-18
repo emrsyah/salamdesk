@@ -1,5 +1,6 @@
 import type { TicketPriority } from "@/services/ticket.service";
 import type { AiConfig } from "@/services/ai-config.service";
+import { resolveReplyMode } from "@/lib/agent/business-hours";
 
 export type AutoReplyPolicyInput = {
   priority: TicketPriority;
@@ -33,6 +34,7 @@ function keywordMatches(keyword: string, text: string): boolean {
 export function canAutoReply(
   input: AutoReplyPolicyInput,
   config: AiConfig,
+  now: Date = new Date(),
 ): AutoReplyPolicyDecision {
   if (!config.autoReplyEnabled) {
     return { allowed: false, blockedReason: "Auto-reply is disabled in settings." };
@@ -73,6 +75,13 @@ export function canAutoReply(
     return {
       allowed: false,
       blockedReason: `Ticket contains a blocked keyword ("${matched}").`,
+    };
+  }
+
+  if (config.businessHours && resolveReplyMode(config.businessHours, now) === "draft-only") {
+    return {
+      allowed: false,
+      blockedReason: "Outside auto-reply hours — drafted for staff review.",
     };
   }
 
