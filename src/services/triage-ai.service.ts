@@ -1,6 +1,25 @@
 import { generateObject } from "ai";
 import { z } from "zod";
 import { getAiModel } from "@/lib/ai";
+import type { ProcedureBehavior } from "@/services/procedure-execution.service";
+
+/**
+ * Build the voice/behaviour preamble shared with the procedure runtime, so KB
+ * auto-replies honour the same configured agent name, persona, tone, language,
+ * and guardrails. Returns "" when no behaviour is configured.
+ */
+function behaviorPreamble(behavior?: ProcedureBehavior): string {
+  if (!behavior) return "";
+  return [
+    `Kamu adalah ${behavior.agentName || "asisten AI"}, agen helpdesk SIMRS RSUD Karawang.`,
+    behavior.persona ? `Peran/persona: ${behavior.persona}` : "",
+    behavior.tone ? `Nada bicara: ${behavior.tone}` : "",
+    `Bahasa balasan: ${behavior.language || "id"}.`,
+    behavior.guardrails ? `Batasan WAJIB: ${behavior.guardrails}` : "",
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
 
 const ModuleClassificationSchema = z.object({
   moduleId: z.string().nullable().describe("The UUID of the best matching module, or null if none fits."),
@@ -137,12 +156,18 @@ export async function evaluateKbMatch(
   description: string | null,
   kbTitle: string,
   kbContent: string,
+  behavior?: ProcedureBehavior,
 ): Promise<KbRelevance> {
+  const preamble = behaviorPreamble(behavior);
+  const signatureRule = behavior?.replySignature
+    ? `\n- Akhiri balasan dengan tanda tangan: ${behavior.replySignature}.`
+    : "";
+
   const { object } = await generateObject({
     model: getAiModel(),
     schema: KbRelevanceSchema,
     temperature: 0,
-    prompt: `Kamu adalah asisten helpdesk SIMRS di RSUD Karawang.
+    prompt: `${preamble || "Kamu adalah asisten helpdesk SIMRS di RSUD Karawang."}
 
 Tiket dari requester:
 Judul: ${title}
@@ -154,7 +179,7 @@ Isi: ${kbContent.slice(0, 1500)}
 
 Apakah artikel KB ini MUNGKIN BERHUBUNGAN dengan pertanyaan atau masalah requester, meskipun hanya secara parsial?
 Sebagai AI Helpdesk yang proaktif, kita ingin memberi respons ke pasien sebisa mungkin jika ada kata kunci yang nyambung (misal: "antrian poli" dengan artikel "antrian").
-Jika ya atau mungkin relevan, buat balasan yang membantu dalam Bahasa Indonesia, maksimal 3 paragraf, yang merangkum solusi dari artikel KB tersebut.
+Jika ya atau mungkin relevan, buat balasan yang membantu, maksimal 3 paragraf, yang merangkum solusi dari artikel KB tersebut.${signatureRule}
 Jika sangat jelas tidak ada hubungannya sama sekali, barulah kembalikan isRelevant: false dan suggestedReply: null.`,
   });
 

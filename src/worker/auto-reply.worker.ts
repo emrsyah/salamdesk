@@ -6,6 +6,7 @@ import { triageEvents } from "@/db/schema/triage";
 import { AI_MODEL } from "@/lib/ai";
 import type { AiAutoReplyJob } from "@/lib/queue";
 import { getAiConfig } from "@/services/ai-config.service";
+import { resolveReplyMode } from "@/lib/agent/business-hours";
 import { sendWhatsAppMessage } from "@/services/whatsapp.service";
 
 /**
@@ -69,6 +70,12 @@ async function processAutoReply(job: { data: AiAutoReplyJob }) {
     );
   if ((priorAuto?.value ?? 0) >= config.maxAutoRepliesPerTicket) {
     return cancel(ticketId, content, "Auto-reply limit already reached.");
+  }
+
+  // Re-check business hours at send time: a reply drafted inside hours but held
+  // past the cutoff must not auto-send. Leaves the draft for staff review.
+  if (config.businessHours && resolveReplyMode(config.businessHours, new Date()) === "draft-only") {
+    return cancel(ticketId, content, "Hold window elapsed outside auto-reply hours.");
   }
 
   // All clear — send it.

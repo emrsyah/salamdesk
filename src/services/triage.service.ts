@@ -165,6 +165,14 @@ export async function triageTicket(
         ticket.description,
         topMatch.title,
         topMatch.content,
+        {
+          agentName: config.agentName,
+          persona: config.persona,
+          tone: config.tone,
+          language: config.language,
+          replySignature: config.replySignature,
+          guardrails: config.guardrails,
+        },
       );
 
       if (kbEval.isRelevant) {
