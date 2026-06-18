@@ -18,6 +18,15 @@ import {
   createCredential,
   deleteCredential,
 } from "@/services/agent-tools.service";
+import {
+  listProcedures,
+  getProcedure,
+  createProcedure,
+  updateProcedure,
+  deleteProcedure,
+  type ProcedureInput,
+} from "@/services/agent-procedures.service";
+import { getMentionSources } from "@/services/agent-mention-sources.service";
 
 /**
  * These actions write tool credentials and agent behavior, so they require an
@@ -37,6 +46,7 @@ function revalidateAgent() {
   revalidatePath("/app/agent");
   revalidatePath("/app/agent/automation");
   revalidatePath("/app/agent/tools");
+  revalidatePath("/app/agent/procedures");
 }
 
 // ---- Behavior + Automation (both write the ai_configs singleton) ------------
@@ -144,4 +154,42 @@ export async function deleteCredentialAction(id: string) {
   await requireAdminSession();
   await deleteCredential(id);
   revalidateAgent();
+}
+
+// ---- Procedures ------------------------------------------------------------
+
+export async function listProceduresAction() {
+  await requireAdminSession();
+  return listProcedures();
+}
+
+export async function getProcedureAction(id: string) {
+  await requireAdminSession();
+  return getProcedure(id);
+}
+
+export async function createProcedureAction(data: ProcedureInput) {
+  await requireAdminSession();
+  const row = await createProcedure(data);
+  revalidateAgent();
+  return row;
+}
+
+export async function updateProcedureAction(id: string, data: Partial<ProcedureInput>) {
+  await requireAdminSession();
+  const row = await updateProcedure(id, data);
+  revalidateAgent();
+  return row;
+}
+
+export async function deleteProcedureAction(id: string) {
+  await requireAdminSession();
+  await deleteProcedure(id);
+  revalidateAgent();
+}
+
+// Mention sources for the `/` menu. KB bodies are never surfaced (id/title only).
+export async function getMentionSourcesAction() {
+  await requireAdminSession();
+  return getMentionSources();
 }
