@@ -8,6 +8,7 @@ import makeWASocket, {
 import { Boom } from "@hapi/boom";
 import { rm } from "node:fs/promises";
 import pino from "pino";
+import qrcode from "qrcode-terminal";
 import { waInboundQueue, type WaInboundJob } from "./queue";
 import { normalisePhone } from "@/services/whatsapp.service";
 import { redisConnection } from "./redis";
@@ -18,6 +19,7 @@ const logger = pino({ level: "silent" });
 
 let sock: WASocket | null = null;
 let isConnecting = false;
+let isConnected = false;
 // Set while a UI-initiated disconnect is in flight, so the resulting
 // `loggedOut` close event doesn't clobber the fresh reconnect status.
 let intentionalDisconnect = false;
@@ -27,7 +29,7 @@ let intentionalDisconnect = false;
  * Used by the outbound worker to call sock.sendMessage().
  */
 export function getSocket(): WASocket | null {
-  return sock;
+  return isConnected ? sock : null;
 }
 
 /**
@@ -78,6 +80,7 @@ export async function disconnectWhatsApp(): Promise<void> {
 
   sock = null;
   isConnecting = false;
+  isConnected = false;
 
   try {
     await rm(AUTH_DIR, { recursive: true, force: true });
@@ -122,7 +125,6 @@ export async function connectToWhatsApp(): Promise<void> {
         creds: state.creds,
         keys: makeCacheableSignalKeyStore(state.keys, logger),
       },
-      printQRInTerminal: true,
       markOnlineOnConnect: false,
       // Prevent message store bloat in long-running process
       getMessage: async () => undefined,
@@ -138,6 +140,10 @@ export async function connectToWhatsApp(): Promise<void> {
         // A fresh QR means the (possibly intentional) disconnect has completed.
         intentionalDisconnect = false;
         console.log("\n[WA] Scan the QR code above to link your WhatsApp account.\n");
+        
+        // Print QR code in terminal using qrcode-terminal
+        qrcode.generate(qr, { small: true });
+
         // Save QR to Redis for frontend to display
         await redisConnection.set("wa-qr", qr, "EX", 120); // expires in 120 seconds
         await redisConnection.set("wa-status", "qr");
@@ -145,6 +151,7 @@ export async function connectToWhatsApp(): Promise<void> {
 
       if (connection === "open") {
         intentionalDisconnect = false;
+        isConnected = true;
         console.log("[WA] Connected to WhatsApp ✓");
         await redisConnection.del("wa-qr");
         await redisConnection.set("wa-status", "connected");
@@ -167,6 +174,7 @@ export async function connectToWhatsApp(): Promise<void> {
       }
 
       if (connection === "close") {
+        isConnected = false;
         const statusCode = (lastDisconnect?.error as Boom)?.output?.statusCode;
         const loggedOut = statusCode === DisconnectReason.loggedOut;
 

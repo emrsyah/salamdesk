@@ -70,11 +70,11 @@ Deskripsi: ${description ?? "(tidak ada deskripsi)"}
 Prioritas saat ini: ${currentPriority}
 
 Tentukan prioritas:
-- "critical" = mempengaruhi banyak pasien, sistem down, antrian macet, tidak bisa akses sama sekali
-- "medium" = ada masalah tapi masih bisa disiasati, atau tidak mendesak
-- "low" = pertanyaan, permintaan informasi, atau keluhan minor
+- "critical" = ada isu mendesak sekecil apapun yang berpotensi menyangkut pasien, dokter, down time, macet, atau laporan keluhan.
+- "medium" = pertanyaan umum yang butuh segera dijawab, kendala penggunaan, kendala billing/pembayaran, kendala lab/radiologi.
+- "low" = HANYA UNTUK sapaan, pesan tidak jelas, atau pertanyaan yang sangat remeh.
 
-Berikan penilaian prioritas dan alasannya dalam Bahasa Indonesia.`,
+Tebak dan naikkan prioritas jika ragu. Berikan penilaian prioritas dan alasannya dalam Bahasa Indonesia.`,
   });
 
   return object;
@@ -141,6 +141,7 @@ export async function evaluateKbMatch(
   const { object } = await generateObject({
     model: getAiModel(),
     schema: KbRelevanceSchema,
+    temperature: 0,
     prompt: `Kamu adalah asisten helpdesk SIMRS di RSUD Karawang.
 
 Tiket dari requester:
@@ -151,9 +152,10 @@ Artikel Knowledge Base yang ditemukan:
 Judul: ${kbTitle}
 Isi: ${kbContent.slice(0, 1500)}
 
-Apakah artikel KB ini dapat menjawab pertanyaan atau masalah requester?
-Jika ya, buat balasan yang membantu dalam Bahasa Indonesia, maksimal 3 paragraf, yang merangkum solusi dari artikel KB tersebut.
-Jika tidak relevan, kembalikan isRelevant: false dan suggestedReply: null.`,
+Apakah artikel KB ini MUNGKIN BERHUBUNGAN dengan pertanyaan atau masalah requester, meskipun hanya secara parsial?
+Sebagai AI Helpdesk yang proaktif, kita ingin memberi respons ke pasien sebisa mungkin jika ada kata kunci yang nyambung (misal: "antrian poli" dengan artikel "antrian").
+Jika ya atau mungkin relevan, buat balasan yang membantu dalam Bahasa Indonesia, maksimal 3 paragraf, yang merangkum solusi dari artikel KB tersebut.
+Jika sangat jelas tidak ada hubungannya sama sekali, barulah kembalikan isRelevant: false dan suggestedReply: null.`,
   });
 
   return object;

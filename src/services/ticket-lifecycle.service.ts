@@ -9,6 +9,7 @@ import {
 } from "@/db/schema/tickets";
 import { and, desc, eq, inArray } from "drizzle-orm";
 import { sendWhatsAppMessage } from "./whatsapp.service";
+import { getSlaDeadlines } from "./ticket-sla.service";
 import {
   canTransitionTicketStatus,
   normalizeTicketStatus,
@@ -248,6 +249,29 @@ export async function configureTicketCommand(input: {
           : "open"
         : fromStatus;
 
+    // Recalculate SLA deadlines when module or priority changes.
+    // Tickets from WhatsApp start with moduleId=null → no SLA. When a staff
+    // member (or AI triage) sets a module for the first time, we back-fill the
+    // SLA deadlines from the ticket's original createdAt.
+    let slaFields: Partial<typeof tickets.$inferInsert> = {};
+    if (moduleChanged || priorityChanged) {
+      const effectiveModuleId = toModuleId ?? null;
+      if (effectiveModuleId) {
+        const { firstResponseDueAt, resolutionDueAt } = await getSlaDeadlines({
+          moduleId: effectiveModuleId,
+          priority: toPriority,
+          createdAt: ticket.createdAt,
+        });
+        if (firstResponseDueAt && resolutionDueAt) {
+          slaFields = {
+            firstResponseDueAt,
+            resolutionDueAt,
+            slaDeadlineAt: resolutionDueAt,
+          };
+        }
+      }
+    }
+
     const [updated] = await tx
       .update(tickets)
       .set({
@@ -256,6 +280,7 @@ export async function configureTicketCommand(input: {
         priority: toPriority,
         status: toStatus,
         updatedAt: new Date(),
+        ...slaFields,
       })
       .where(eq(tickets.id, input.ticketId))
       .returning();
@@ -534,6 +559,23 @@ export async function changeTicketModuleWithLifecycle(input: {
       throw new TicketLifecycleError("Closed tickets cannot change module.");
     }
 
+    // Recalculate SLA deadlines when module changes.
+    let slaFields: Partial<typeof tickets.$inferInsert> = {};
+    if (input.moduleId) {
+      const { firstResponseDueAt, resolutionDueAt } = await getSlaDeadlines({
+        moduleId: input.moduleId,
+        priority: ticket.priority,
+        createdAt: ticket.createdAt,
+      });
+      if (firstResponseDueAt && resolutionDueAt) {
+        slaFields = {
+          firstResponseDueAt,
+          resolutionDueAt,
+          slaDeadlineAt: resolutionDueAt,
+        };
+      }
+    }
+
     const toAssigneeId = input.assigneeId ?? null;
     const toStatus = toAssigneeId ? "in_progress" : "open";
     const [updated] = await tx
@@ -543,6 +585,7 @@ export async function changeTicketModuleWithLifecycle(input: {
         assigneeId: toAssigneeId,
         status: toStatus,
         updatedAt: new Date(),
+        ...slaFields,
       })
       .where(eq(tickets.id, input.ticketId))
       .returning();

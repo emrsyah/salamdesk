@@ -51,6 +51,9 @@ export async function processInboundWaMessage(job: WaInboundJob): Promise<{
       `[BOT] Appended message to ticket ${existingTicket.id} from ${phone}`,
     );
 
+    await aiTriageQueue.add("triage", { ticketId: existingTicket.id, trigger: "message_added" });
+    console.log(`[BOT] Enqueued AI triage (message_added) for ticket ${existingTicket.id}`);
+
     return { action: "appended", ticketId: existingTicket.id };
   }
 
@@ -62,6 +65,10 @@ export async function processInboundWaMessage(job: WaInboundJob): Promise<{
         content: text,
         source: "whatsapp",
       });
+      
+      await aiTriageQueue.add("triage", { ticketId: existingTicket.id, trigger: "message_added" });
+      console.log(`[BOT] Enqueued AI triage (message_added) for reopened ticket ${existingTicket.id}`);
+      
       return { action: "reopened", ticketId: existingTicket.id };
     } catch (error) {
       if (!(error instanceof TicketLifecycleError)) throw error;

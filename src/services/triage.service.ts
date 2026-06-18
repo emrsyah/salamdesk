@@ -13,6 +13,7 @@ import { getAllModules } from "@/services/module.service";
 import { tryProcedure } from "@/services/procedure-runtime.service";
 import type { TicketPriority } from "@/services/ticket.service";
 import { sendWhatsAppMessage } from "@/services/whatsapp.service";
+import { getSlaDeadlines } from "@/services/ticket-sla.service";
 
 /** Count AI auto-replies already sent on a ticket (public, non-internal). */
 async function countAutoReplies(ticketId: string): Promise<number> {
@@ -174,6 +175,37 @@ export async function triageTicket(
       }
     }
 
+    // If AI just assigned a module for the first time (ticket came in without one,
+    // e.g. from WhatsApp), recalculate SLA deadlines now that we know the module.
+    // Tickets created with a moduleId already have correct deadlines from createTicket.
+    let slaUpdate: {
+      firstResponseDueAt: Date | null;
+      resolutionDueAt: Date | null;
+      slaDeadlineAt: Date | null;
+    } | null = null;
+
+    if (classifiedModuleId && !ticket.moduleId) {
+      const ticketRow = await db.query.tickets.findFirst({
+        where: eq(tickets.id, ticketId),
+        columns: { createdAt: true },
+      });
+      if (ticketRow) {
+        const { firstResponseDueAt, resolutionDueAt } = await getSlaDeadlines({
+          moduleId: classifiedModuleId,
+          priority: result.priority,
+          createdAt: ticketRow.createdAt,
+        });
+        slaUpdate = {
+          firstResponseDueAt,
+          resolutionDueAt,
+          slaDeadlineAt: resolutionDueAt,
+        };
+        console.log(
+          `[TRIAGE] Backfilled SLA for ticket ${ticketId}: firstResponse=${firstResponseDueAt?.toISOString()}, resolution=${resolutionDueAt?.toISOString()}`,
+        );
+      }
+    }
+
     // --- Procedure attempt (additive; falls back to the KB suggestion on no match) ---
     let procedureForceDraft = false;
     try {
@@ -212,6 +244,8 @@ export async function triageTicket(
           moduleSetBy: classifiedModuleId && !ticket.moduleId ? "ai" : ticket.moduleId ? "user" : null,
           priority: result.priority,
           updatedAt: new Date(),
+          // Backfill SLA deadlines if this is the first time a module is assigned.
+          ...(slaUpdate ?? {}),
         })
         .where(eq(tickets.id, ticketId)),
       db.insert(aiSuggestions).values({

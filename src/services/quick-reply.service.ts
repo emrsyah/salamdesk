@@ -17,7 +17,7 @@ export async function createQuickReply(data: {
   moduleId?: string | null;
   createdById?: string | null;
 }) {
-  return db.insert(quickReplies).values({
+  return db.insert(quickReplies).values({ 
     label: data.label,
     content: data.content,
     moduleId: data.moduleId,
