@@ -85,9 +85,12 @@ export async function searchKnowledgeForTicketAction(
     title: article.title,
     snippet: article.content.slice(0, 180),
     moduleIds: article.moduleIds,
-    isFromOtherModule: ticket.moduleId
-      ? !article.moduleIds.includes(ticket.moduleId)
-      : false,
+    // Unassigned (no-module) articles are global, so they're never "from
+    // another module".
+    isFromOtherModule:
+      ticket.moduleId && article.moduleIds.length > 0
+        ? !article.moduleIds.includes(ticket.moduleId)
+        : false,
   }));
 }
 

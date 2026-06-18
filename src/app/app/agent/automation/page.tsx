@@ -13,6 +13,7 @@ export default async function AgentAutomationPage() {
         autoSetPriority: config.autoSetPriority,
         kbCrossModuleSearch: config.kbCrossModuleSearch,
         procedureConfidenceThreshold: config.procedureConfidenceThreshold,
+        offTopicGuardEnabled: config.offTopicGuardEnabled,
         autoReplyEnabled: config.autoReplyEnabled,
         replyConfidenceThreshold: config.replyConfidenceThreshold,
         autoReplyDelayMinutes: config.autoReplyDelayMinutes,
@@ -22,6 +23,8 @@ export default async function AgentAutomationPage() {
         blockedKeywords: config.blockedKeywords,
         maxAutoRepliesPerTicket: config.maxAutoRepliesPerTicket,
         businessHours: config.businessHours ?? DEFAULT_BUSINESS_HOURS,
+        offHoursReplyEnabled: config.offHoursReplyEnabled,
+        offHoursMessage: config.offHoursMessage,
       }}
     />
   );

@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import type { BusinessHours, ReplyMode } from "@/lib/agent/business-hours";
 import { AgentTabIntro, AgentSection, SettingRow, StatusPill } from "./agent-ui";
@@ -25,6 +26,7 @@ type AutomationConfig = {
   autoSetPriority: boolean;
   kbCrossModuleSearch: boolean;
   procedureConfidenceThreshold: number;
+  offTopicGuardEnabled: boolean;
   autoReplyEnabled: boolean;
   replyConfidenceThreshold: number;
   autoReplyDelayMinutes: number;
@@ -34,6 +36,8 @@ type AutomationConfig = {
   blockedKeywords: string[];
   maxAutoRepliesPerTicket: number;
   businessHours: BusinessHours;
+  offHoursReplyEnabled: boolean;
+  offHoursMessage: string;
 };
 
 const CHANNELS = ["whatsapp", "web", "email"];
@@ -168,6 +172,15 @@ export function AgentAutomationForm({ config }: { config: AutomationConfig }) {
             onChange={(e) => set("procedureConfidenceThreshold", Number(e.target.value))}
           />
         </Row>
+        <Row
+          label="Penjaga topik (anti off-topic)"
+          hint="Tiket yang jelas di luar lingkup layanan SIMRS tidak dibalas otomatis — disiapkan sebagai draf untuk staf."
+        >
+          <Switch
+            checked={form.offTopicGuardEnabled}
+            onCheckedChange={(v) => set("offTopicGuardEnabled", v)}
+          />
+        </Row>
       </AgentSection>
 
       {/* Auto-reply */}
@@ -291,6 +304,30 @@ export function AgentAutomationForm({ config }: { config: AutomationConfig }) {
             onCheckedChange={(v) => setHours({ enabled: v })}
           />
         </Row>
+        <Row
+          label="Pesan otomatis di luar jam"
+          hint="Saat di luar jam operasional, kirim 1 pesan pemberitahuan ke pelapor (jawaban asli tetap disiapkan sebagai draf untuk staf)."
+        >
+          <Switch
+            checked={form.offHoursReplyEnabled}
+            onCheckedChange={(v) => set("offHoursReplyEnabled", v)}
+          />
+        </Row>
+        {form.offHoursReplyEnabled && (
+          <div className="space-y-1.5 py-3">
+            <Label htmlFor="offHoursMessage">Isi pesan di luar jam</Label>
+            <Textarea
+              id="offHoursMessage"
+              className="min-h-[80px]"
+              value={form.offHoursMessage}
+              onChange={(e) => set("offHoursMessage", e.target.value)}
+              placeholder="Terima kasih telah menghubungi kami. Saat ini di luar jam operasional…"
+            />
+            <p className="text-xs text-muted-foreground">
+              Dikirim maksimal sekali per tiket agar tidak spam.
+            </p>
+          </div>
+        )}
 
         {form.businessHours.enabled && (
           <div className="space-y-3 py-4">

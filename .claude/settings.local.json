@@ -44,7 +44,8 @@
       "Bash(node -e \"const u=new URL\\(process.env.DATABASE_URL||require\\('dotenv'\\).config\\(\\)&&process.env.DATABASE_URL\\); console.log\\('host:',u.hostname\\); console.log\\('port:',u.port\\); console.log\\('params:',u.search\\)\")",
       "Bash(NODE_OPTIONS=\"--dns-result-order=ipv4first\" npx tsx scripts/diag-dashboard-timing.ts)",
       "Bash(node -e ' *)",
-      "mcp__context7__resolve-library-id"
+      "mcp__context7__resolve-library-id",
+      "Bash(node del_ticket.mjs check)"
     ]
   },
   "enableAllProjectMcpServers": true,

@@ -46,6 +46,50 @@ export type ModuleClassification = z.infer<typeof ModuleClassificationSchema>;
 export type PriorityClassification = z.infer<typeof PriorityClassificationSchema>;
 export type KbRelevance = z.infer<typeof KbRelevanceSchema>;
 
+const OnTopicSchema = z.object({
+  onTopic: z.boolean().describe("True jika tiket masih dalam lingkup layanan helpdesk; false jika di luar topik."),
+  reasoning: z.string().describe("Alasan singkat dalam Bahasa Indonesia."),
+});
+export type OnTopicResult = z.infer<typeof OnTopicSchema>;
+
+/**
+ * Scope guard: decide whether a ticket is within the agent's support domain
+ * (SIMRS / hospital IT helpdesk), so clearly off-topic messages (chit-chat,
+ * spam, unrelated requests) are never auto-answered. Uses the configured
+ * persona/guardrails as extra scope context when provided.
+ */
+export async function classifyOnTopic(
+  title: string,
+  description: string | null,
+  scope?: { persona?: string; guardrails?: string },
+): Promise<OnTopicResult> {
+  const scopeHints = [
+    scope?.persona ? `Persona agen: ${scope.persona}` : "",
+    scope?.guardrails ? `Batasan: ${scope.guardrails}` : "",
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+  const { object } = await generateObject({
+    model: getAiModel(),
+    schema: OnTopicSchema,
+    temperature: 0,
+    prompt: `Kamu adalah penjaga lingkup (scope guard) untuk agen AI helpdesk SIMRS RSUD Karawang.
+Lingkup layanan: dukungan teknis & operasional sistem rumah sakit (SIMRS) — modul pendaftaran, rawat jalan/inap, farmasi, lab, radiologi, billing/BPJS, rekam medis, antrian, akun/login, error aplikasi, dan pertanyaan terkait penggunaan sistem.
+${scopeHints}
+
+Tiket masuk:
+Judul: ${title}
+Deskripsi: ${description ?? "(tidak ada deskripsi)"}
+
+Tentukan apakah tiket ini MASIH dalam lingkup layanan di atas.
+- onTopic = true jika berkaitan (meski tidak yakin modulnya), termasuk sapaan pembuka yang menuju ke masalah SIMRS.
+- onTopic = false HANYA jika jelas di luar topik (mis. obrolan pribadi, spam, iklan, pertanyaan umum tak terkait rumah sakit/SIMRS, permintaan membuat konten kreatif).`,
+  });
+
+  return object;
+}
+
 export async function classifyModule(
   title: string,
   description: string | null,

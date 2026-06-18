@@ -32,6 +32,9 @@ export const aiConfigs = pgTable("ai_configs", {
   procedureConfidenceThreshold: numeric("procedure_confidence_threshold", { precision: 3, scale: 2 })
     .notNull()
     .default("0.60"),
+  // When true, off-topic tickets (outside the SIMRS/helpdesk scope) are never
+  // auto-replied to — drafted for staff instead.
+  offTopicGuardEnabled: boolean("off_topic_guard_enabled").notNull().default(true),
 
   // ---- Auto-reply --------------------------------------------------------
   autoReplyEnabled: boolean("auto_reply_enabled").notNull().default(true),
@@ -80,6 +83,14 @@ export const aiConfigs = pgTable("ai_configs", {
   // ---- Schedule ----------------------------------------------------------
   // BusinessHours JSON (see src/lib/agent/business-hours.ts) | null = always-on.
   businessHours: jsonb("business_hours"),
+  // When outside business hours, optionally send a one-time acknowledgment to
+  // the requester (the real answer is still drafted for staff, not auto-sent).
+  offHoursReplyEnabled: boolean("off_hours_reply_enabled").notNull().default(false),
+  offHoursMessage: text("off_hours_message")
+    .notNull()
+    .default(
+      "Terima kasih telah menghubungi kami. Saat ini di luar jam operasional — pesan Anda sudah kami terima dan tim akan membalas pada jam kerja berikutnya.",
+    ),
 
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),

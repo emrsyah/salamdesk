@@ -6,6 +6,33 @@ import { embedKnowledgeQuery, formatPgVector } from "./knowledge-embedding.servi
 
 export type KbArticle = typeof knowledgeBase.$inferSelect;
 
+// Hybrid ranking weights for vector search: how much the chunk semantic
+// similarity vs. a lexical title match contribute to the final rank.
+const SEMANTIC_WEIGHT = 0.75;
+const TITLE_WEIGHT = 0.25;
+
+const STOP_WORDS = new Set([
+  "yang", "di", "ke", "dari", "dan", "atau", "untuk", "pada", "ada", "tidak",
+  "the", "a", "an", "to", "of", "is", "in", "on", "for", "and", "or",
+]);
+
+/** Lowercase word tokens (>=2 chars, excluding common stop words). */
+function tokenize(text: string): string[] {
+  const tokens = (text.toLowerCase().match(/[a-z0-9]+/g) ?? []).filter(
+    (t) => t.length >= 2 && !STOP_WORDS.has(t),
+  );
+  return Array.from(new Set(tokens));
+}
+
+/** Fraction of query tokens that appear in the title (0..1). */
+function titleMatchScore(queryTokens: string[], title: string): number {
+  if (queryTokens.length === 0) return 0;
+  const titleTokens = new Set(tokenize(title));
+  if (titleTokens.size === 0) return 0;
+  const hits = queryTokens.filter((t) => titleTokens.has(t)).length;
+  return hits / queryTokens.length;
+}
+
 async function replaceKnowledgeChunks(
   documentId: string,
   chunks: KnowledgeChunk[] | string,
@@ -59,9 +86,11 @@ export async function searchKnowledgeBase(
   const limit = options?.limit ?? 5;
   const pattern = `%${query}%`;
   const scope = options?.scope ?? (options?.moduleId ? "module" : "all");
+  // Module-scoped search also includes articles with NO module assigned —
+  // an unassigned KB is treated as global ("belongs to all modules").
   const moduleFilter =
     scope === "module" && options?.moduleId
-      ? sql`${knowledgeBase.moduleIds} && ARRAY[${options.moduleId}]::uuid[]`
+      ? sql`(${knowledgeBase.moduleIds} && ARRAY[${options.moduleId}]::uuid[] or cardinality(${knowledgeBase.moduleIds}) = 0)`
       : null;
 
   if (process.env.VOYAGE_API_KEY) {
@@ -90,24 +119,27 @@ export async function searchKnowledgeBase(
         .limit(limit * 3)
         .execute();
 
-      const seen = new Set<string>();
-      const documents: KbArticle[] = [];
-
+      // Keep the best (smallest) chunk distance per document — rows are ordered
+      // ascending, so the first occurrence of each document is its best chunk.
+      const byDoc = new Map<string, { document: KbArticle; distance: number }>();
       for (const row of vectorRows) {
-        if (seen.has(row.document.id)) {
-          continue;
-        }
-
-        seen.add(row.document.id);
-        documents.push(row.document);
-
-        if (documents.length >= limit) {
-          return documents;
+        if (!byDoc.has(row.document.id)) {
+          byDoc.set(row.document.id, { document: row.document, distance: Number(row.distance) });
         }
       }
 
-      if (documents.length > 0) {
-        return documents;
+      if (byDoc.size > 0) {
+        // Hybrid score: semantic similarity (chunk cosine) blended with a lexical
+        // title match, so an article whose TITLE clearly matches the query isn't
+        // buried under a chunk that happens to be semantically close.
+        const queryTokens = tokenize(query);
+        const scored = Array.from(byDoc.values()).map(({ document, distance }) => {
+          const semantic = 1 - distance; // pgvector "<=>" is cosine distance (0..2)
+          const title = titleMatchScore(queryTokens, document.title);
+          return { document, score: SEMANTIC_WEIGHT * semantic + TITLE_WEIGHT * title };
+        });
+        scored.sort((a, b) => b.score - a.score);
+        return scored.slice(0, limit).map((s) => s.document);
       }
     } catch (error) {
       console.warn("[KB] Vector search failed, falling back to keyword search:", error);
@@ -185,8 +217,9 @@ export async function getKbArticleChunkCount(id: string): Promise<number> {
 export async function getAllKbArticles(options?: {
   moduleId?: string;
 }): Promise<KbArticle[]> {
+  // Include unassigned (no-module) articles — they're treated as global.
   const moduleFilter = options?.moduleId
-    ? sql`${knowledgeBase.moduleIds} && ARRAY[${options.moduleId}]::uuid[]`
+    ? sql`(${knowledgeBase.moduleIds} && ARRAY[${options.moduleId}]::uuid[] or cardinality(${knowledgeBase.moduleIds}) = 0)`
     : undefined;
 
   return db

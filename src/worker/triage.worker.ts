@@ -22,7 +22,12 @@ export function createTriageWorker(connection: ConnectionOptions) {
       const result = await triageTicket(job.data.ticketId, job.data.trigger ?? "intake");
       console.log(
         `[TRIAGE] Job ${job.id} done — module: ${result.moduleName ?? "unclassified"}, ` +
-          `priority: ${result.priority}, autoReplied: ${result.autoReplied}`
+          `priority: ${result.priority}, autoReplied: ${result.autoReplied}` +
+          (result.autoReplied
+            ? result.autoReplyBlockedReason
+              ? ` (${result.autoReplyBlockedReason})`
+              : ""
+            : ` — reason: ${result.autoReplyBlockedReason ?? "no reply generated"}`)
       );
       return result;
     },

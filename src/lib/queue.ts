@@ -35,7 +35,9 @@ export const waOutboundQueue = new Queue("wa-outbound", {
 export const aiTriageQueue = new Queue("ai-triage", {
   connection,
   defaultJobOptions: {
-    attempts: 2,
+    // Retry transient failures (DB statement timeouts, AI rate limits) with
+    // exponential backoff: ~5s, then ~10s. The worker now re-throws on error.
+    attempts: 3,
     backoff: { type: "exponential", delay: 5000 },
     removeOnComplete: 500,
     removeOnFail: 200,

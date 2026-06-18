@@ -15,6 +15,7 @@ export type AiConfig = {
   autoSetPriority: boolean;
   kbCrossModuleSearch: boolean;
   procedureConfidenceThreshold: number;
+  offTopicGuardEnabled: boolean;
   autoReplyEnabled: boolean;
   replyConfidenceThreshold: number;
   autoReplyDelayMinutes: number;
@@ -32,6 +33,8 @@ export type AiConfig = {
   guardrails: string;
   // Schedule
   businessHours: BusinessHours;
+  offHoursReplyEnabled: boolean;
+  offHoursMessage: string;
 };
 
 /** Defaults used when no config row exists yet (mirror the migration defaults). */
@@ -43,6 +46,7 @@ export const DEFAULT_AI_CONFIG: AiConfig = {
   autoSetPriority: true,
   kbCrossModuleSearch: true,
   procedureConfidenceThreshold: 0.6,
+  offTopicGuardEnabled: true,
   autoReplyEnabled: true,
   replyConfidenceThreshold: 0.5,
   autoReplyDelayMinutes: 0,
@@ -66,6 +70,9 @@ export const DEFAULT_AI_CONFIG: AiConfig = {
   replySignature: "",
   guardrails: "",
   businessHours: DEFAULT_BUSINESS_HOURS,
+  offHoursReplyEnabled: false,
+  offHoursMessage:
+    "Terima kasih telah menghubungi kami. Saat ini di luar jam operasional — pesan Anda sudah kami terima dan tim akan membalas pada jam kerja berikutnya.",
 };
 
 type AiConfigRow = typeof aiConfigs.$inferSelect;
@@ -79,6 +86,7 @@ function rowToConfig(row: AiConfigRow): AiConfig {
     autoSetPriority: row.autoSetPriority,
     kbCrossModuleSearch: row.kbCrossModuleSearch,
     procedureConfidenceThreshold: Number(row.procedureConfidenceThreshold),
+    offTopicGuardEnabled: row.offTopicGuardEnabled,
     autoReplyEnabled: row.autoReplyEnabled,
     replyConfidenceThreshold: Number(row.replyConfidenceThreshold),
     autoReplyDelayMinutes: row.autoReplyDelayMinutes,
@@ -94,6 +102,8 @@ function rowToConfig(row: AiConfigRow): AiConfig {
     replySignature: row.replySignature,
     guardrails: row.guardrails,
     businessHours: (row.businessHours as BusinessHours | null) ?? DEFAULT_BUSINESS_HOURS,
+    offHoursReplyEnabled: row.offHoursReplyEnabled,
+    offHoursMessage: row.offHoursMessage,
   };
 }
 
@@ -142,6 +152,8 @@ export async function updateAiConfig(update: AiConfigUpdate): Promise<AiConfig> 
     patch.kbCrossModuleSearch = update.kbCrossModuleSearch;
   if (update.procedureConfidenceThreshold !== undefined)
     patch.procedureConfidenceThreshold = clamp01(update.procedureConfidenceThreshold).toFixed(2);
+  if (update.offTopicGuardEnabled !== undefined)
+    patch.offTopicGuardEnabled = update.offTopicGuardEnabled;
   if (update.autoReplyEnabled !== undefined) patch.autoReplyEnabled = update.autoReplyEnabled;
   if (update.replyConfidenceThreshold !== undefined)
     patch.replyConfidenceThreshold = clamp01(update.replyConfidenceThreshold).toFixed(2);
@@ -165,6 +177,9 @@ export async function updateAiConfig(update: AiConfigUpdate): Promise<AiConfig> 
   if (update.replySignature !== undefined) patch.replySignature = update.replySignature.trim();
   if (update.guardrails !== undefined) patch.guardrails = update.guardrails.trim();
   if (update.businessHours !== undefined) patch.businessHours = update.businessHours;
+  if (update.offHoursReplyEnabled !== undefined)
+    patch.offHoursReplyEnabled = update.offHoursReplyEnabled;
+  if (update.offHoursMessage !== undefined) patch.offHoursMessage = update.offHoursMessage.trim();
 
   let row: AiConfigRow;
   if (existing) {

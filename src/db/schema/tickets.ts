@@ -1,4 +1,4 @@
-import { pgTable, text, uuid, boolean, timestamp, numeric, integer } from "drizzle-orm/pg-core";
+import { pgTable, text, uuid, boolean, timestamp, numeric, integer, index } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { users } from "./users";
 import { requesters } from "./requesters";
@@ -66,7 +66,13 @@ export const ticketMessages = pgTable("ticket_messages", {
     isInternalNote: boolean("is_internal_note").default(false).notNull(),
     source: ticketSourceEnum("source"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
-});
+}, (t) => ({
+    // Every per-ticket message query (triage counts, conversation fetch,
+    // getTicketById, auto-reply worker) filters by ticket_id and orders by
+    // created_at. Without this, Postgres seq-scans the table and the count
+    // query hits the statement timeout.
+    ticketCreatedIdx: index("ticket_messages_ticket_id_created_at_idx").on(t.ticketId, t.createdAt),
+}));
 
 export const ticketMessageAttachments = pgTable("ticket_message_attachments", {
     id: uuid("id").primaryKey().defaultRandom(),
