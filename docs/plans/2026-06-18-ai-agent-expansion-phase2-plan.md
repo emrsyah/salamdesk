@@ -1000,14 +1000,7 @@ import { tryProcedure } from "@/services/procedure-runtime.service";
     }
 ```
 
-- [ ] **Step 4:** Persist procedure provenance in the `completed` triage event (add two columns OR fold into existing reason fields). **Minimal, no-migration option:** append to `moduleReason`/`priorityReason`-style logging by extending `suggestedReply` provenance into the existing `triageEvents` insert via a new nullable text — but to avoid schema churn, log it in `autoReplyBlockedReason`/console only for now. **Chosen approach:** add to the `completed` event insert a human-readable note when a procedure ran:
-
-```typescript
-      // inside the completed triageEvents insert, reuse an existing nullable text column:
-      // (procedure provenance is surfaced via the optional Activity page later)
-```
-
-  > Decision for the executor: keep Task 9 schema-free. Procedure id/title live on the in-memory `TriageResult` (returned to callers) and in `console`/`autoReplyBlockedReason`. The durable audit (a column or `agent_runs` table) is **Task 12 (optional)**. This keeps the triage wiring a pure behavior change with zero migration.
+- [ ] **Step 4:** **Keep Task 9 schema-free — do NOT touch `triageEvents` columns here.** Procedure id/title live only on the in-memory `TriageResult` (returned to callers, init'd to `null` in Step 2) and, for visibility, in `console.error`/`autoReplyBlockedReason`. The durable audit (a `procedure_id`/`procedure_title` column or `agent_runs` table + migration `0015`) is deferred to **Chunk 7 / Task 13 (optional)**. This keeps the triage wiring a pure behavior change with zero migration. (No code to write in this step.)
 
 - [ ] **Step 5 (controller):** `bun run typecheck` + `npx eslint src/services/triage.service.ts`.
 - [ ] **Step 6 (controller): Commit** — `feat(agent): run matching procedures inside triage with draft-only guardrail`.
