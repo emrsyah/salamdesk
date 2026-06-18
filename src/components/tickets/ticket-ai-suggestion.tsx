@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { RiSparklingLine, RiThumbUpLine, RiThumbDownLine, RiCheckLine, RiBookOpenLine } from "@remixicon/react";
+import { RiSparklingLine, RiThumbUpLine, RiThumbDownLine, RiCheckLine, RiBookOpenLine, RiCloseLine } from "@remixicon/react";
 import { markSuggestionHelpfulAction } from "@/actions/ai-suggestions.actions";
 
 export type AiSuggestionData = {
@@ -31,6 +31,9 @@ export function TicketAiSuggestion({
     suggestion.wasHelpful
   );
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [dismissed, setDismissed] = useState(false);
+
+  if (dismissed) return null;
 
   const confidence = suggestion.confidenceScore
     ? Math.round(parseFloat(suggestion.confidenceScore) * 100)
@@ -80,6 +83,14 @@ export function TicketAiSuggestion({
             Feedback diterima
           </span>
         )}
+        <button
+          type="button"
+          onClick={() => setDismissed(true)}
+          aria-label="Tutup saran AI"
+          className="flex items-center justify-center size-6 rounded-md text-amber-600/70 dark:text-amber-400/70 hover:bg-amber-200/60 dark:hover:bg-amber-800/40 hover:text-amber-800 dark:hover:text-amber-200 transition-colors shrink-0"
+        >
+          <RiCloseLine className="size-4" />
+        </button>
       </div>
 
       {/* Body */}

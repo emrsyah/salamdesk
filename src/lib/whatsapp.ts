@@ -210,6 +210,10 @@ export async function connectToWhatsApp(): Promise<void> {
         const jid = msg.key.remoteJid;
         if (!jid) continue;
 
+        // Only triage private (1:1) chats. Group messages (JIDs ending in
+        // "@g.us") are noisy and not meant to become tickets.
+        if (jid.endsWith("@g.us")) continue;
+
         // Extract plain text (supports text messages; media comes later in Phase 5+)
         const text =
           msg.message?.conversation ||

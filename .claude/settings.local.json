@@ -30,7 +30,16 @@
       "Bash(node -e \"let s='';process.stdin.on\\('data',d=>s+=d\\).on\\('end',\\(\\)=>console.log\\(JSON.stringify\\(JSON.parse\\(s\\).scripts,null,2\\)\\)\\)\")",
       "Bash(npx react-doctor@latest)",
       "PowerShell(npm run *)",
-      "PowerShell(npx eslint src/components/tickets/ticket-ai-copilot-panel.tsx src/components/knowledge/kb-article-form.tsx src/components/knowledge/kb-document-upload.tsx src/services/knowledge.service.ts src/db/schema/knowledge-base.ts 2>&1 | Select-Object -First 40)"
+      "PowerShell(npx eslint src/components/tickets/ticket-ai-copilot-panel.tsx src/components/knowledge/kb-article-form.tsx src/components/knowledge/kb-document-upload.tsx src/services/knowledge.service.ts src/db/schema/knowledge-base.ts 2>&1 | Select-Object -First 40)",
+      "Bash(git checkout *)",
+      "Bash(bun test *)",
+      "Bash(bun run *)",
+      "Bash(bun -e 'for \\(const h of [\"http://[::1]/\",\"http://[fd00::1]/\",\"http://[fe80::1]/\",\"http://[::ffff:169.254.169.254]/\"]\\) { console.log\\(h, \"->\", JSON.stringify\\(new URL\\(h\\).hostname\\)\\); }')",
+      "Bash(git push *)",
+      "Bash(bun -e ' *)",
+      "Bash(mktemp *)",
+      "Bash(git --no-pager log --oneline -18)",
+      "mcp__context7__query-docs"
     ]
   },
   "enableAllProjectMcpServers": true,
