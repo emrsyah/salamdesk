@@ -2,7 +2,7 @@
 
 import { useMemo } from "react";
 import { TicketDetailData } from "./ticket-detail";
-import { RiDownloadLine, RiFile3Line, RiMessage3Line } from "@remixicon/react";
+import { RiBookOpenLine, RiDownloadLine, RiFile3Line, RiMessage3Line, RiSparkling2Line } from "@remixicon/react";
 import { cn, formatTime } from "@/lib/utils";
 import { AttachmentImage } from "./attachment-image";
 
@@ -129,6 +129,8 @@ function MessageBubble({ msg }: { msg: TicketDetailData["messages"][0] }) {
             </div>
           )}
         </div>
+
+        {isAi && msg.aiMeta ? <AiReplyMeta meta={msg.aiMeta} /> : null}
       </div>
 
       {isOutgoing && !msg.isInternalNote ? (
@@ -204,6 +206,35 @@ function MessageAvatar({
       aria-hidden="true"
     >
       {label}
+    </div>
+  );
+}
+
+function AiReplyMeta({
+  meta,
+}: {
+  meta: NonNullable<TicketDetailData["messages"][0]["aiMeta"]>;
+}) {
+  const confidencePct =
+    meta.replyConfidence != null ? Math.round(meta.replyConfidence * 100) : null;
+
+  return (
+    <div className="mt-1 flex flex-wrap items-center justify-end gap-1.5 text-[10px] text-muted-foreground">
+      <span className="inline-flex items-center gap-1 rounded-full border border-violet-200 bg-violet-50 px-1.5 py-0.5 font-medium text-violet-700 dark:border-violet-900/70 dark:bg-violet-950/30 dark:text-violet-200">
+        <RiSparkling2Line className="size-3" />
+        Balasan otomatis AI
+      </span>
+      {confidencePct != null ? (
+        <span className="inline-flex items-center rounded-full bg-muted px-1.5 py-0.5 font-medium text-foreground/70">
+          Keyakinan {confidencePct}%
+        </span>
+      ) : null}
+      {meta.kbTitle ? (
+        <span className="inline-flex max-w-[14rem] items-center gap-1 truncate rounded-full bg-muted px-1.5 py-0.5 font-medium text-foreground/70">
+          <RiBookOpenLine className="size-3 shrink-0" />
+          <span className="truncate">{meta.kbTitle}</span>
+        </span>
+      ) : null}
     </div>
   );
 }

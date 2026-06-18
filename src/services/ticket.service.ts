@@ -1,6 +1,7 @@
 import { db } from "@/db";
 import { tickets, ticketMessages, ticketEscalations } from "@/db/schema/tickets";
 import { aiSuggestions } from "@/db/schema/knowledge-base";
+import { triageEvents } from "@/db/schema/triage";
 import { eq, and, desc, asc, inArray, isNull, isNotNull } from "drizzle-orm";
 import crypto from "node:crypto";
 import { getSlaDeadlines } from "./ticket-sla.service";
@@ -116,7 +117,7 @@ export async function getTickets(ctx?: TicketContext) {
 }
 
 export async function getTicketById(id: string) {
-  return db.query.tickets.findFirst({
+  const ticket = await db.query.tickets.findFirst({
     where: eq(tickets.id, id),
     with: {
       module: true,
@@ -161,8 +162,69 @@ export async function getTicketById(id: string) {
         orderBy: [desc(aiSuggestions.createdAt)],
         limit: 1,
       },
+      triageEvents: {
+        columns: {
+          replyConfidence: true,
+          suggestedReply: true,
+          suggestedKbId: true,
+          suggestedKbTitle: true,
+          autoReplySent: true,
+          createdAt: true,
+        },
+        orderBy: [asc(triageEvents.createdAt)],
+      },
     },
   });
+
+  if (!ticket) return ticket;
+
+  // Correlate each AI-sent message with the triage event that produced it, so the
+  // UI can show why the AI replied (confidence + KB used). Match on identical
+  // reply text first; fall back to the nearest event by timestamp.
+  const aiEvents = ticket.triageEvents.filter(
+    (e) => e.autoReplySent && e.suggestedReply,
+  );
+
+  const messages = ticket.messages.map((msg) => {
+    if (msg.senderType !== "ai_agent") return msg;
+    const match =
+      aiEvents.find((e) => e.suggestedReply?.trim() === msg.content.trim()) ??
+      nearestEventByTime(aiEvents, msg.createdAt);
+    if (!match) return msg;
+    return {
+      ...msg,
+      aiMeta: {
+        replyConfidence: match.replyConfidence != null ? Number(match.replyConfidence) : null,
+        kbId: match.suggestedKbId,
+        kbTitle: match.suggestedKbTitle,
+      },
+    };
+  });
+
+  return { ...ticket, messages };
+}
+
+type AiTriageEvent = {
+  replyConfidence: string | null;
+  suggestedReply: string | null;
+  suggestedKbId: string | null;
+  suggestedKbTitle: string | null;
+  autoReplySent: boolean;
+  createdAt: Date;
+};
+
+/** Pick the triage event closest in time to a message (used when the reply text was edited). */
+function nearestEventByTime(events: AiTriageEvent[], when: Date) {
+  let best: AiTriageEvent | null = null;
+  let bestDelta = Infinity;
+  for (const event of events) {
+    const delta = Math.abs(event.createdAt.getTime() - when.getTime());
+    if (delta < bestDelta) {
+      best = event;
+      bestDelta = delta;
+    }
+  }
+  return best;
 }
 
 export async function createTicket(data: {

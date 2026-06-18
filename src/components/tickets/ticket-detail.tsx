@@ -68,6 +68,12 @@ export type TicketDetailData = {
     pending?: boolean;
     sender: { id: string; name: string } | null;
     requester: { id: string; displayName: string } | null;
+    /** Present on AI-sent messages: why the AI replied (confidence + KB used). */
+    aiMeta?: {
+      replyConfidence: number | null;
+      kbId: string | null;
+      kbTitle: string | null;
+    } | null;
     attachments?: {
       id: string;
       fileName: string;

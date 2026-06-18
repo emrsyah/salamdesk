@@ -5,6 +5,7 @@ import { requesters } from "./requesters";
 import { modules } from "./modules";
 import { notifications } from "./notifications";
 import { aiSuggestions } from "./knowledge-base";
+import { triageEvents } from "./triage";
 import {
     ticketStatusEnum,
     ticketPriorityEnum,
@@ -128,6 +129,7 @@ export const ticketsRelations = relations(tickets, ({ one, many }) => ({
     sourceLinks: many(ticketLinks, { relationName: "sourceTicketLinks" }),
     targetLinks: many(ticketLinks, { relationName: "targetTicketLinks" }),
     aiSuggestions: many(aiSuggestions),
+    triageEvents: many(triageEvents),
     notifications: many(notifications),
 }));
 
