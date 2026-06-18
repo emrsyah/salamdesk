@@ -15,7 +15,8 @@ import {
   XAxis,
   YAxis,
 } from "recharts"
-import { RiArrowUpLine, RiArrowDownLine } from "@remixicon/react"
+import { RiArrowUpLine, RiArrowDownLine, RiBarChartBoxLine } from "@remixicon/react"
+import { PageContainer, PageHeader } from "@/components/page-shell"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import {
   ChartContainer,
@@ -198,18 +199,17 @@ export default function DashboardPage() {
   )
 
   const header = (
-    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-      <div>
-        <h1 className="text-2xl font-bold">Dashboard</h1>
-        <p className="text-muted-foreground">Ringkasan performa helpdesk SIMRS · {rangeLabel}</p>
-      </div>
-      {rangeSelector}
-    </div>
+    <PageHeader
+      icon={<RiBarChartBoxLine className="size-5" />}
+      title="Dashboard"
+      description={`Ringkasan performa helpdesk SIMRS · ${rangeLabel}`}
+      actions={rangeSelector}
+    />
   )
 
   if (loading || !data) {
     return (
-      <div className="space-y-4 p-4 md:p-6">
+      <PageContainer>
         {header}
         <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
           {Array.from({ length: 6 }, (_, i) => (
@@ -221,12 +221,12 @@ export default function DashboardPage() {
           <Skeleton className="h-[320px] rounded-lg lg:col-span-2" />
           <Skeleton className="h-[320px] rounded-lg" />
         </div>
-      </div>
+      </PageContainer>
     )
   }
 
   return (
-    <div className="space-y-4 p-4 md:p-6">
+    <PageContainer>
       {/* Header + range selector */}
       {header}
 
@@ -461,6 +461,6 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
       </div>
-    </div>
+    </PageContainer>
   )
 }

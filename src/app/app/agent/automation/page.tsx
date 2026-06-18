@@ -11,6 +11,8 @@ export default async function AgentAutomationPage() {
         autoClassifyModule: config.autoClassifyModule,
         moduleConfidenceThreshold: config.moduleConfidenceThreshold,
         autoSetPriority: config.autoSetPriority,
+        kbCrossModuleSearch: config.kbCrossModuleSearch,
+        procedureConfidenceThreshold: config.procedureConfidenceThreshold,
         autoReplyEnabled: config.autoReplyEnabled,
         replyConfidenceThreshold: config.replyConfidenceThreshold,
         autoReplyDelayMinutes: config.autoReplyDelayMinutes,

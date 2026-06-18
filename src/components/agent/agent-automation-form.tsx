@@ -3,19 +3,28 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { RiAddLine, RiCloseLine } from "@remixicon/react";
+import {
+  RiAddLine,
+  RiCloseLine,
+  RiFlowChart,
+  RiReplyLine,
+  RiCalendarScheduleLine,
+} from "@remixicon/react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 import type { BusinessHours, ReplyMode } from "@/lib/agent/business-hours";
+import { AgentTabIntro, AgentSection, SettingRow, StatusPill } from "./agent-ui";
 
 type AutomationConfig = {
   aiTriageEnabled: boolean;
   autoClassifyModule: boolean;
   moduleConfidenceThreshold: number;
   autoSetPriority: boolean;
+  kbCrossModuleSearch: boolean;
+  procedureConfidenceThreshold: number;
   autoReplyEnabled: boolean;
   replyConfidenceThreshold: number;
   autoReplyDelayMinutes: number;
@@ -38,17 +47,7 @@ const DAYS = [
   { value: 0, label: "Min" },
 ];
 
-function Row({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
-  return (
-    <div className="flex items-start justify-between gap-4 py-2">
-      <div className="min-w-0">
-        <p className="text-sm font-medium">{label}</p>
-        {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
-      </div>
-      <div className="shrink-0">{children}</div>
-    </div>
-  );
-}
+const Row = SettingRow;
 
 export function AgentAutomationForm({ config }: { config: AutomationConfig }) {
   const router = useRouter();
@@ -106,13 +105,27 @@ export function AgentAutomationForm({ config }: { config: AutomationConfig }) {
   }
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6 pb-20">
+      <AgentTabIntro
+        icon={<RiFlowChart className="size-5" />}
+        title="Otomasi & Jadwal"
+        description="Atur kapan AI mengklasifikasi tiket, kapan ia membalas otomatis, dan jam operasionalnya. Pesan lanjutan tetap dianalisis meski balasan otomatis dibatasi."
+      >
+        <StatusPill on={form.aiTriageEnabled} label={form.aiTriageEnabled ? "Triage aktif" : "Triage mati"} />
+        <StatusPill
+          on={form.aiTriageEnabled && form.autoReplyEnabled}
+          label={form.aiTriageEnabled && form.autoReplyEnabled ? "Balasan otomatis aktif" : "Balasan otomatis mati"}
+        />
+        <StatusPill on={form.businessHours.enabled} label={form.businessHours.enabled ? "Jadwal aktif" : "Selalu aktif"} />
+      </AgentTabIntro>
+
       {/* Triage */}
-      <section className="space-y-1 rounded-xl border p-4">
-        <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-          Otomasi Triage
-        </h2>
-        <Row label="Aktifkan triage AI" hint="Master switch untuk seluruh pipeline AI.">
+      <AgentSection
+        icon={<RiFlowChart className="size-4" />}
+        title="Otomasi Triage"
+        description="Klasifikasi modul, prioritas, dan pencarian Knowledge Base saat tiket masuk."
+      >
+        <Row label="Aktifkan triage AI" hint="Master switch untuk seluruh pipeline AI. Jika mati, tiket tidak diproses AI sama sekali.">
           <Switch checked={form.aiTriageEnabled} onCheckedChange={(v) => set("aiTriageEnabled", v)} />
         </Row>
         <Row label="Klasifikasi modul otomatis">
@@ -132,14 +145,38 @@ export function AgentAutomationForm({ config }: { config: AutomationConfig }) {
         <Row label="Rekomendasi prioritas otomatis">
           <Switch checked={form.autoSetPriority} onCheckedChange={(v) => set("autoSetPriority", v)} />
         </Row>
-      </section>
+        <Row
+          label="Cari KB lintas modul"
+          hint="Cari artikel di semua modul berdasarkan relevansi. Matikan untuk membatasi hanya ke modul yang terklasifikasi (bisa melewatkan artikel relevan jika modul salah)."
+        >
+          <Switch
+            checked={form.kbCrossModuleSearch}
+            onCheckedChange={(v) => set("kbCrossModuleSearch", v)}
+          />
+        </Row>
+        <Row
+          label="Ambang keyakinan prosedur"
+          hint="0–1; di bawah ini prosedur tidak dipakai dan AI memakai balasan KB biasa. Naikkan agar prosedur hanya dijalankan saat sangat cocok."
+        >
+          <Input
+            type="number"
+            step="0.05"
+            min={0}
+            max={1}
+            className="w-24"
+            value={form.procedureConfidenceThreshold}
+            onChange={(e) => set("procedureConfidenceThreshold", Number(e.target.value))}
+          />
+        </Row>
+      </AgentSection>
 
       {/* Auto-reply */}
-      <section className="space-y-1 rounded-xl border p-4">
-        <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-          Balasan Otomatis
-        </h2>
-        <Row label="Aktifkan balasan otomatis">
+      <AgentSection
+        icon={<RiReplyLine className="size-4" />}
+        title="Balasan Otomatis"
+        description="Syarat agar draf balasan AI benar-benar dikirim ke pelapor tanpa staf."
+      >
+        <Row label="Aktifkan balasan otomatis" hint="Jika mati, AI tetap menyusun draf tapi tidak pernah mengirim sendiri.">
           <Switch checked={form.autoReplyEnabled} onCheckedChange={(v) => set("autoReplyEnabled", v)} />
         </Row>
         <Row label="Ambang keyakinan balasan" hint="0–1.">
@@ -240,13 +277,14 @@ export function AgentAutomationForm({ config }: { config: AutomationConfig }) {
             </Button>
           </div>
         </div>
-      </section>
+      </AgentSection>
 
       {/* Schedule */}
-      <section className="space-y-3 rounded-xl border p-4">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-          Jadwal (Jam Operasional)
-        </h2>
+      <AgentSection
+        icon={<RiCalendarScheduleLine className="size-4" />}
+        title="Jadwal (Jam Operasional)"
+        description="Di luar jam yang ditentukan, balasan AI hanya disimpan sebagai draf untuk ditinjau staf."
+      >
         <Row label="Aktifkan jadwal" hint="Batasi kapan balasan otomatis boleh dikirim.">
           <Switch
             checked={form.businessHours.enabled}
@@ -255,7 +293,7 @@ export function AgentAutomationForm({ config }: { config: AutomationConfig }) {
         </Row>
 
         {form.businessHours.enabled && (
-          <div className="space-y-3">
+          <div className="space-y-3 py-4">
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="space-y-1.5">
                 <Label htmlFor="tz">Zona waktu</Label>
@@ -353,11 +391,14 @@ export function AgentAutomationForm({ config }: { config: AutomationConfig }) {
             </div>
           </div>
         )}
-      </section>
+      </AgentSection>
 
-      <div className="flex justify-end">
+      <div className="sticky bottom-0 -mx-1 flex items-center justify-end gap-3 border-t bg-background/80 px-1 py-3 backdrop-blur">
+        {invalidWindow && (
+          <span className="text-xs text-destructive">Periksa jendela jadwal sebelum menyimpan.</span>
+        )}
         <Button onClick={handleSave} disabled={saving || invalidWindow}>
-          {saving ? "Menyimpan…" : "Simpan"}
+          {saving ? "Menyimpan…" : "Simpan perubahan"}
         </Button>
       </div>
     </div>

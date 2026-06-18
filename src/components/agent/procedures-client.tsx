@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { RiAddLine, RiDeleteBinLine, RiPencilLine } from "@remixicon/react";
+import { RiAddLine, RiDeleteBinLine, RiPencilLine, RiListOrdered2 } from "@remixicon/react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -14,6 +14,7 @@ import { ProcedureEditor } from "@/components/agent/procedure-editor/procedure-e
 import { ProcedureReadonly } from "@/components/agent/procedure-editor/procedure-readonly";
 import { emptyProcedureContent, type ProcedureContent } from "@/lib/agent/procedure-content";
 import type { MentionSource } from "@/services/agent-mention-sources.service";
+import { AgentTabIntro, StatusPill } from "./agent-ui";
 
 type Procedure = {
   id: string;
@@ -155,15 +156,20 @@ export function ProceduresClient({ procedures, sources }: { procedures: Procedur
   }
 
   // List
+  const enabledCount = procedures.filter((p) => p.enabled).length;
+
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-lg font-semibold">Prosedur</h2>
-          <p className="text-sm text-muted-foreground">
-            Playbook yang diikuti agen AI saat tiket cocok dengan deskripsi &quot;kapan dipakai&quot;.
-          </p>
-        </div>
+      <AgentTabIntro
+        icon={<RiListOrdered2 className="size-5" />}
+        title="Prosedur"
+        description="Playbook langkah-demi-langkah yang diikuti agen ketika tiket cocok dengan deskripsi “kapan dipakai”. Prosedur dapat memanggil Tools dan merujuk artikel KB; balasannya tetap memakai persona dari tab Perilaku."
+      >
+        <StatusPill on={enabledCount > 0} label={`${enabledCount}/${procedures.length} aktif`} />
+      </AgentTabIntro>
+
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-sm font-medium">Daftar prosedur</p>
         <Button onClick={() => setDraft(toDraft(null))}>
           <RiAddLine className="mr-1 size-4" /> Tambah prosedur
         </Button>

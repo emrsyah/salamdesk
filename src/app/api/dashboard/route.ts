@@ -1,15 +1,10 @@
 import { NextResponse } from "next/server"
 import { getSession } from "@/lib/auth/session"
 import {
-  getDashboardKpis,
+  getDashboardScalars,
   getVolumeTrend,
-  getStatusDistribution,
-  getPriorityDistribution,
-  getSlaByPriority,
   getModuleDistribution,
-  getSourceDistribution,
   getResponseTimeTrend,
-  getResolutionSplit,
   getRootCauseDistribution,
   getAgingBacklog,
   getStaffPerformance,
@@ -64,63 +59,46 @@ export async function GET(request: Request) {
   const groupBy: Granularity = days <= 30 ? "day" : days <= 90 ? "week" : "month"
   const canSeeStaffPerf = ["owner", "admin", "supervisor", "engineer"].includes(user.role)
 
-  const [
-    summary,
-    volume,
-    statusRaw,
-    priorityRaw,
-    slaByPriority,
-    moduleRaw,
-    sourceRaw,
-    responseTime,
-    resolution,
-    rootCauseRaw,
-    agingBacklog,
-    staffPerf,
-  ] = await Promise.all([
-    getDashboardKpis(params),
-    getVolumeTrend(params, groupBy),
-    getStatusDistribution(params),
-    getPriorityDistribution(params),
-    getSlaByPriority(params),
-    getModuleDistribution(params),
-    getSourceDistribution(params),
-    getResponseTimeTrend(params, groupBy),
-    getResolutionSplit(params),
-    getRootCauseDistribution(params),
-    getAgingBacklog(moduleParam),
-    canSeeStaffPerf ? getStaffPerformance(params) : Promise.resolve(null),
-  ])
+  const [scalars, volume, moduleRaw, responseTime, rootCauseRaw, agingBacklog, staffPerf] =
+    await Promise.all([
+      getDashboardScalars(params),
+      getVolumeTrend(params, groupBy),
+      getModuleDistribution(params),
+      getResponseTimeTrend(params, groupBy),
+      getRootCauseDistribution(params),
+      getAgingBacklog(moduleParam),
+      canSeeStaffPerf ? getStaffPerformance(params) : Promise.resolve(null),
+    ])
 
   return NextResponse.json({
-    summary,
+    summary: scalars.kpis,
     volume: volume.map((v) => ({ bucket: v.period, created: v.created, resolved: v.resolved })),
-    statusDist: statusRaw.map((r) => ({
-      name: r.status,
-      label: STATUS_LABELS[r.status] ?? r.status,
+    statusDist: scalars.status.map((r) => ({
+      name: r.key,
+      label: STATUS_LABELS[r.key] ?? r.key,
       value: r.count,
     })),
-    priorityDist: priorityRaw.map((r) => ({
-      name: r.priority,
-      label: PRIORITY_LABELS[r.priority] ?? r.priority,
+    priorityDist: scalars.priority.map((r) => ({
+      name: r.key,
+      label: PRIORITY_LABELS[r.key] ?? r.key,
       value: r.count,
     })),
-    slaByPriority: slaByPriority.map((r) => ({
+    slaByPriority: scalars.slaByPriority.map((r) => ({
       priority: PRIORITY_LABELS[r.priority] ?? r.priority,
       safe: r.safe,
       warning: r.warning,
       breached: r.breached,
     })),
     moduleDist: moduleRaw.map((r) => ({ module: r.moduleName, tickets: r.count })),
-    channelDist: sourceRaw.map((r) => ({
-      channel: SOURCE_LABELS[r.source] ?? r.source,
+    channelDist: scalars.source.map((r) => ({
+      channel: SOURCE_LABELS[r.key] ?? r.key,
       tickets: r.count,
     })),
     responseTime: responseTime.map((r) => ({ bucket: r.period, avg: r.avg })),
     resolutionDist: [
-      { name: "ai", label: "AI", value: resolution.ai },
-      { name: "agent", label: "Agent", value: resolution.agent },
-      { name: "escalated", label: "Eskalasi", value: resolution.escalated },
+      { name: "ai", label: "AI", value: scalars.resolution.ai },
+      { name: "agent", label: "Agent", value: scalars.resolution.agent },
+      { name: "escalated", label: "Eskalasi", value: scalars.resolution.escalated },
     ],
     rootCauseDist: rootCauseRaw
       .filter((r) => r.rootCause !== null)

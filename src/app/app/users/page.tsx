@@ -3,6 +3,8 @@ import { redirect } from "next/navigation";
 import { getUsers } from "@/services/user.service";
 import { getAllModules } from "@/services/module.service";
 import { UsersClient } from "@/components/users-client";
+import { PageContainer, PageHeader } from "@/components/page-shell";
+import { RiTeamLine } from "@remixicon/react";
 
 export default async function UsersPage() {
   const session = await getSession();
@@ -19,17 +21,14 @@ export default async function UsersPage() {
   ]);
 
   return (
-    <div className="flex-1 space-y-6 p-6 lg:p-8 max-w-6xl mx-auto w-full">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Users</h1>
-          <p className="text-muted-foreground">
-            Kelola akses, role, dan pembagian modul untuk seluruh tim SIMRS.
-          </p>
-        </div>
-      </div>
+    <PageContainer>
+      <PageHeader
+        icon={<RiTeamLine className="size-5" />}
+        title="Users"
+        description="Kelola akses, role, dan pembagian modul untuk seluruh tim SIMRS."
+      />
 
       <UsersClient initialUsers={allUsers as any} modules={allModules} />
-    </div>
+    </PageContainer>
   );
 }

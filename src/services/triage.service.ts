@@ -155,6 +155,10 @@ export async function triageTicket(
     const searchQuery = `${ticket.title} ${ticket.description ?? ""}`.trim();
     const kbMatches = await searchKnowledgeBase(searchQuery, {
       moduleId: classifiedModuleId ?? undefined,
+      // Cross-module search ranks purely by relevance so a misclassified module
+      // can't hide the right article; module-scoped restricts to the classified
+      // module (higher precision when classification is reliable).
+      scope: config.kbCrossModuleSearch ? "all" : "module",
       limit: 3,
     });
 
@@ -228,6 +232,7 @@ export async function triageTicket(
           replySignature: config.replySignature,
           guardrails: config.guardrails,
         },
+        minConfidence: config.procedureConfidenceThreshold,
       });
       if (proc && proc.reply) {
         result.suggestedReply = proc.reply;

@@ -1,5 +1,6 @@
-import { RiAlertLine } from "@remixicon/react";
+import { RiAlertLine, RiBookOpenLine } from "@remixicon/react";
 import Link from "next/link";
+import { PageContainer, PageHeader } from "@/components/page-shell";
 import { redirect } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { KbCreateDialog } from "@/components/knowledge/kb-create-surface";
@@ -24,24 +25,25 @@ export default async function KnowledgePage() {
   ]);
 
   return (
-    <div className="flex-1 space-y-6 p-6 lg:p-8 max-w-7xl mx-auto w-full">
-      <div className="flex justify-between items-center mb-8">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Knowledge Base</h1>
-          <p className="text-muted-foreground">Kelola dokumen pengetahuan yang akan dipecah menjadi chunk untuk pencarian AI.</p>
-        </div>
-        <div className="flex items-center gap-3">
-          <Button variant="outline" className="gap-2 text-orange-600 border-orange-200 hover:bg-orange-50" asChild>
-            <Link href="/app/knowledge/gaps">
-              <RiAlertLine className="size-4" />
-              Laporan Celah
-            </Link>
-          </Button>
-          <KbCreateDialog modules={modules} />
-        </div>
-      </div>
+    <PageContainer>
+      <PageHeader
+        icon={<RiBookOpenLine className="size-5" />}
+        title="Knowledge Base"
+        description="Kelola dokumen pengetahuan yang akan dipecah menjadi chunk untuk pencarian AI."
+        actions={
+          <>
+            <Button variant="outline" className="gap-2 text-orange-600 border-orange-200 hover:bg-orange-50" asChild>
+              <Link href="/app/knowledge/gaps">
+                <RiAlertLine className="size-4" />
+                Laporan Celah
+              </Link>
+            </Button>
+            <KbCreateDialog modules={modules} />
+          </>
+        }
+      />
 
       <KbListClient articles={kbArticles} modules={modules} />
-    </div>
+    </PageContainer>
   );
 }

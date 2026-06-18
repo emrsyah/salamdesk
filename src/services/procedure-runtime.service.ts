@@ -42,7 +42,13 @@ const defaultDeps: Deps = {
  * Pure orchestration; all IO is injected so it's unit-testable without DB/AI.
  */
 export async function tryProcedure(
-  input: { ticketText: string; moduleName: string | null; behavior: ProcedureBehavior },
+  input: {
+    ticketText: string;
+    moduleName: string | null;
+    behavior: ProcedureBehavior;
+    /** Minimum router confidence to apply a procedure (defaults to pickProcedure's own default). */
+    minConfidence?: number;
+  },
   deps: Partial<Deps> = {},
 ): Promise<ProcedureRuntimeResult | null> {
   const d = { ...defaultDeps, ...deps };
@@ -52,6 +58,7 @@ export async function tryProcedure(
   const selection = await d.select(
     input.ticketText,
     procedures.map((p) => ({ id: p.id, title: p.title, whenToUse: p.whenToUse })),
+    input.minConfidence !== undefined ? { minConfidence: input.minConfidence } : undefined,
   );
   if (!selection) return null;
 

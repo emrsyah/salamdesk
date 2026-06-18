@@ -3,13 +3,14 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { RiAddLine, RiDeleteBinLine, RiFlaskLine } from "@remixicon/react";
+import { RiAddLine, RiDeleteBinLine, RiFlaskLine, RiToolsLine } from "@remixicon/react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
+import { AgentTabIntro, StatusPill } from "./agent-ui";
 import {
   Dialog,
   DialogContent,
@@ -73,12 +74,20 @@ export function AgentToolsClient({
     }
   }
 
+  const enabledCount = tools.filter((t) => t.enabled).length;
+
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <p className="text-sm text-muted-foreground">
-          Integrasi yang bisa dipanggil agen: API kustom dan pencarian web (Exa).
-        </p>
+      <AgentTabIntro
+        icon={<RiToolsLine className="size-5" />}
+        title="Tools"
+        description="Integrasi yang bisa dipanggil agen saat menjalankan Prosedur — API kustom (HTTP) dan pencarian web (Exa). Deskripsi tiap tool dibaca AI untuk memutuskan kapan memakainya."
+      >
+        <StatusPill on={enabledCount > 0} label={`${enabledCount}/${tools.length} aktif`} />
+      </AgentTabIntro>
+
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-sm font-medium">Daftar tool</p>
         <div className="flex gap-2">
           <Button variant="outline" onClick={() => setCredOpen(true)}>
             Kredensial

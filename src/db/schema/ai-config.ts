@@ -23,6 +23,15 @@ export const aiConfigs = pgTable("ai_configs", {
     .notNull()
     .default("0.00"),
   autoSetPriority: boolean("auto_set_priority").notNull().default(true),
+  // When true, KB search ranks across ALL modules (relevance-first) instead of
+  // restricting to the classified module. Prevents a misclassified module from
+  // hiding the genuinely-relevant article. Default true (relevance wins).
+  kbCrossModuleSearch: boolean("kb_cross_module_search").notNull().default(true),
+  // Minimum confidence (0–1) the procedure router must have to apply a procedure.
+  // Below this, triage falls back to the plain KB reply.
+  procedureConfidenceThreshold: numeric("procedure_confidence_threshold", { precision: 3, scale: 2 })
+    .notNull()
+    .default("0.60"),
 
   // ---- Auto-reply --------------------------------------------------------
   autoReplyEnabled: boolean("auto_reply_enabled").notNull().default(true),

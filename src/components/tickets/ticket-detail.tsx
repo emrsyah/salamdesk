@@ -154,8 +154,12 @@ export function TicketDetail({
   }
 
   const latestSuggestion = ticket.aiSuggestions?.[0] ?? null;
+  // Show the most recent AI auto-reply (messages are ascending by time), so the
+  // panel tracks the latest follow-up rather than the first reply on the ticket.
   const aiReplyMessage = latestSuggestion
-    ? ticket.messages.find((message) => message.senderType === "ai_agent" && !message.isInternalNote)
+    ? [...ticket.messages]
+        .reverse()
+        .find((message) => message.senderType === "ai_agent" && !message.isInternalNote)
     : null;
   const internalNotes = ticket.messages.filter((message) => message.isInternalNote);
 
@@ -177,6 +181,7 @@ export function TicketDetail({
           <TicketMessageThread messages={ticket.messages} />
           {latestSuggestion && (
             <TicketAiSuggestion
+              key={latestSuggestion.id}
               suggestion={latestSuggestion}
               aiReply={aiReplyMessage?.content ?? null}
               onFeedback={onMutated}

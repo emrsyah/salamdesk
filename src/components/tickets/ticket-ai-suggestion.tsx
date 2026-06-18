@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { RiSparklingLine, RiThumbUpLine, RiThumbDownLine, RiCheckLine, RiBookOpenLine, RiCloseLine } from "@remixicon/react";
+import { RiSparklingLine, RiThumbUpLine, RiThumbDownLine, RiCheckLine, RiBookOpenLine, RiArrowDownSLine, RiArrowUpSLine } from "@remixicon/react";
 import { markSuggestionHelpfulAction } from "@/actions/ai-suggestions.actions";
 
 export type AiSuggestionData = {
@@ -31,9 +31,7 @@ export function TicketAiSuggestion({
     suggestion.wasHelpful
   );
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [dismissed, setDismissed] = useState(false);
-
-  if (dismissed) return null;
+  const [collapsed, setCollapsed] = useState(false);
 
   const confidence = suggestion.confidenceScore
     ? Math.round(parseFloat(suggestion.confidenceScore) * 100)
@@ -62,8 +60,14 @@ export function TicketAiSuggestion({
 
   return (
     <div className="mx-6 mb-4 rounded-xl border border-amber-200 bg-gradient-to-br from-amber-50 to-yellow-50 dark:from-amber-950/30 dark:to-yellow-950/20 dark:border-amber-800/50 shadow-sm overflow-hidden animate-in fade-in slide-in-from-top-2 duration-300">
-      {/* Header */}
-      <div className="flex items-center gap-2.5 px-4 py-3 border-b border-amber-200/70 dark:border-amber-800/30">
+      {/* Header — click to collapse/expand */}
+      <button
+        type="button"
+        onClick={() => setCollapsed((c) => !c)}
+        aria-expanded={!collapsed}
+        aria-label={collapsed ? "Buka saran AI" : "Tutup saran AI"}
+        className="flex w-full items-center gap-2.5 px-4 py-3 text-left border-b border-amber-200/70 dark:border-amber-800/30 hover:bg-amber-200/30 dark:hover:bg-amber-800/20 transition-colors"
+      >
         <div className="flex items-center justify-center size-7 rounded-full bg-amber-400/20 dark:bg-amber-400/10 shrink-0">
           <RiSparklingLine className="size-4 text-amber-600 dark:text-amber-400" />
         </div>
@@ -83,16 +87,13 @@ export function TicketAiSuggestion({
             Feedback diterima
           </span>
         )}
-        <button
-          type="button"
-          onClick={() => setDismissed(true)}
-          aria-label="Tutup saran AI"
-          className="flex items-center justify-center size-6 rounded-md text-amber-600/70 dark:text-amber-400/70 hover:bg-amber-200/60 dark:hover:bg-amber-800/40 hover:text-amber-800 dark:hover:text-amber-200 transition-colors shrink-0"
-        >
-          <RiCloseLine className="size-4" />
-        </button>
-      </div>
+        <span className="flex items-center justify-center size-6 rounded-md text-amber-600/70 dark:text-amber-400/70 shrink-0">
+          {collapsed ? <RiArrowDownSLine className="size-4" /> : <RiArrowUpSLine className="size-4" />}
+        </span>
+      </button>
 
+      {!collapsed && (
+      <>
       {/* Body */}
       <div className="px-4 py-3 space-y-3">
         {/* KB article match */}
@@ -162,6 +163,8 @@ export function TicketAiSuggestion({
           </span>
         )}
       </div>
+      </>
+      )}
     </div>
   );
 }

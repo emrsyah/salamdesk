@@ -13,6 +13,8 @@ import {
 } from "@/components/ui/table";
 import { format } from "date-fns";
 import { revalidatePath } from "next/cache";
+import { RiCodeSSlashLine } from "@remixicon/react";
+import { PageContainer, PageHeader } from "@/components/page-shell";
 
 export const metadata = {
   title: "Developer Portal | SalamDesk",
@@ -117,21 +119,18 @@ export default async function DeveloperPortalPage() {
   };
 
   return (
-    <div className="flex-1 space-y-8 p-6 lg:p-8 max-w-7xl mx-auto w-full">
-      <div className="flex flex-col gap-5 md:flex-row md:items-start md:justify-between">
-        <div className="max-w-3xl">
-          <div className="mb-3 flex flex-wrap items-center gap-2">
-            <Badge variant="outline">Developer settings</Badge>
-            <Badge variant="secondary">REST API v1</Badge>
-          </div>
-          <h1 className="text-3xl font-bold tracking-tight">Developer Portal</h1>
-          <p className="mt-2 text-muted-foreground">
-            Manage API keys, review integration rules, and hand external systems a clear contract for
-            creating tickets or posting operational updates into SalamDesk.
-          </p>
-        </div>
-        <GenerateKeyDialog />
-      </div>
+    <PageContainer>
+      <PageHeader
+        icon={<RiCodeSSlashLine className="size-5" />}
+        title="Developer Portal"
+        description="Manage API keys, review integration rules, and hand external systems a clear contract for creating tickets or posting operational updates into SalamDesk."
+        actions={
+          <>
+            <Badge variant="outline">REST API v1</Badge>
+            <GenerateKeyDialog />
+          </>
+        }
+      />
 
       <div className="grid gap-4 md:grid-cols-4">
         <Card>
@@ -347,6 +346,6 @@ export default async function DeveloperPortalPage() {
           ))}
         </div>
       </section>
-    </div>
+    </PageContainer>
   );
 }

@@ -25,6 +25,7 @@ import {
   RiSmartphoneLine,
   RiQrCodeLine,
 } from "@remixicon/react";
+import { PageContainer, PageHeader } from "@/components/page-shell";
 
 interface WaAccount {
   number: string;
@@ -161,7 +162,12 @@ export default function WhatsAppConnectionPage() {
   // -------------------------------------------------------------------------
   if (status === "connected") {
     return (
-      <div className="flex flex-1 flex-col gap-6 p-6 bg-muted/20">
+      <PageContainer>
+        <PageHeader
+          icon={<RiWhatsappLine className="size-5" />}
+          title="WhatsApp"
+          description="Status koneksi dan ringkasan aktivitas nomor WhatsApp yang terhubung."
+        />
         {/* Account header */}
         <Card className="overflow-hidden border-border/60">
           <div className="h-1.5 w-full bg-gradient-to-r from-green-500 via-emerald-400 to-green-500" />
@@ -348,7 +354,7 @@ export default function WhatsAppConnectionPage() {
             </CardContent>
           </Card>
         </div>
-      </div>
+      </PageContainer>
     );
   }
 

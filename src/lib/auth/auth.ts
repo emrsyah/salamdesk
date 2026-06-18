@@ -23,6 +23,17 @@ export const auth = betterAuth({
         enabled: true,
         autoSignIn: false,
     },
+    session: {
+        // Store the session in a short-lived signed cookie so getSession()
+        // (in pages, API routes, client, and middleware) validates from the
+        // cookie instead of a DB round trip. Cuts the dominant per-request
+        // latency. Trade-off: role/isActive changes take up to maxAge to
+        // propagate — use disableCookieCache on security-critical reads.
+        cookieCache: {
+            enabled: true,
+            maxAge: 5 * 60, // seconds
+        },
+    },
     user: {
         additionalFields: {
             role: { type: "string" },
