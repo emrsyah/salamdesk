@@ -10,6 +10,7 @@ import { getAiConfig } from "@/services/ai-config.service";
 import { evaluateKbMatch, classifyModule, classifyPriority } from "@/services/triage-ai.service";
 import { searchKnowledgeBase } from "@/services/knowledge.service";
 import { getAllModules } from "@/services/module.service";
+import { tryProcedure } from "@/services/procedure-runtime.service";
 import type { TicketPriority } from "@/services/ticket.service";
 import { sendWhatsAppMessage } from "@/services/whatsapp.service";
 
@@ -41,6 +42,8 @@ export type TriageResult = {
   replyConfidence: number;
   autoReplied: boolean;
   suggestedReply: string | null;
+  procedureId: string | null;
+  procedureTitle: string | null;
 };
 
 function confidenceToDb(value: number) {
@@ -83,6 +86,8 @@ export async function triageTicket(
     replyConfidence: 0,
     autoReplied: false,
     suggestedReply: null,
+    procedureId: null,
+    procedureTitle: null,
   };
 
   const config = await getAiConfig();
@@ -127,8 +132,8 @@ export async function triageTicket(
         moduleReason = `Below module confidence threshold (${config.moduleConfidenceThreshold}); left unassigned.`;
       }
     } else if (ticket.moduleId) {
-      const module = activeModules.find((candidate) => candidate.id === ticket.moduleId);
-      classifiedModuleName = module?.name ?? null;
+      const moduleRow = activeModules.find((candidate) => candidate.id === ticket.moduleId);
+      classifiedModuleName = moduleRow?.name ?? null;
       moduleConfidence = 1;
       moduleReason = "Module was already set before AI triage.";
     }
@@ -169,6 +174,34 @@ export async function triageTicket(
       }
     }
 
+    // --- Procedure attempt (additive; falls back to the KB suggestion on no match) ---
+    let procedureForceDraft = false;
+    try {
+      const proc = await tryProcedure({
+        ticketText: searchQuery,
+        moduleName: classifiedModuleName,
+        behavior: {
+          agentName: config.agentName,
+          persona: config.persona,
+          tone: config.tone,
+          language: config.language,
+          replySignature: config.replySignature,
+          guardrails: config.guardrails,
+        },
+      });
+      if (proc && proc.reply) {
+        result.suggestedReply = proc.reply;
+        result.replyConfidence = proc.confidence;
+        result.procedureId = proc.procedureId;
+        result.procedureTitle = proc.procedureTitle;
+        // Guardrail: a procedure that escalates or hit a failed tool must never auto-send.
+        if (proc.action !== "send") procedureForceDraft = true;
+      }
+    } catch (procErr) {
+      // Never let a procedure failure break triage — fall back to the KB suggestion.
+      console.error(`[AI] Procedure attempt failed for ticket ${ticketId}:`, procErr);
+    }
+
     // These two writes and the prior-reply count are independent of each other.
     const [, , priorAutoReplies] = await Promise.all([
       db
@@ -206,7 +239,12 @@ export async function triageTicket(
     autoReplyAllowed = policy.allowed;
     autoReplyBlockedReason = policy.blockedReason;
 
-    if (policy.allowed && result.suggestedReply) {
+    if (procedureForceDraft) {
+      autoReplyBlockedReason =
+        autoReplyBlockedReason ?? "Prosedur meminta draf saja (eskalasi atau tool gagal).";
+    }
+
+    if (policy.allowed && result.suggestedReply && !procedureForceDraft) {
       if (config.autoReplyDelayMinutes > 0) {
         // Hold the reply: queue a delayed job that re-checks for human
         // intervention before sending. The ticket is NOT marked as replied yet.
