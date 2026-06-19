@@ -217,7 +217,7 @@ export function ProductPreview() {
         </div>
       </div>
 
-      <div className="grid h-[640px] grid-cols-1 md:grid-cols-[170px_minmax(0,1fr)] lg:grid-cols-[170px_300px_minmax(0,1fr)]">
+      <div className="grid h-[640px] grid-cols-1 md:grid-cols-[200px_minmax(0,1fr)] lg:grid-cols-[200px_340px_minmax(0,1fr)]">
         {/* Sidebar */}
         <aside className="hidden flex-col gap-0.5 border-r border-border bg-sidebar p-3 md:flex">
           <div className="mb-3 flex items-center gap-2 px-1">

@@ -142,7 +142,7 @@ export default async function LandingPage() {
             </div>
 
             {/* Product showcase */}
-            <div className="relative mx-auto mt-16 max-w-6xl">
+            <div className="relative mx-auto mt-16 max-w-8xl">
               <div className="pointer-events-none absolute -inset-x-8 -bottom-8 top-12 -z-10 rounded-[2rem] bg-gradient-to-b from-primary/10 to-transparent blur-2xl" />
               <ProductPreview />
               <p className="mt-4 text-center text-xs text-muted-foreground">
