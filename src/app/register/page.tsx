@@ -128,13 +128,13 @@ export default function RegisterPage() {
           <div className="text-center space-y-4 mt-6">
             <p className="text-sm text-muted-foreground">
               Already have an account?{" "}
-              <Link href="/" className="font-medium text-primary hover:underline underline-offset-4">
+              <Link href="/sign-in" className="font-medium text-primary hover:underline underline-offset-4">
                 Sign in
               </Link>
             </p>
             
-            <Link 
-              href="/" 
+            <Link
+              href="/sign-in"
               className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors mt-2"
             >
               <RiArrowLeftLine className="size-3" />

@@ -7,7 +7,7 @@ export default async function QuickRepliesPage() {
   const session = await getSession();
 
   if (!session) {
-    redirect("/");
+    redirect("/sign-in");
   }
 
   const [quickReplies, modules] = await Promise.all([

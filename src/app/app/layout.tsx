@@ -8,7 +8,7 @@ import { getCachedAllModules, getCachedSlaConfigs, getCachedModulesByUserId } fr
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const session = await getSession();
-  if (!session?.user) redirect("/");
+  if (!session?.user) redirect("/sign-in");
 
   const user = session.user as typeof session.user & { role: string };
 

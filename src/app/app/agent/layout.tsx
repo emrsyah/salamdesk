@@ -6,7 +6,7 @@ import { PageContainer, PageHeader } from "@/components/page-shell";
 
 export default async function AgentLayout({ children }: { children: React.ReactNode }) {
   const session = await getSession();
-  if (!session) redirect("/");
+  if (!session) redirect("/sign-in");
   const role = (session.user as { role?: string }).role;
   if (!["owner", "admin"].includes(role ?? "")) redirect("/app/tickets");
 

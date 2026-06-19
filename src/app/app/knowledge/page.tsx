@@ -13,7 +13,7 @@ export default async function KnowledgePage() {
   const session = await getSession();
 
   if (!session) {
-    redirect("/");
+    redirect("/sign-in");
   }
 
   // KB articles are read uncached: ingestion status changes come from the

@@ -9,7 +9,7 @@ export default async function EditKbArticlePage({ params }: { params: Promise<{ 
   const session = await getSession();
 
   if (!session) {
-    redirect("/");
+    redirect("/sign-in");
   }
 
   const { id } = await params;

@@ -28,7 +28,7 @@ export default async function ViewKbArticlePage({ params }: { params: Promise<{ 
   const session = await getSession();
 
   if (!session) {
-    redirect("/");
+    redirect("/sign-in");
   }
 
   const { id } = await params;

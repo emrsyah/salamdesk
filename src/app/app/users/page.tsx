@@ -8,7 +8,7 @@ import { RiTeamLine } from "@remixicon/react";
 
 export default async function UsersPage() {
   const session = await getSession();
-  if (!session?.user) redirect("/");
+  if (!session?.user) redirect("/sign-in");
 
   const user = session.user as typeof session.user & { role: string };
   if (!["owner", "admin"].includes(user.role)) {

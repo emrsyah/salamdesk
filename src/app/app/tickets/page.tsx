@@ -10,7 +10,7 @@ interface TicketsPageProps {
 
 export default async function TicketsPage({ searchParams }: TicketsPageProps) {
   const session = await getSession();
-  if (!session?.user) redirect("/");
+  if (!session?.user) redirect("/sign-in");
 
   const user = session.user as typeof session.user & { role: string };
   const resolvedSearchParams = await searchParams;

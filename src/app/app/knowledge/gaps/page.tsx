@@ -11,7 +11,7 @@ export default async function KbGapsPage() {
   const session = await getSession();
 
   if (!session) {
-    redirect("/");
+    redirect("/sign-in");
   }
 
   const [gaps, modules] = await Promise.all([

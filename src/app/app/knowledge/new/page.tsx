@@ -7,7 +7,7 @@ export default async function NewKbArticlePage(props: { searchParams: Promise<{ 
   const session = await getSession();
 
   if (!session) {
-    redirect("/");
+    redirect("/sign-in");
   }
 
   const [searchParams, modules] = await Promise.all([props.searchParams, getAllModules()]);
