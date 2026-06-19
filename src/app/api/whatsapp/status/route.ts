@@ -3,16 +3,20 @@ import { redisConnection } from "@/lib/redis";
 
 export async function GET() {
   try {
-    const status = (await redisConnection.get("wa-status")) || "disconnected";
-    const qr = status === "qr" ? await redisConnection.get("wa-qr") : null;
+    // Single MGET instead of up to 3 sequential GETs — this endpoint is polled
+    // frequently (status page + global banner), and Upstash bills per command.
+    const [statusRaw, qrRaw, accountRaw, connectedAtRaw] = await redisConnection.mget(
+      "wa-status",
+      "wa-qr",
+      "wa-account",
+      "wa-connected-at",
+    );
 
-    let account: { number: string; name: string | null } | null = null;
-    let connectedAt: string | null = null;
-    if (status === "connected") {
-      const raw = await redisConnection.get("wa-account");
-      account = raw ? JSON.parse(raw) : null;
-      connectedAt = await redisConnection.get("wa-connected-at");
-    }
+    const status = statusRaw || "disconnected";
+    const qr = status === "qr" ? qrRaw : null;
+    const account: { number: string; name: string | null } | null =
+      status === "connected" && accountRaw ? JSON.parse(accountRaw) : null;
+    const connectedAt = status === "connected" ? connectedAtRaw : null;
 
     return NextResponse.json({ status, qr, account, connectedAt });
   } catch (error) {

@@ -5,6 +5,7 @@ import { calculateSlaWarningAt } from "@/services/ticket-sla.service";
 import { closeResolvedTicket } from "@/services/ticket-lifecycle.service";
 import { and, eq, inArray, isNull, lte } from "drizzle-orm";
 import { Worker, type ConnectionOptions, type JobsOptions } from "bullmq";
+import { WORKER_TUNING } from "./worker-tuning";
 
 export function createTicketLifecycleWorker(connection: ConnectionOptions) {
   return new Worker<TicketLifecycleJob>(
@@ -18,7 +19,7 @@ export function createTicketLifecycleWorker(connection: ConnectionOptions) {
       }
       throw new Error(`Unknown ticket lifecycle job: ${job.name}`);
     },
-    { connection, concurrency: 1 },
+    { connection, concurrency: 1, ...WORKER_TUNING },
   );
 }
 

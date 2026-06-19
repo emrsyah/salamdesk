@@ -9,6 +9,7 @@ import { getAiConfig } from "@/services/ai-config.service";
 import { resolveReplyMode } from "@/lib/agent/business-hours";
 import { sendWhatsAppMessage } from "@/services/whatsapp.service";
 import { publishTicketEvent } from "@/lib/realtime";
+import { WORKER_TUNING } from "./worker-tuning";
 
 /**
  * BullMQ worker for the "ai-auto-reply" queue (delayed sends).
@@ -125,6 +126,7 @@ export function createAutoReplyWorker(connection: ConnectionOptions) {
   const worker = new Worker<AiAutoReplyJob>("ai-auto-reply", processAutoReply, {
     connection,
     concurrency: 3,
+    ...WORKER_TUNING,
   });
 
   worker.on("failed", (job, err) => {

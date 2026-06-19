@@ -210,6 +210,10 @@ export async function connectToWhatsApp(): Promise<void> {
       // "notify" = a new message arrived; "append" = from history sync, skip
       if (type !== "notify") return;
 
+      // Collect this upsert's messages and enqueue them in one addBulk call
+      // rather than an add() per message — fewer Redis round-trips on bursts.
+      const jobs: { name: string; data: WaInboundJob; opts: { jobId: string } }[] = [];
+
       for (const msg of messages) {
         // Ignore messages sent by us (fromMe) and status broadcasts
         if (msg.key.fromMe) continue;
@@ -240,12 +244,18 @@ export async function connectToWhatsApp(): Promise<void> {
 
         const job: WaInboundJob = { jid, phone, text, pushName, messageId };
 
-        await waInboundQueue.add("inbound", job, {
+        jobs.push({
+          name: "inbound",
+          data: job,
           // Deduplicate by WA message ID to be idempotent
-          jobId: `wa-msg-${messageId}`,
+          opts: { jobId: `wa-msg-${messageId}` },
         });
 
         console.log(`[WA] Queued inbound message from ${jid}: "${text.slice(0, 50)}"`);
+      }
+
+      if (jobs.length > 0) {
+        await waInboundQueue.addBulk(jobs);
       }
     });
   } catch (err) {

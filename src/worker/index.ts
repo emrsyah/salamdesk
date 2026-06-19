@@ -22,6 +22,8 @@ import { createTriageWorker } from "./triage.worker";
 import { createAutoReplyWorker } from "./auto-reply.worker";
 import { createTicketLifecycleWorker } from "./ticket-lifecycle.worker";
 import { createKnowledgeIngestionWorker } from "./knowledge-ingestion.worker";
+import { WORKER_TUNING } from "./worker-tuning";
+import { registerDeadLetter } from "./dead-letter";
 import { ticketLifecycleQueue, TICKET_LIFECYCLE_JOBS, type WaInboundJob, type WaOutboundJob } from "@/lib/queue";
 
 // ---------------------------------------------------------------------------
@@ -54,6 +56,7 @@ const inboundWorker = new Worker<WaInboundJob>(
   {
     connection,
     concurrency: 5,
+    ...WORKER_TUNING,
   },
 );
 
@@ -114,6 +117,7 @@ const outboundWorker = new Worker<WaOutboundJob>(
   {
     connection,
     concurrency: 3,
+    ...WORKER_TUNING,
   },
 );
 
@@ -135,6 +139,14 @@ console.log("[WORKER] Ticket lifecycle worker started.");
 
 const knowledgeIngestionWorker = createKnowledgeIngestionWorker(connection);
 console.log("[WORKER] Knowledge ingestion worker started.");
+
+// Capture permanently-failed jobs from every queue into the dead-letter queue.
+registerDeadLetter(inboundWorker, "wa-inbound");
+registerDeadLetter(outboundWorker, "wa-outbound");
+registerDeadLetter(triageWorker, "ai-triage");
+registerDeadLetter(autoReplyWorker, "ai-auto-reply");
+registerDeadLetter(ticketLifecycleWorker, "ticket-lifecycle");
+registerDeadLetter(knowledgeIngestionWorker, "knowledge-ingestion");
 
 await ticketLifecycleQueue.add(TICKET_LIFECYCLE_JOBS.autoCloseResolved, {}, {
   repeat: { every: 15 * 60 * 1000 },

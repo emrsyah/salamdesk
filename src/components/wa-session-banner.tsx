@@ -29,7 +29,9 @@ export function WaSessionBanner() {
     };
 
     fetchStatus();
-    const interval = setInterval(fetchStatus, 15_000);
+    // Low-frequency: this runs on every app page for every open tab, and the
+    // status endpoint is Redis-backed (Upstash bills per command).
+    const interval = setInterval(fetchStatus, 60_000);
     return () => {
       cancelled = true;
       clearInterval(interval);

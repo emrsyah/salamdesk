@@ -1,4 +1,5 @@
 import { Worker, type ConnectionOptions } from "bullmq";
+import { WORKER_TUNING } from "./worker-tuning";
 import { mkdir, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -87,6 +88,7 @@ export function createKnowledgeIngestionWorker(connection: ConnectionOptions) {
     {
       connection,
       concurrency: 2,
+      ...WORKER_TUNING,
     }
   );
 

@@ -133,9 +133,12 @@ export default function WhatsAppConnectionPage() {
     };
 
     fetchStatus();
-    const interval = setInterval(fetchStatus, 3000);
+    // Poll fast only while linking (QR rotates); once connected the status
+    // rarely changes, so back off to cut Redis commands (Upstash bills per call).
+    const intervalMs = status === "connected" ? 30_000 : 5_000;
+    const interval = setInterval(fetchStatus, intervalMs);
     return () => clearInterval(interval);
-  }, []);
+  }, [status]);
 
   // Pull live ticket/contact stats only while connected.
   useEffect(() => {

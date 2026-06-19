@@ -1,6 +1,7 @@
 import { Worker, type ConnectionOptions } from "bullmq";
 import { triageTicket } from "@/services/ai.service";
 import { publishTicketEvent } from "@/lib/realtime";
+import { WORKER_TUNING } from "./worker-tuning";
 import type { AiTriageJob } from "@/lib/queue";
 
 /**
@@ -53,6 +54,7 @@ export function createTriageWorker(connection: ConnectionOptions) {
     {
       connection,
       concurrency: 3, // AI calls are slow — keep low to avoid rate limits
+      ...WORKER_TUNING,
     }
   );
 
