@@ -29,7 +29,16 @@ const TICKETS_WITH = {
   },
   createdBy: { columns: { id: true, name: true, email: true } },
   assignee: { columns: { id: true, name: true } },
+  // Latest triage event only — drives the inbox "menganalisis…/Ditriase AI" badge.
+  triageEvents: {
+    columns: { status: true },
+    orderBy: desc(triageEvents.createdAt),
+    limit: 1,
+  },
 } as const;
+
+/** Persisted triage lifecycle states (the `status` column on triage_events). */
+export type TriageEventStatus = "processing" | "completed" | "failed" | "skipped";
 
 const NEVER_MATCHING_MODULE_ID = "00000000-0000-0000-0000-000000000000";
 const UUID_PATTERN =
@@ -107,13 +116,18 @@ export async function getTickets(ctx?: TicketContext) {
   });
 
   const results = await query;
-  
+
   // Extra safety for operators with no modules
   if (ctx?.role === "operator" && (!ctx.moduleIds || ctx.moduleIds.length === 0)) {
     return [];
   }
 
-  return results;
+  // Flatten the latest triage event into a single `triageStatus` field so the
+  // client doesn't carry the relation array around.
+  return results.map(({ triageEvents: events, ...rest }) => ({
+    ...rest,
+    triageStatus: (events?.[0]?.status ?? null) as TriageEventStatus | null,
+  }));
 }
 
 export async function getTicketById(id: string) {
@@ -137,6 +151,8 @@ export async function getTicketById(id: string) {
       },
       createdBy: { columns: { id: true, name: true, email: true } },
       assignee: { columns: { id: true, name: true } },
+      resolvedBy: { columns: { id: true, name: true } },
+      closedBy: { columns: { id: true, name: true } },
       messages: {
         with: {
           sender: { columns: { id: true, name: true } },
@@ -164,6 +180,7 @@ export async function getTicketById(id: string) {
       },
       triageEvents: {
         columns: {
+          status: true,
           replyConfidence: true,
           suggestedReply: true,
           suggestedKbId: true,
@@ -201,7 +218,13 @@ export async function getTicketById(id: string) {
     };
   });
 
-  return { ...ticket, messages };
+  // Events are ascending by time, so the last one is the most recent triage
+  // state (processing → completed/failed/skipped).
+  const triageStatus = (ticket.triageEvents.at(-1)?.status ?? null) as
+    | TriageEventStatus
+    | null;
+
+  return { ...ticket, messages, triageStatus };
 }
 
 type AiTriageEvent = {

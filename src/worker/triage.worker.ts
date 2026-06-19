@@ -1,5 +1,6 @@
 import { Worker, type ConnectionOptions } from "bullmq";
 import { triageTicket } from "@/services/ai.service";
+import { publishTicketEvent } from "@/lib/realtime";
 import type { AiTriageJob } from "@/lib/queue";
 
 /**
@@ -19,17 +20,35 @@ export function createTriageWorker(connection: ConnectionOptions) {
     "ai-triage",
     async (job) => {
       console.log(`[TRIAGE] Processing job ${job.id} for ticket ${job.data.ticketId}`);
-      const result = await triageTicket(job.data.ticketId, job.data.trigger ?? "intake");
-      console.log(
-        `[TRIAGE] Job ${job.id} done — module: ${result.moduleName ?? "unclassified"}, ` +
-          `priority: ${result.priority}, autoReplied: ${result.autoReplied}` +
-          (result.autoReplied
-            ? result.autoReplyBlockedReason
-              ? ` (${result.autoReplyBlockedReason})`
-              : ""
-            : ` — reason: ${result.autoReplyBlockedReason ?? "no reply generated"}`)
-      );
-      return result;
+      try {
+        const result = await triageTicket(job.data.ticketId, job.data.trigger ?? "intake");
+        console.log(
+          `[TRIAGE] Job ${job.id} done — module: ${result.moduleName ?? "unclassified"}, ` +
+            `priority: ${result.priority}, autoReplied: ${result.autoReplied}` +
+            (result.autoReplied
+              ? result.autoReplyBlockedReason
+                ? ` (${result.autoReplyBlockedReason})`
+                : ""
+              : ` — reason: ${result.autoReplyBlockedReason ?? "no reply generated"}`)
+        );
+        // Clears the live "menganalisis…" state and pulls in the fresh
+        // module/priority/AI suggestion on connected clients.
+        await publishTicketEvent({
+          type: "triage:completed",
+          ticketId: job.data.ticketId,
+          status: "completed",
+        });
+        return result;
+      } catch (err) {
+        // Flip the indicator out of its spinning state even on failure; BullMQ
+        // still retries per the queue's backoff (a retry re-emits triage:started).
+        await publishTicketEvent({
+          type: "triage:completed",
+          ticketId: job.data.ticketId,
+          status: "failed",
+        });
+        throw err;
+      }
     },
     {
       connection,

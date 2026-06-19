@@ -4,6 +4,7 @@ import dynamic from "next/dynamic";
 import { useTickets } from "@/hooks/use-tickets";
 import { useTicketDetail } from "@/hooks/use-ticket-detail";
 import { TicketList } from "@/components/tickets/ticket-list";
+import { TicketEventsProvider } from "@/components/tickets/ticket-events-context";
 import {
   TicketDetail,
   type TicketDetailData,
@@ -131,6 +132,7 @@ export function TicketInbox({
   };
 
   return (
+    <TicketEventsProvider>
     <div className="flex min-h-0 h-full w-full bg-background overflow-hidden">
       {ticketsLoading ? (
         <TicketListSkeleton />
@@ -173,5 +175,6 @@ export function TicketInbox({
         />
       )}
     </div>
+    </TicketEventsProvider>
   );
 }

@@ -7,6 +7,7 @@ import type { TicketConfiguration } from "@/lib/tickets/ticket-configuration";
 import type { AiSuggestionData } from "./ticket-ai-suggestion";
 import { TicketDetailHeader } from "./ticket-detail-header";
 import { TicketMessageThread } from "./ticket-message-thread";
+import { TicketStatusNotice } from "./ticket-status-notice";
 
 const RequesterSidePanel = dynamic(
   () => import("./requester-side-panel").then((mod) => mod.RequesterSidePanel),
@@ -41,6 +42,10 @@ export type TicketDetailData = {
   resolutionSlaStatus?: "safe" | "warning" | "breached";
   resolutionDueAt?: Date | string | null;
   resolvedAt?: Date | string | null;
+  resolutionNote?: string | null;
+  closedAt?: Date | string | null;
+  resolvedBy?: { id: string; name: string } | null;
+  closedBy?: { id: string; name: string } | null;
   source: "whatsapp" | "web" | "email" | "manual" | "api";
   createdAt: Date | string;
   requester: {
@@ -83,6 +88,7 @@ export type TicketDetailData = {
     }[];
   }[];
   aiSuggestions?: AiSuggestionData[];
+  triageStatus?: "processing" | "completed" | "failed" | "skipped" | null;
 };
 
 // Stable empty-array default so an omitted prop keeps the same reference
@@ -187,7 +193,7 @@ export function TicketDetail({
               onFeedback={onMutated}
             />
           )}
-          {ticket.status !== "closed" && ticket.status !== "resolved" && (
+          {ticket.status !== "closed" && ticket.status !== "resolved" ? (
             <TicketReplyBox
               ticketId={ticket.id}
               moduleId={ticket.module?.id}
@@ -197,6 +203,8 @@ export function TicketDetail({
               onRequestDraft={requestDraft}
               onReplySent={onMutated}
             />
+          ) : (
+            <TicketStatusNotice ticket={ticket} />
           )}
         </div>
         {activePanel === "requester" && (

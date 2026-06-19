@@ -15,6 +15,7 @@ import type { TicketPriority } from "@/services/ticket.service";
 import { sendWhatsAppMessage } from "@/services/whatsapp.service";
 import { getSlaDeadlines } from "@/services/ticket-sla.service";
 import { resolveReplyMode } from "@/lib/agent/business-hours";
+import { publishTicketEvent } from "@/lib/realtime";
 
 /** Count AI auto-replies already sent on a ticket (public, non-internal). */
 async function countAutoReplies(ticketId: string): Promise<number> {
@@ -79,6 +80,19 @@ export async function triageTicket(
   if (!ticket) {
     throw new Error(`Ticket ${ticketId} not found`);
   }
+
+  // Mark triage as in-flight so the inbox can show a live "menganalisis…" state
+  // and survive a page reload mid-run. A terminal event row (completed / failed
+  // / skipped) is always written below and wins by recency, so this processing
+  // row never lingers as the latest event.
+  await db.insert(triageEvents).values({
+    ticketId,
+    trigger,
+    status: "processing",
+    priority: ticket.priority,
+    model: AI_MODEL,
+  });
+  await publishTicketEvent({ type: "triage:started", ticketId });
 
   const result: TriageResult = {
     ticketId,

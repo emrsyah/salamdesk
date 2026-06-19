@@ -9,6 +9,8 @@ import {
 } from "@remixicon/react";
 import { cn } from "@/lib/utils";
 import { TicketSLABadge } from "./ticket-sla-badge";
+import { TicketTriageBadge, type TriageStatus } from "./ticket-triage-badge";
+import { useTicketEvents } from "./ticket-events-context";
 import { useQueryParams } from "@/hooks/use-query-params";
 
 export type TicketListEntry = {
@@ -29,6 +31,7 @@ export type TicketListEntry = {
   requester: { id: string; displayName: string; fullName: string | null } | null;
   createdBy: { id: string; name: string } | null;
   assignee: { id: string; name: string } | null;
+  triageStatus?: TriageStatus;
 };
 
 const PRIORITY_STYLE: Record<TicketListEntry["priority"], string> = {
@@ -80,6 +83,7 @@ interface TicketListItemProps {
 
 export function TicketListItem({ ticket, isSelected }: TicketListItemProps) {
   const { setQueryParam } = useQueryParams();
+  const { triagingIds } = useTicketEvents();
   const StatusIcon = STATUS_ICON[ticket.status];
 
   const handleClick = () => {
@@ -105,6 +109,9 @@ export function TicketListItem({ ticket, isSelected }: TicketListItemProps) {
         isSelected
           ? "border-l-primary bg-muted/25"
           : "border-l-transparent",
+        // Closed tickets are archival — visually recede them so the active and
+        // resolved items above read as the live work.
+        ticket.status === "closed" && !isSelected && "bg-muted/30 opacity-75",
       )}
     >
       <div className="mb-2 flex items-start justify-between gap-3">
@@ -122,6 +129,11 @@ export function TicketListItem({ ticket, isSelected }: TicketListItemProps) {
             <StatusIcon className="size-3 shrink-0" />
             {STATUS_LABEL[ticket.status]}
           </span>
+          <TicketTriageBadge
+            status={ticket.triageStatus}
+            isTriaging={triagingIds.has(ticket.id)}
+            compact
+          />
         </div>
         <span className="shrink-0 text-xs text-muted-foreground">
           {timeAgo(ticket.createdAt)}

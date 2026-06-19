@@ -94,6 +94,16 @@ interface TicketListProps {
   onTicketCreated?: () => void;
 }
 
+/** Sticky divider that separates the resolved/closed groups in the done tab. */
+function ListSectionHeader({ label, count }: { label: string; count: number }) {
+  return (
+    <div className="sticky top-0 z-[1] flex items-center gap-2 border-b bg-background/85 px-4 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground backdrop-blur supports-[backdrop-filter]:bg-background/70">
+      {label}
+      <span className="text-muted-foreground/60">{count}</span>
+    </div>
+  );
+}
+
 type Tab = "inbox" | "done";
 
 const TAB_STATUSES: Record<Tab, TicketListEntry["status"][]> = {
@@ -527,6 +537,30 @@ export function TicketList({ tickets, modules, configuration, configurationContr
               ? "Tidak ada tiket yang cocok."
               : `Tidak ada tiket ${TAB_LABELS[tab].toLowerCase()}.`}
           </div>
+        ) : tab === "done" ? (
+          // Split the done tab so closed (archival) tickets read as their own
+          // group at the bottom instead of being mixed into resolved.
+          <>
+            {(["resolved", "closed"] as const).map((status) => {
+              const group = filteredTickets.filter((t) => t.status === status);
+              if (group.length === 0) return null;
+              return (
+                <div key={status}>
+                  <ListSectionHeader
+                    label={status === "resolved" ? "Selesai" : "Ditutup"}
+                    count={group.length}
+                  />
+                  {group.map((ticket) => (
+                    <TicketListItem
+                      key={ticket.id}
+                      ticket={ticket}
+                      isSelected={ticket.id === selectedId}
+                    />
+                  ))}
+                </div>
+              );
+            })}
+          </>
         ) : (
           filteredTickets.map((ticket) => (
             <TicketListItem

@@ -129,6 +129,8 @@ export const ticketsRelations = relations(tickets, ({ one, many }) => ({
     assignee: one(users, { fields: [tickets.assigneeId], references: [users.id], relationName: "assignee" }),
     openedByStaff: one(users, { fields: [tickets.openedByStaffId], references: [users.id], relationName: "openedByStaff" }),
     createdBy: one(users, { fields: [tickets.createdById], references: [users.id], relationName: "creator" }),
+    resolvedBy: one(users, { fields: [tickets.resolvedById], references: [users.id], relationName: "resolvedBy" }),
+    closedBy: one(users, { fields: [tickets.closedById], references: [users.id], relationName: "closedBy" }),
     messages: many(ticketMessages),
     escalations: many(ticketEscalations),
     events: many(ticketEvents),

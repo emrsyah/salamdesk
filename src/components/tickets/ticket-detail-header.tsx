@@ -10,6 +10,8 @@ import {
   RiUserLine,
 } from "@remixicon/react";
 import { TicketSLABadge } from "./ticket-sla-badge";
+import { TicketTriageBadge } from "./ticket-triage-badge";
+import { useTicketEvents } from "./ticket-events-context";
 import { TicketDetailData } from "./ticket-detail";
 import { Button } from "@/components/ui/button";
 import {
@@ -136,6 +138,7 @@ export function TicketDetailHeader({
       : modules;
 
   const { optimisticUpdate } = useTicketDetailMutation(ticket.id);
+  const { triagingIds } = useTicketEvents();
 
   type ConfigurePatch = {
     moduleId?: string | null;
@@ -355,6 +358,10 @@ export function TicketDetailHeader({
               </span>
               <span className="text-border">/</span>
               <span>{formatTime(ticket.createdAt)}</span>
+              <TicketTriageBadge
+                status={ticket.triageStatus}
+                isTriaging={triagingIds.has(ticket.id)}
+              />
             </div>
             <h2 className="max-w-3xl break-words text-xl font-bold leading-tight tracking-tight">
               {ticket.title}

@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import { HelpdeskSidebar } from "@/components/helpdesk-sidebar";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { WaSessionBanner } from "@/components/wa-session-banner";
 import { getSession } from "@/lib/auth/session";
 import { redirect } from "next/navigation";
 import { getCachedAllModules, getCachedSlaConfigs, getCachedModulesByUserId } from "@/lib/cache";
@@ -36,6 +37,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
           <header className="flex md:hidden h-16 shrink-0 items-center gap-2 border-b px-4">
             <div className="h-4 w-px bg-border" />
           </header>
+          <WaSessionBanner />
           <div className="flex min-h-0 flex-1 flex-col overflow-x-hidden overflow-y-auto">{children}</div>
         </SidebarInset>
       </SidebarProvider>

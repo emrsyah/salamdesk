@@ -45,7 +45,8 @@
       "Bash(NODE_OPTIONS=\"--dns-result-order=ipv4first\" npx tsx scripts/diag-dashboard-timing.ts)",
       "Bash(node -e ' *)",
       "mcp__context7__resolve-library-id",
-      "Bash(node del_ticket.mjs check)"
+      "Bash(node del_ticket.mjs check)",
+      "Bash(git stash *)"
     ]
   },
   "enableAllProjectMcpServers": true,

@@ -8,6 +8,7 @@ import type { AiAutoReplyJob } from "@/lib/queue";
 import { getAiConfig } from "@/services/ai-config.service";
 import { resolveReplyMode } from "@/lib/agent/business-hours";
 import { sendWhatsAppMessage } from "@/services/whatsapp.service";
+import { publishTicketEvent } from "@/lib/realtime";
 
 /**
  * BullMQ worker for the "ai-auto-reply" queue (delayed sends).
@@ -101,6 +102,9 @@ async function processAutoReply(job: { data: AiAutoReplyJob }) {
     autoReplySent: true,
     model: AI_MODEL,
   });
+
+  // The held reply just landed in the thread — push it to open inboxes.
+  await publishTicketEvent({ type: "ticket:updated", ticketId });
 }
 
 async function cancel(ticketId: string, content: string, reason: string) {

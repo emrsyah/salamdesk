@@ -9,6 +9,7 @@ import {
   TicketLifecycleError,
 } from "@/services/ticket-lifecycle.service";
 import { aiTriageQueue } from "@/lib/queue";
+import { publishTicketEvent } from "@/lib/realtime";
 import type { WaInboundJob } from "@/lib/queue";
 
 /**
@@ -54,6 +55,7 @@ export async function processInboundWaMessage(job: WaInboundJob): Promise<{
     await aiTriageQueue.add("triage", { ticketId: existingTicket.id, trigger: "message_added" });
     console.log(`[BOT] Enqueued AI triage (message_added) for ticket ${existingTicket.id}`);
 
+    await publishTicketEvent({ type: "ticket:updated", ticketId: existingTicket.id });
     return { action: "appended", ticketId: existingTicket.id };
   }
 
@@ -68,7 +70,8 @@ export async function processInboundWaMessage(job: WaInboundJob): Promise<{
       
       await aiTriageQueue.add("triage", { ticketId: existingTicket.id, trigger: "message_added" });
       console.log(`[BOT] Enqueued AI triage (message_added) for reopened ticket ${existingTicket.id}`);
-      
+
+      await publishTicketEvent({ type: "ticket:updated", ticketId: existingTicket.id });
       return { action: "reopened", ticketId: existingTicket.id };
     } catch (error) {
       if (!(error instanceof TicketLifecycleError)) throw error;
@@ -91,6 +94,8 @@ export async function processInboundWaMessage(job: WaInboundJob): Promise<{
   });
 
   console.log(`[BOT] Created ticket ${ticketId} for ${jid} (${pushName ?? "unknown"})`);
+
+  await publishTicketEvent({ type: "ticket:created", ticketId });
 
   // Enqueue AI triage — classifies module, priority, and searches KB
   await aiTriageQueue.add("triage", { ticketId, trigger: "intake" });
