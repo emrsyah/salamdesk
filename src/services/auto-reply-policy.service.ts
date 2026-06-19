@@ -20,6 +20,15 @@ export type AutoReplyPolicyDecision = {
   blockedReason: string | null;
 };
 
+/**
+ * Blocked reason emitted when the *only* thing stopping an auto-reply is that
+ * we're outside business hours. Because the business-hours gate runs last in
+ * canAutoReply, seeing this reason means every content/policy gate passed — so
+ * it's the signal that a valid answer is being held purely for the clock (used
+ * by the off-hours courtesy message).
+ */
+export const OFF_HOURS_BLOCKED_REASON = "Outside auto-reply hours — drafted for staff review.";
+
 /** Build a whole-word, case-insensitive matcher for a blocked keyword. */
 function keywordMatches(keyword: string, text: string): boolean {
   const escaped = keyword.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -81,7 +90,7 @@ export function canAutoReply(
   if (config.businessHours && resolveReplyMode(config.businessHours, now) === "draft-only") {
     return {
       allowed: false,
-      blockedReason: "Outside auto-reply hours — drafted for staff review.",
+      blockedReason: OFF_HOURS_BLOCKED_REASON,
     };
   }
 

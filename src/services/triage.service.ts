@@ -1,11 +1,11 @@
-import { and, asc, count, eq } from "drizzle-orm";
+import { and, asc, count, desc, eq, gt } from "drizzle-orm";
 import { db } from "@/db";
 import { aiSuggestions } from "@/db/schema/knowledge-base";
 import { ticketMessages, tickets } from "@/db/schema/tickets";
 import { triageEvents } from "@/db/schema/triage";
 import { AI_MODEL } from "@/lib/ai";
 import { aiAutoReplyQueue } from "@/lib/queue";
-import { canAutoReply } from "@/services/auto-reply-policy.service";
+import { canAutoReply, OFF_HOURS_BLOCKED_REASON } from "@/services/auto-reply-policy.service";
 import { getAiConfig } from "@/services/ai-config.service";
 import { evaluateKbMatch, classifyModule, classifyPriority, classifyOnTopic } from "@/services/triage-ai.service";
 import { searchKnowledgeBase } from "@/services/knowledge.service";
@@ -14,7 +14,6 @@ import { tryProcedure } from "@/services/procedure-runtime.service";
 import type { TicketPriority } from "@/services/ticket.service";
 import { sendWhatsAppMessage } from "@/services/whatsapp.service";
 import { getSlaDeadlines } from "@/services/ticket-sla.service";
-import { resolveReplyMode } from "@/lib/agent/business-hours";
 import { publishTicketEvent } from "@/lib/realtime";
 
 /** Count AI auto-replies already sent on a ticket (public, non-internal). */
@@ -30,6 +29,45 @@ async function countAutoReplies(ticketId: string): Promise<number> {
       ),
     );
   return row?.value ?? 0;
+}
+
+/**
+ * Idempotency guard for the auto-reply side effects. triageTicket re-throws on
+ * error, so BullMQ re-runs the whole job (re-classifying via the AI and possibly
+ * producing slightly different reply text) — a content match isn't reliable.
+ * Instead we ask: has an AI reply already gone out *for the current inbound
+ * message*? If so, a prior attempt already sent it and we must not send again.
+ * A genuine follow-up adds a newer requester message, so the next reply is still
+ * allowed.
+ */
+async function autoReplyAlreadySentForLatestInbound(ticketId: string): Promise<boolean> {
+  const [lastInbound] = await db
+    .select({ createdAt: ticketMessages.createdAt })
+    .from(ticketMessages)
+    .where(
+      and(
+        eq(ticketMessages.ticketId, ticketId),
+        eq(ticketMessages.senderType, "requester"),
+        eq(ticketMessages.isInternalNote, false),
+      ),
+    )
+    .orderBy(desc(ticketMessages.createdAt))
+    .limit(1);
+  if (!lastInbound) return false;
+
+  const [aiReplyAfter] = await db
+    .select({ id: ticketMessages.id })
+    .from(ticketMessages)
+    .where(
+      and(
+        eq(ticketMessages.ticketId, ticketId),
+        eq(ticketMessages.senderType, "ai_agent"),
+        eq(ticketMessages.isInternalNote, false),
+        gt(ticketMessages.createdAt, lastInbound.createdAt),
+      ),
+    )
+    .limit(1);
+  return !!aiReplyAfter;
 }
 
 export type TriageTrigger = "intake" | "manual" | "message_added" | "retry";
@@ -353,18 +391,19 @@ export async function triageTicket(
       countAutoReplies(ticketId),
     ]);
 
-    const policy = canAutoReply(
-      {
-        priority: result.priority,
-        suggestedReply: result.suggestedReply,
-        replyConfidence: result.replyConfidence,
-        kbArticleId: result.kbArticleId,
-        ticketText: searchQuery,
-        source: ticket.source,
-        priorAutoReplies,
-      },
-      config,
-    );
+    // One clock for the whole decision so the auto-reply gate and the off-hours
+    // gate can't disagree on a run that straddles the business-hours boundary.
+    const now = new Date();
+    const policyInput = {
+      priority: result.priority,
+      suggestedReply: result.suggestedReply,
+      replyConfidence: result.replyConfidence,
+      kbArticleId: result.kbArticleId,
+      ticketText: searchQuery,
+      source: ticket.source,
+      priorAutoReplies,
+    };
+    const policy = canAutoReply(policyInput, config, now);
 
     autoReplyAllowed = policy.allowed;
     autoReplyBlockedReason = policy.blockedReason;
@@ -383,6 +422,8 @@ export async function triageTicket(
       if (config.autoReplyDelayMinutes > 0) {
         // Hold the reply: queue a delayed job that re-checks for human
         // intervention before sending. The ticket is NOT marked as replied yet.
+        // jobId keyed on the current reply count makes a triage retry idempotent —
+        // re-adding the same delayed job is a no-op.
         await aiAutoReplyQueue.add(
           "auto-reply",
           {
@@ -392,9 +433,16 @@ export async function triageTicket(
             jid: ticket.waPhone ?? null,
             queuedAt: new Date().toISOString(),
           },
-          { delay: config.autoReplyDelayMinutes * 60_000 },
+          {
+            delay: config.autoReplyDelayMinutes * 60_000,
+            jobId: `auto-reply-${ticketId}-${priorAutoReplies}`,
+          },
         );
         autoReplyBlockedReason = `Scheduled to auto-send in ${config.autoReplyDelayMinutes} min unless an agent replies first.`;
+      } else if (await autoReplyAlreadySentForLatestInbound(ticketId)) {
+        // A prior (later-failed) attempt already delivered this reply — don't
+        // double-send on retry.
+        result.autoReplied = true;
       } else {
         await db.insert(ticketMessages).values({
           ticketId,
@@ -413,18 +461,23 @@ export async function triageTicket(
       }
     }
 
-    // Off-hours acknowledgment: if the real reply was withheld because we're
-    // outside business hours, send a one-time courtesy message so the requester
-    // isn't left in silence. The actual answer remains a draft for staff.
-    const isOffHours =
-      !!config.businessHours && resolveReplyMode(config.businessHours, new Date()) === "draft-only";
+    // Off-hours acknowledgment: only when we have a valid answer that is withheld
+    // *solely because we're outside business hours* — never for replies held back
+    // for content/policy reasons (blocked keyword, low confidence, critical,
+    // off-topic, procedure draft), which must not get an automated reply at all.
+    // The business-hours gate is the last check in canAutoReply, so this exact
+    // blocked reason means every content/policy gate passed and the answer is
+    // held purely because it's after hours — the only case the courtesy applies.
+    const withheldOnlyForHours =
+      !procedureForceDraft && !offTopic && policy.blockedReason === OFF_HOURS_BLOCKED_REASON;
     if (
       !result.autoReplied &&
-      isOffHours &&
+      withheldOnlyForHours &&
       config.offHoursReplyEnabled &&
       config.offHoursMessage.trim() &&
       config.autoReplyChannels.includes(ticket.source) &&
-      priorAutoReplies === 0 // only once per ticket — don't repeat on follow-ups
+      priorAutoReplies === 0 && // only once per ticket — don't repeat on follow-ups
+      !(await autoReplyAlreadySentForLatestInbound(ticketId)) // idempotent across retries
     ) {
       const offHoursText = config.offHoursMessage.trim();
       await db.insert(ticketMessages).values({

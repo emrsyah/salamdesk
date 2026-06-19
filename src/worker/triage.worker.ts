@@ -41,13 +41,10 @@ export function createTriageWorker(connection: ConnectionOptions) {
         });
         return result;
       } catch (err) {
-        // Flip the indicator out of its spinning state even on failure; BullMQ
-        // still retries per the queue's backoff (a retry re-emits triage:started).
-        await publishTicketEvent({
-          type: "triage:completed",
-          ticketId: job.data.ticketId,
-          status: "failed",
-        });
+        // Don't publish "failed" here: BullMQ will retry per the queue backoff,
+        // and flipping the badge to failed each attempt makes it flicker
+        // failed→spinning→failed. We only surface failure once retries are
+        // exhausted (see the "failed" listener below).
         throw err;
       }
     },
@@ -58,8 +55,19 @@ export function createTriageWorker(connection: ConnectionOptions) {
     }
   );
 
-  worker.on("failed", (job, err) => {
+  worker.on("failed", async (job, err) => {
     console.error(`[TRIAGE] Job ${job?.id} failed for ticket ${job?.data?.ticketId}:`, err.message);
+    if (!job) return;
+    // Only flip the inbox badge to "failed" once all retries are spent — until
+    // then the ticket is still being worked, so the spinner should remain.
+    const maxAttempts = job.opts.attempts ?? 1;
+    if (job.attemptsMade >= maxAttempts) {
+      await publishTicketEvent({
+        type: "triage:completed",
+        ticketId: job.data.ticketId,
+        status: "failed",
+      });
+    }
   });
 
   return worker;

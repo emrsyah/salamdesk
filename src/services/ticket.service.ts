@@ -31,7 +31,7 @@ const TICKETS_WITH = {
   assignee: { columns: { id: true, name: true } },
   // Latest triage event only — drives the inbox "menganalisis…/Ditriase AI" badge.
   triageEvents: {
-    columns: { status: true },
+    columns: { status: true, createdAt: true },
     orderBy: desc(triageEvents.createdAt),
     limit: 1,
   },
@@ -39,6 +39,26 @@ const TICKETS_WITH = {
 
 /** Persisted triage lifecycle states (the `status` column on triage_events). */
 export type TriageEventStatus = "processing" | "completed" | "failed" | "skipped";
+
+// Triage finishes in seconds (plus up to ~1 min of retry backoff). A `processing`
+// row older than this means the worker died before writing a terminal row and
+// its retries are exhausted — surface it as failed rather than a perpetual spinner.
+const TRIAGE_PROCESSING_STALE_MS = 10 * 60_000;
+
+function deriveTriageStatus(
+  status: string | null | undefined,
+  createdAt: Date | string | null | undefined,
+): TriageEventStatus | null {
+  if (!status) return null;
+  if (
+    status === "processing" &&
+    createdAt &&
+    Date.now() - new Date(createdAt).getTime() > TRIAGE_PROCESSING_STALE_MS
+  ) {
+    return "failed";
+  }
+  return status as TriageEventStatus;
+}
 
 const NEVER_MATCHING_MODULE_ID = "00000000-0000-0000-0000-000000000000";
 const UUID_PATTERN =
@@ -126,7 +146,7 @@ export async function getTickets(ctx?: TicketContext) {
   // client doesn't carry the relation array around.
   return results.map(({ triageEvents: events, ...rest }) => ({
     ...rest,
-    triageStatus: (events?.[0]?.status ?? null) as TriageEventStatus | null,
+    triageStatus: deriveTriageStatus(events?.[0]?.status, events?.[0]?.createdAt),
   }));
 }
 
@@ -220,9 +240,8 @@ export async function getTicketById(id: string) {
 
   // Events are ascending by time, so the last one is the most recent triage
   // state (processing → completed/failed/skipped).
-  const triageStatus = (ticket.triageEvents.at(-1)?.status ?? null) as
-    | TriageEventStatus
-    | null;
+  const latestTriage = ticket.triageEvents.at(-1);
+  const triageStatus = deriveTriageStatus(latestTriage?.status, latestTriage?.createdAt);
 
   return { ...ticket, messages, triageStatus };
 }
