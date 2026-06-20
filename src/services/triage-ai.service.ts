@@ -1,6 +1,6 @@
 import { generateObject } from "ai";
 import { z } from "zod";
-import { getAiModel } from "@/lib/ai";
+import { getAiModel, aiTelemetry } from "@/lib/ai";
 import type { ProcedureBehavior } from "@/services/procedure-execution.service";
 
 /**
@@ -74,6 +74,7 @@ export async function classifyOnTopic(
     model: getAiModel(),
     schema: OnTopicSchema,
     temperature: 0,
+    experimental_telemetry: aiTelemetry("classify-on-topic"),
     prompt: `Kamu adalah penjaga lingkup (scope guard) untuk agen AI helpdesk SIMRS RSUD Karawang.
 Lingkup layanan: dukungan teknis & operasional sistem rumah sakit (SIMRS) — modul pendaftaran, rawat jalan/inap, farmasi, lab, radiologi, billing/BPJS, rekam medis, antrian, akun/login, error aplikasi, dan pertanyaan terkait penggunaan sistem.
 ${scopeHints}
@@ -115,6 +116,7 @@ export async function generateClarifyingReply(
     model: getAiModel(),
     schema: ClarifyingReplySchema,
     temperature: 0.3,
+    experimental_telemetry: aiTelemetry("generate-clarifying-reply"),
     prompt: `${preamble || "Kamu adalah asisten helpdesk SIMRS di RSUD Karawang."}
 
 Pesan dari requester:
@@ -145,6 +147,7 @@ export async function classifyModule(
   const { object } = await generateObject({
     model: getAiModel(),
     schema: ModuleClassificationSchema,
+    experimental_telemetry: aiTelemetry("classify-module"),
     prompt: `Kamu adalah asisten klasifikasi tiket SIMRS untuk RSUD Karawang.
 
 Modul SIMRS yang tersedia:
@@ -168,6 +171,7 @@ export async function classifyPriority(
   const { object } = await generateObject({
     model: getAiModel(),
     schema: PriorityClassificationSchema,
+    experimental_telemetry: aiTelemetry("classify-priority"),
     prompt: `Kamu adalah asisten triase tiket untuk rumah sakit RSUD Karawang.
 
 Tiket masuk:
@@ -221,6 +225,9 @@ export async function refineReplyText(input: {
   const { object } = await generateObject({
     model: getAiModel(),
     schema: RefinedReplySchema,
+    experimental_telemetry: aiTelemetry("refine-reply", {
+      mode: input.mode ?? (input.customInstruction ? "custom" : "perbaiki"),
+    }),
     prompt: `Kamu adalah asisten penulisan untuk staf helpdesk SIMRS RSUD Karawang.
 Teks di bawah adalah draf balasan staf kepada pelapor tiket${input.ticketTitle ? ` berjudul "${input.ticketTitle}"` : ""}.
 
@@ -254,6 +261,7 @@ export async function evaluateKbMatch(
     model: getAiModel(),
     schema: KbRelevanceSchema,
     temperature: 0,
+    experimental_telemetry: aiTelemetry("evaluate-kb-match", { kbTitle }),
     prompt: `${preamble || "Kamu adalah asisten helpdesk SIMRS di RSUD Karawang."}
 
 Tiket dari requester:

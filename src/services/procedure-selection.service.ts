@@ -1,6 +1,6 @@
 import { generateObject } from "ai";
 import { z } from "zod";
-import { getAiModel } from "@/lib/ai";
+import { getAiModel, aiTelemetry } from "@/lib/ai";
 
 export type SelectionCandidate = { id: string; title: string; whenToUse: string };
 
@@ -38,7 +38,13 @@ export async function pickProcedure(
   const minConfidence = opts?.minConfidence ?? 0.6;
   const generate =
     opts?.generate ??
-    ((args) => generateObject({ model: getAiModel(), schema: ProcedureSelectionSchema, prompt: args.prompt }));
+    ((args) =>
+      generateObject({
+        model: getAiModel(),
+        schema: ProcedureSelectionSchema,
+        prompt: args.prompt,
+        experimental_telemetry: aiTelemetry("pick-procedure"),
+      }));
 
   const { object } = await generate({ prompt: buildSelectionPrompt(ticketText, candidates) });
   if (!object.procedureId) return null;

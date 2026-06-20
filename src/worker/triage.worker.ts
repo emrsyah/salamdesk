@@ -1,4 +1,5 @@
 import { Worker, type ConnectionOptions } from "bullmq";
+import { startActiveObservation, propagateAttributes } from "@langfuse/tracing";
 import { triageTicket } from "@/services/ai.service";
 import { publishTicketEvent } from "@/lib/realtime";
 import { WORKER_TUNING } from "./worker-tuning";
@@ -21,8 +22,32 @@ export function createTriageWorker(connection: ConnectionOptions) {
     "ai-triage",
     async (job) => {
       console.log(`[TRIAGE] Processing job ${job.id} for ticket ${job.data.ticketId}`);
+      const trigger = job.data.trigger ?? "intake";
       try {
-        const result = await triageTicket(job.data.ticketId, job.data.trigger ?? "intake");
+        // Group every LLM call for this ticket (module, priority, on-topic, KB,
+        // procedure) under one Langfuse trace, keyed by ticketId so a ticket's
+        // full triage history shows up together in the Sessions view.
+        const result = await propagateAttributes(
+          {
+            sessionId: job.data.ticketId,
+            tags: ["triage", trigger],
+            metadata: { jobId: job.id ?? "unknown", trigger },
+          },
+          () =>
+            startActiveObservation("triage-ticket", async (span) => {
+              span.update({ input: { ticketId: job.data.ticketId, trigger } });
+              const r = await triageTicket(job.data.ticketId, trigger);
+              span.update({
+                output: {
+                  moduleName: r.moduleName,
+                  priority: r.priority,
+                  autoReplied: r.autoReplied,
+                  autoReplyBlockedReason: r.autoReplyBlockedReason,
+                },
+              });
+              return r;
+            }),
+        );
         console.log(
           `[TRIAGE] Job ${job.id} done — module: ${result.moduleName ?? "unclassified"}, ` +
             `priority: ${result.priority}, autoReplied: ${result.autoReplied}` +

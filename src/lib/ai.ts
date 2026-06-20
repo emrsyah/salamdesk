@@ -1,4 +1,5 @@
 import { createOpenRouter } from "@openrouter/ai-sdk-provider";
+import type { TelemetrySettings } from "ai";
 
 /**
  * OpenRouter client for AI SDK.
@@ -22,6 +23,21 @@ export const AI_MODEL =
 
 export function getAiModel() {
   return openrouter(AI_MODEL);
+}
+
+/**
+ * Standard `experimental_telemetry` config for Vercel AI SDK calls.
+ * Pass to `generateObject`/`generateText` so each call is captured in Langfuse
+ * with model, token usage, cost and latency.
+ *
+ * @param functionId  short, stable name shown in Langfuse (e.g. "classify-module")
+ * @param metadata    extra trace attributes (ticketId, confidence, etc.)
+ */
+export function aiTelemetry(
+  functionId: string,
+  metadata?: TelemetrySettings["metadata"],
+): TelemetrySettings {
+  return { isEnabled: true, functionId, metadata };
 }
 
 /**

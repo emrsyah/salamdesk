@@ -2,6 +2,9 @@
 
 import { eq } from "drizzle-orm";
 import { headers } from "next/headers";
+import { after } from "next/server";
+import { startActiveObservation, propagateAttributes } from "@langfuse/tracing";
+import { flushTraces } from "@/lib/langfuse";
 import { db } from "@/db";
 import { tickets } from "@/db/schema/tickets";
 import { auth } from "@/lib/auth/auth";
@@ -127,7 +130,7 @@ export async function refineReplyTextAction(
   mode: RefineMode | "custom",
   customInstruction?: string,
 ): Promise<string> {
-  await requireSession();
+  const session = await requireSession();
   const trimmed = text.trim();
   if (!trimmed) throw new Error("Teks kosong.");
   if (mode === "custom" && !customInstruction?.trim()) {
@@ -135,12 +138,27 @@ export async function refineReplyTextAction(
   }
 
   const ticket = await loadTicketContext(ticketId);
-  return refineReplyText({
-    text: trimmed.slice(0, 8000),
-    mode: mode === "custom" ? undefined : mode,
-    customInstruction: mode === "custom" ? customInstruction : null,
-    ticketTitle: ticket.title,
-  });
+  after(() => flushTraces());
+  return propagateAttributes(
+    {
+      sessionId: ticketId,
+      userId: session.user.id,
+      tags: ["copilot", "refine-reply"],
+      metadata: { mode },
+    },
+    () =>
+      startActiveObservation("copilot-refine-reply", async (span) => {
+        span.update({ input: { ticketId, mode } });
+        const refined = await refineReplyText({
+          text: trimmed.slice(0, 8000),
+          mode: mode === "custom" ? undefined : mode,
+          customInstruction: mode === "custom" ? customInstruction : null,
+          ticketTitle: ticket.title,
+        });
+        span.update({ output: refined });
+        return refined;
+      }),
+  );
 }
 
 /**
@@ -152,7 +170,7 @@ export async function draftReplyFromKbAction(
   ticketId: string,
   kbId: string,
 ): Promise<CopilotDraft> {
-  await requireSession();
+  const session = await requireSession();
   const [ticket, article, config] = await Promise.all([
     loadTicketContext(ticketId),
     getKbArticleById(kbId),
@@ -160,26 +178,41 @@ export async function draftReplyFromKbAction(
   ]);
   if (!article) throw new Error(`KB article ${kbId} not found`);
 
-  const evaluation = await evaluateKbMatch(
-    ticket.title,
-    ticket.description,
-    article.title,
-    article.content,
+  after(() => flushTraces());
+  return propagateAttributes(
     {
-      agentName: config.agentName,
-      persona: config.persona,
-      tone: config.tone,
-      language: config.language,
-      replySignature: config.replySignature,
-      guardrails: config.guardrails,
+      sessionId: ticketId,
+      userId: session.user.id,
+      tags: ["copilot", "draft-from-kb"],
+      metadata: { kbId },
     },
-  );
+    () =>
+      startActiveObservation("copilot-draft-from-kb", async (span) => {
+        span.update({ input: { ticketId, kbId, kbTitle: article.title } });
+        const evaluation = await evaluateKbMatch(
+          ticket.title,
+          ticket.description,
+          article.title,
+          article.content,
+          {
+            agentName: config.agentName,
+            persona: config.persona,
+            tone: config.tone,
+            language: config.language,
+            replySignature: config.replySignature,
+            guardrails: config.guardrails,
+          },
+        );
 
-  return {
-    isRelevant: evaluation.isRelevant,
-    confidence: evaluation.confidence,
-    suggestedReply: evaluation.suggestedReply,
-    kbId: article.id,
-    kbTitle: article.title,
-  };
+        const draft: CopilotDraft = {
+          isRelevant: evaluation.isRelevant,
+          confidence: evaluation.confidence,
+          suggestedReply: evaluation.suggestedReply,
+          kbId: article.id,
+          kbTitle: article.title,
+        };
+        span.update({ output: draft });
+        return draft;
+      }),
+  );
 }

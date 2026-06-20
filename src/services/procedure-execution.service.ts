@@ -1,5 +1,5 @@
 import { generateText, stepCountIs, type ToolSet } from "ai";
-import { getAiModel } from "@/lib/ai";
+import { getAiModel, aiTelemetry } from "@/lib/ai";
 
 export const MAX_PROCEDURE_STEPS = 5; // bounds the tool-calling loop (guardrail: max calls/ticket)
 
@@ -83,6 +83,9 @@ export async function runProcedure(input: {
         prompt: args.prompt,
         tools: args.tools,
         stopWhen: args.stopWhen as Parameters<typeof generateText>[0]["stopWhen"],
+        experimental_telemetry: aiTelemetry("run-procedure", {
+          procedureTitle: input.procedureTitle,
+        }),
       }) as unknown as Promise<GenerateTextResult>);
 
   const result = await generate({

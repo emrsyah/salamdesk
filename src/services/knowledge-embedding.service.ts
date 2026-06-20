@@ -1,4 +1,5 @@
 import { createRequire } from "node:module";
+import { startActiveObservation } from "@langfuse/tracing";
 
 const EMBEDDING_DIMENSIONS = 1024;
 const EMBEDDING_BATCH_SIZE = 128;
@@ -48,6 +49,26 @@ async function embedTexts(texts: string[], inputType: "document" | "query") {
     return [];
   }
 
+  // Voyage uses its own SDK (not the Vercel AI SDK), so trace it manually as a
+  // generation. Nests under the active triage/ingestion trace when present.
+  return startActiveObservation(
+    `voyage-embed-${inputType}`,
+    (gen) => {
+      gen.update({
+        model: getEmbeddingModel(),
+        // Record sizes, not raw text, to keep PII/large payloads out of traces.
+        input: { count: texts.length, inputType },
+      });
+      return runEmbed(texts, inputType).then((embeddings) => {
+        gen.update({ output: { embeddings: embeddings.length } });
+        return embeddings;
+      });
+    },
+    { asType: "generation" },
+  );
+}
+
+async function runEmbed(texts: string[], inputType: "document" | "query") {
   const embeddings: number[][] = [];
   const voyage = getVoyageClient();
 

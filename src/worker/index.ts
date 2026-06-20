@@ -14,6 +14,11 @@
  */
 
 import "dotenv/config";
+import { initObservability, flushTraces } from "@/lib/langfuse";
+
+// Enable Langfuse tracing before any AI SDK call is loaded/executed.
+initObservability();
+
 import IORedis from "ioredis";
 import { Worker, type ConnectionOptions } from "bullmq";
 import { connectToWhatsApp, disconnectWhatsApp, reconnectWhatsApp, getSocket } from "@/lib/whatsapp";
@@ -221,6 +226,8 @@ async function shutdown() {
     controlRedis.quit(),
     workerRedis.quit(),
   ]);
+  // Ship any buffered traces to Langfuse before the process exits.
+  await flushTraces();
   process.exit(0);
 }
 
