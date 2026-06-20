@@ -1,11 +1,7 @@
 import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
-
-/**
- * Shared presentational primitives for the AI Agent settings tabs, so every tab
- * shares one informative structure: an intro that explains the tab's purpose +
- * status, and titled sections with icon + description instead of bare fields.
- */
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { RiInformationLine } from "@remixicon/react";
 
 export function AgentTabIntro({
   icon,
@@ -16,7 +12,6 @@ export function AgentTabIntro({
   icon: ReactNode;
   title: string;
   description: string;
-  /** Optional status pills / actions row. */
   children?: ReactNode;
 }) {
   return (
@@ -35,13 +30,7 @@ export function AgentTabIntro({
   );
 }
 
-export function StatusPill({
-  on,
-  label,
-}: {
-  on: boolean;
-  label: string;
-}) {
+export function StatusPill({ on, label }: { on: boolean; label: string }) {
   return (
     <span
       className={cn(
@@ -80,9 +69,7 @@ export function AgentSection({
         ) : null}
         <div className="min-w-0">
           <h3 className="text-sm font-semibold leading-tight">{title}</h3>
-          {description ? (
-            <p className="mt-0.5 text-xs text-muted-foreground">{description}</p>
-          ) : null}
+          {description ? <p className="mt-0.5 text-xs text-muted-foreground">{description}</p> : null}
         </div>
       </div>
       <div className="divide-y px-4">{children}</div>
@@ -94,7 +81,6 @@ export function SettingRow({
   label,
   hint,
   children,
-  /** When set, the row is rendered dimmed with a badge to show it's overridden. */
   bypassed = false,
   bypassLabel = "Dilewati",
   bypassHint,
@@ -107,28 +93,36 @@ export function SettingRow({
   bypassHint?: string;
 }) {
   return (
-    <div className="flex items-start justify-between gap-4 py-3">
-      <div className="min-w-0">
-        <div className="flex flex-wrap items-center gap-2">
-          <p className={cn("text-sm font-medium", bypassed && "text-muted-foreground line-through")}>
-            {label}
-          </p>
-          {bypassed ? (
-            <span
-              title={bypassHint}
-              className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-700 dark:bg-amber-900/30 dark:text-amber-300"
-            >
-              <span className="size-1.5 rounded-full bg-amber-500" />
-              {bypassLabel}
-            </span>
-          ) : null}
-        </div>
-        {hint ? <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">{hint}</p> : null}
-        {bypassed && bypassHint ? (
-          <p className="mt-1 text-xs leading-relaxed text-amber-700/90 dark:text-amber-300/90">{bypassHint}</p>
+    <div className="flex items-center justify-between gap-4 py-3">
+      <div className="flex min-w-0 items-center gap-2">
+        <span className={cn("text-sm font-medium", bypassed && "text-muted-foreground line-through")}>
+          {label}
+        </span>
+        {bypassed ? (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className="inline-flex cursor-default items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
+                <span className="size-1.5 rounded-full bg-amber-500" />
+                {bypassLabel}
+              </span>
+            </TooltipTrigger>
+            {bypassHint && <TooltipContent side="top">{bypassHint}</TooltipContent>}
+          </Tooltip>
+        ) : hint ? (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                className="flex items-center text-muted-foreground/50 transition-colors hover:text-muted-foreground"
+              >
+                <RiInformationLine className="size-3.5" />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="top">{hint}</TooltipContent>
+          </Tooltip>
         ) : null}
       </div>
-      <div className={cn("shrink-0", bypassed && "opacity-50")}>{children}</div>
+      <div className={cn("shrink-0", bypassed && "opacity-40")}>{children}</div>
     </div>
   );
 }
