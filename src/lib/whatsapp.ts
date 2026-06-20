@@ -103,6 +103,33 @@ export async function disconnectWhatsApp(): Promise<void> {
 }
 
 /**
+ * Re-link WhatsApp after a logout (401) without needing server access.
+ *
+ * The 401 close handler already wiped the dead ./wa_auth, so this just resets
+ * the public status keys and reconnects — which emits a fresh QR for the admin
+ * to scan from the UI. Triggered cross-process via the "wa-control" channel.
+ */
+export async function reconnectWhatsApp(): Promise<void> {
+  console.log("[WA] Reconnect requested — generating a fresh QR…");
+  intentionalDisconnect = false;
+
+  // Defensive: ensure no stale creds survive if reconnect is triggered from a
+  // state other than a fresh 401 (e.g. a session that got stuck).
+  try {
+    await rm(AUTH_DIR, { recursive: true, force: true });
+  } catch (err) {
+    console.error("[WA] Failed to clear auth directory before reconnect:", err);
+  }
+
+  await Promise.all([
+    redisConnection.del("wa-qr"),
+    redisConnection.set("wa-status", "connecting"),
+  ]);
+
+  await connectToWhatsApp();
+}
+
+/**
  * Boot the Baileys WhatsApp connection.
  * - On first run: prints a QR code to the terminal for scanning.
  * - On subsequent runs: reconnects from saved auth state automatically.
@@ -188,6 +215,18 @@ export async function connectToWhatsApp(): Promise<void> {
         await redisConnection.del("wa-connected-at");
 
         if (loggedOut) {
+          // The device link is dead — these credentials will 401 again on every
+          // reconnect, so wipe them now. This removes the manual "ssh in, delete
+          // ./wa_auth, restart worker" step: a restart, or a UI-triggered
+          // reconnect, now starts from a clean slate and produces a fresh QR.
+          sock = null;
+          try {
+            await rm(AUTH_DIR, { recursive: true, force: true });
+          } catch (err) {
+            console.error("[WA] Failed to clear auth directory after logout:", err);
+          }
+          await redisConnection.del("wa-qr");
+
           // Skip when we triggered the logout ourselves — disconnectWhatsApp()
           // is already steering the status toward a fresh reconnect.
           if (!intentionalDisconnect) {

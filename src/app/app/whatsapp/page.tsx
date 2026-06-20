@@ -83,6 +83,8 @@ export default function WhatsAppConnectionPage() {
   const [confirmingDisconnect, setConfirmingDisconnect] = useState(false);
   const [disconnecting, setDisconnecting] = useState(false);
   const [disconnectError, setDisconnectError] = useState<string | null>(null);
+  const [reconnecting, setReconnecting] = useState(false);
+  const [reconnectError, setReconnectError] = useState<string | null>(null);
 
   const handleCopy = async () => {
     if (!account?.number) return;
@@ -114,6 +116,27 @@ export default function WhatsAppConnectionPage() {
       setDisconnectError("Gagal menghubungi server.");
     } finally {
       setDisconnecting(false);
+    }
+  };
+
+  const handleReconnect = async () => {
+    setReconnecting(true);
+    setReconnectError(null);
+    try {
+      const res = await fetch("/api/whatsapp/reconnect", { method: "POST" });
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        setReconnectError(data?.error ?? "Gagal menghubungkan ulang.");
+        return;
+      }
+      // Worker will wipe the dead session and emit a fresh QR; the status poller
+      // picks up the "qr" state shortly.
+      setStatus("connecting");
+      setQr(null);
+    } catch {
+      setReconnectError("Gagal menghubungi server.");
+    } finally {
+      setReconnecting(false);
     }
   };
 
@@ -399,13 +422,26 @@ export default function WhatsAppConnectionPage() {
               <div>
                 <h3 className="text-lg font-semibold text-red-700">Sesi Berakhir</h3>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  Anda telah keluar. Silakan hapus folder{" "}
-                  <code className="rounded border border-red-200 bg-red-50 px-1 py-0.5 text-red-800">
-                    ./wa_auth
-                  </code>{" "}
-                  di server dan restart worker.
+                  Perangkat WhatsApp telah keluar. Klik tombol di bawah untuk
+                  menautkan ulang — kode QR baru akan muncul untuk dipindai.
                 </p>
               </div>
+              <Button onClick={handleReconnect} disabled={reconnecting} className="gap-2">
+                {reconnecting ? (
+                  <>
+                    <RiLoader4Line className="h-4 w-4 animate-spin" />
+                    Menyiapkan…
+                  </>
+                ) : (
+                  <>
+                    <RiQrCodeLine className="h-4 w-4" />
+                    Hubungkan ulang
+                  </>
+                )}
+              </Button>
+              {reconnectError && (
+                <p className="text-sm text-red-600">{reconnectError}</p>
+              )}
             </div>
           ) : (
             <div className="flex flex-col items-center space-y-4 text-center">

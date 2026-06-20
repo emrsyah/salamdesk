@@ -16,7 +16,7 @@
 import "dotenv/config";
 import IORedis from "ioredis";
 import { Worker, type ConnectionOptions } from "bullmq";
-import { connectToWhatsApp, disconnectWhatsApp, getSocket } from "@/lib/whatsapp";
+import { connectToWhatsApp, disconnectWhatsApp, reconnectWhatsApp, getSocket } from "@/lib/whatsapp";
 import { processInboundWaMessage } from "./bot";
 import { createTriageWorker } from "./triage.worker";
 import { createAutoReplyWorker } from "./auto-reply.worker";
@@ -184,6 +184,13 @@ controlRedis.on("message", async (channel, message) => {
       await disconnectWhatsApp();
     } catch (err) {
       console.error("[WORKER] disconnectWhatsApp failed:", err);
+    }
+  } else if (message === "reconnect") {
+    console.log("[WORKER] Received reconnect command.");
+    try {
+      await reconnectWhatsApp();
+    } catch (err) {
+      console.error("[WORKER] reconnectWhatsApp failed:", err);
     }
   }
 });
