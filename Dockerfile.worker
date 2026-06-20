@@ -33,6 +33,9 @@ COPY --from=deps /app/node_modules ./node_modules
 
 # Copy only what the worker process needs at runtime.
 COPY package.json package-lock.json tsconfig.json ./
+# Better Auth's generated table schema lives at the repo root and is imported
+# by src/db/schema/index.ts (as ../../../auth-schema) — must ship in the image.
+COPY auth-schema.ts ./
 COPY src ./src
 
 # Persistent WhatsApp auth lives here (mounted as a volume — see compose file).
