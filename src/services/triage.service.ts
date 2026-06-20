@@ -406,7 +406,10 @@ export async function triageTicket(
     // is not KB-grounded, so it carries the aiFirstReply flag to skip only that
     // gate; all other auto-reply gates still apply.
     let aiFirstReply = false;
-    if (config.aiFirstMode && !result.suggestedReply && !offTopic) {
+    // When aiFirstMode is on the agent always replies, even if the off-topic
+    // guard fired. The clarifier's own prompt handles ambiguous/off-topic
+    // messages gracefully (asks what SIMRS issue they need help with).
+    if (config.aiFirstMode && !result.suggestedReply) {
       try {
         const clarifier = await generateClarifyingReply({
           conversation: conversation.messages,
@@ -483,7 +486,7 @@ export async function triageTicket(
         autoReplyBlockedReason ?? "Pesan di luar topik layanan SIMRS — disiapkan sebagai draf untuk staf.";
     }
 
-    if (policy.allowed && result.suggestedReply && !procedureForceDraft && !offTopic) {
+    if (policy.allowed && result.suggestedReply && !procedureForceDraft && (!offTopic || aiFirstReply)) {
       if (config.autoReplyDelayMinutes > 0) {
         // Hold the reply: queue a delayed job that re-checks for human
         // intervention before sending. The ticket is NOT marked as replied yet.
