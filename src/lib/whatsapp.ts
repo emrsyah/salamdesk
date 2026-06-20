@@ -6,7 +6,8 @@ import makeWASocket, {
   type WASocket,
 } from "@whiskeysockets/baileys";
 import { Boom } from "@hapi/boom";
-import { rm } from "node:fs/promises";
+import { rm, readdir, mkdir } from "node:fs/promises";
+import { join } from "node:path";
 import pino from "pino";
 import qrcode from "qrcode-terminal";
 import { waInboundQueue, type WaInboundJob } from "./queue";
@@ -14,6 +15,31 @@ import { normalisePhone } from "@/services/whatsapp.service";
 import { redisConnection } from "./redis";
 
 const AUTH_DIR = "./wa_auth";
+
+/**
+ * Wipe the saved WhatsApp auth credentials.
+ *
+ * Clears the *contents* of AUTH_DIR rather than the directory itself: in the
+ * VPS deployment AUTH_DIR is a Docker volume mount point (see
+ * docker-compose.worker.yml), and removing a mount point throws EBUSY. Deleting
+ * the entries inside leaves a clean, empty dir that useMultiFileAuthState can
+ * repopulate with a fresh session.
+ */
+async function clearAuthState(): Promise<void> {
+  let entries: string[];
+  try {
+    entries = await readdir(AUTH_DIR);
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === "ENOENT") {
+      await mkdir(AUTH_DIR, { recursive: true });
+      return;
+    }
+    throw err;
+  }
+  await Promise.all(
+    entries.map((entry) => rm(join(AUTH_DIR, entry), { recursive: true, force: true })),
+  );
+}
 
 const logger = pino({ level: "silent" });
 
@@ -83,7 +109,7 @@ export async function disconnectWhatsApp(): Promise<void> {
   isConnected = false;
 
   try {
-    await rm(AUTH_DIR, { recursive: true, force: true });
+    await clearAuthState();
   } catch (err) {
     console.error("[WA] Failed to clear auth directory:", err);
   }
@@ -116,7 +142,7 @@ export async function reconnectWhatsApp(): Promise<void> {
   // Defensive: ensure no stale creds survive if reconnect is triggered from a
   // state other than a fresh 401 (e.g. a session that got stuck).
   try {
-    await rm(AUTH_DIR, { recursive: true, force: true });
+    await clearAuthState();
   } catch (err) {
     console.error("[WA] Failed to clear auth directory before reconnect:", err);
   }
@@ -206,7 +232,7 @@ export async function connectToWhatsApp(): Promise<void> {
         const loggedOut = statusCode === DisconnectReason.loggedOut;
 
         console.log(
-          `[WA] Connection closed (code: ${statusCode}). ${loggedOut ? "Logged out — delete ./wa_auth and restart." : "Reconnecting…"}`,
+          `[WA] Connection closed (code: ${statusCode}). ${loggedOut ? "Logged out — clearing dead session…" : "Reconnecting…"}`,
         );
 
         // The linked account is gone the moment the socket closes; clear it so
@@ -221,7 +247,8 @@ export async function connectToWhatsApp(): Promise<void> {
           // reconnect, now starts from a clean slate and produces a fresh QR.
           sock = null;
           try {
-            await rm(AUTH_DIR, { recursive: true, force: true });
+            await clearAuthState();
+            console.log("[WA] Cleared ./wa_auth. Open the WhatsApp page and click 'Hubungkan ulang' to re-link.");
           } catch (err) {
             console.error("[WA] Failed to clear auth directory after logout:", err);
           }

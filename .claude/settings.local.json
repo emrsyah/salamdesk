@@ -46,7 +46,9 @@
       "Bash(node -e ' *)",
       "mcp__context7__resolve-library-id",
       "Bash(node del_ticket.mjs check)",
-      "Bash(git stash *)"
+      "Bash(git stash *)",
+      "Bash(node -e \"const p=require\\('./package.json'\\); console.log\\(JSON.stringify\\(p.scripts,null,2\\)\\)\")",
+      "Bash(ls -1 Dockerfile* docker-compose* ecosystem* Procfile fly.toml)"
     ]
   },
   "enableAllProjectMcpServers": true,
