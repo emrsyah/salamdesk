@@ -1,5 +1,5 @@
 import { findOrCreateRequesterByPhone } from "@/services/whatsapp.service";
-import { markMessageRead, sendTypingPresence } from "@/lib/whatsapp";
+import { acknowledgeInbound } from "@/lib/whatsapp";
 import {
   findLatestTicketByWaPhone,
   createTicket,
@@ -30,11 +30,10 @@ export async function processInboundWaMessage(job: WaInboundJob): Promise<{
 }> {
   const { jid, phone, text, pushName, messageId, attachments } = job;
 
-  // Acknowledge instantly so the chat feels live: blue ticks + "typing…" the
-  // moment the message lands, well before triage finishes composing a reply.
-  // Best-effort and non-blocking — presence must never delay ticket creation.
-  void markMessageRead(jid, messageId);
-  void sendTypingPresence(jid, true);
+  // Acknowledge so the chat feels live — but with short, randomized human-like
+  // beats (arrive → read → typing) instead of firing both instantly, which
+  // reads as a bot. Best-effort and non-blocking — never delays ticket creation.
+  void acknowledgeInbound(jid, messageId);
 
   // 1. Resolve or create the requester profile (keyed on phone for readability)
   // 2. Find the latest ticket for this contact. We key on the full addressing

@@ -142,6 +142,28 @@ export async function sendTypingPresence(jid: string, typing: boolean): Promise<
   }
 }
 
+/** Random integer pause in [minMs, maxMs] — for human-like, non-robotic timing. */
+function randomDelay(minMs: number, maxMs: number): Promise<void> {
+  const ms = minMs + Math.floor(Math.random() * (maxMs - minMs + 1));
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Acknowledge an inbound message the way a person would: a brief, randomized
+ * beat before the blue ticks, then another beat before "typing…" appears —
+ * rather than both firing the instant the message lands (which reads as a bot).
+ * Sequenced so the read receipt always precedes typing. Kept short so it still
+ * feels fast. Best-effort & fire-and-forget — callers should NOT await this.
+ */
+export async function acknowledgeInbound(jid: string, messageId: string): Promise<void> {
+  // message arrives → (pause) → mark read
+  await randomDelay(500, 1600);
+  await markMessageRead(jid, messageId);
+  // mark read → (pause) → start typing
+  await randomDelay(400, 1100);
+  await sendTypingPresence(jid, true);
+}
+
 /**
  * Resolve a human-readable phone number from an addressing JID.
  *
