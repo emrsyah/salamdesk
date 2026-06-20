@@ -178,6 +178,9 @@ export function AgentAutomationForm({ config }: { config: AutomationConfig }) {
         <Row
           label="Penjaga topik (anti off-topic)"
           hint="Tiket yang jelas di luar lingkup layanan SIMRS tidak dibalas otomatis — disiapkan sebagai draf untuk staf."
+          bypassed={form.aiFirstMode}
+          bypassLabel="Dilewati AI-first"
+          bypassHint="Mode AI-first aktif: balasan klarifikasi tetap dikirim meski pesan terdeteksi di luar topik. Gerbang ini masih berlaku untuk balasan berbasis KB/prosedur."
         >
           <Switch
             checked={form.offTopicGuardEnabled}
