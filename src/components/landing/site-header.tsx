@@ -53,7 +53,7 @@ export function SiteHeader() {
           <Button asChild variant="ghost" size="sm" className="hidden sm:inline-flex">
             <Link href="/sign-in">Masuk</Link>
           </Button>
-          <Button asChild size="sm" className="font-semibold">
+          <Button asChild size="sm" className="font-semibold transition-transform duration-200 hover:scale-[1.04] active:scale-95">
             <Link href="/sign-in">Coba SalamDesk</Link>
           </Button>
         </div>
