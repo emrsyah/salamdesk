@@ -121,6 +121,7 @@ export function AgentAutomationForm({ config }: { config: AutomationConfig }) {
           on={form.aiTriageEnabled && form.autoReplyEnabled}
           label={form.aiTriageEnabled && form.autoReplyEnabled ? "Balasan otomatis aktif" : "Balasan otomatis mati"}
         />
+        <StatusPill on={form.aiFirstMode} label={form.aiFirstMode ? "AI-first aktif" : "AI-first mati"} />
         <StatusPill on={form.businessHours.enabled} label={form.businessHours.enabled ? "Jadwal aktif" : "Selalu aktif"} />
       </AgentTabIntro>
 
@@ -228,10 +229,20 @@ export function AgentAutomationForm({ config }: { config: AutomationConfig }) {
             onChange={(e) => set("maxAutoRepliesPerTicket", Number(e.target.value))}
           />
         </Row>
-        <Row label="Lewati tiket kritis">
+        <Row
+          label="Lewati tiket kritis"
+          bypassed={form.aiFirstMode}
+          bypassLabel="Dilewati AI-first"
+          bypassHint="Mode AI-first aktif: balasan klarifikasi tetap dikirim pada tiket kritis (pertanyaan klarifikasi tidak berisiko). Gerbang ini masih berlaku untuk balasan berbasis KB/prosedur."
+        >
           <Switch checked={form.skipCriticalPriority} onCheckedChange={(v) => set("skipCriticalPriority", v)} />
         </Row>
-        <Row label="Wajib didasari artikel KB">
+        <Row
+          label="Wajib didasari artikel KB"
+          bypassed={form.aiFirstMode}
+          bypassLabel="Dilewati AI-first"
+          bypassHint="Mode AI-first aktif: balasan klarifikasi dikirim meski tanpa artikel KB. Gerbang ini masih berlaku untuk balasan berbasis KB/prosedur."
+        >
           <Switch checked={form.requireKbGrounding} onCheckedChange={(v) => set("requireKbGrounding", v)} />
         </Row>
 

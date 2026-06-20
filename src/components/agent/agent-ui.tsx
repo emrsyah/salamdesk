@@ -94,18 +94,41 @@ export function SettingRow({
   label,
   hint,
   children,
+  /** When set, the row is rendered dimmed with a badge to show it's overridden. */
+  bypassed = false,
+  bypassLabel = "Dilewati",
+  bypassHint,
 }: {
   label: string;
   hint?: string;
   children: ReactNode;
+  bypassed?: boolean;
+  bypassLabel?: string;
+  bypassHint?: string;
 }) {
   return (
     <div className="flex items-start justify-between gap-4 py-3">
       <div className="min-w-0">
-        <p className="text-sm font-medium">{label}</p>
+        <div className="flex flex-wrap items-center gap-2">
+          <p className={cn("text-sm font-medium", bypassed && "text-muted-foreground line-through")}>
+            {label}
+          </p>
+          {bypassed ? (
+            <span
+              title={bypassHint}
+              className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-700 dark:bg-amber-900/30 dark:text-amber-300"
+            >
+              <span className="size-1.5 rounded-full bg-amber-500" />
+              {bypassLabel}
+            </span>
+          ) : null}
+        </div>
         {hint ? <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">{hint}</p> : null}
+        {bypassed && bypassHint ? (
+          <p className="mt-1 text-xs leading-relaxed text-amber-700/90 dark:text-amber-300/90">{bypassHint}</p>
+        ) : null}
       </div>
-      <div className="shrink-0">{children}</div>
+      <div className={cn("shrink-0", bypassed && "opacity-50")}>{children}</div>
     </div>
   );
 }

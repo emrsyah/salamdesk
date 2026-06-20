@@ -79,7 +79,12 @@ export function canAutoReply(
     };
   }
 
-  if (config.skipCriticalPriority && input.priority === "critical") {
+  // skipCriticalPriority protects against the AI giving a substantive (possibly
+  // wrong) answer on a critical ticket. An AI-first clarifier carries no answer —
+  // it only asks the requester for more detail — so it's safe to send even when
+  // the ticket is critical (otherwise a bare "halo" on a critical thread would
+  // get no reply at all, defeating AI-first mode).
+  if (config.skipCriticalPriority && input.priority === "critical" && !input.aiFirstReply) {
     return { allowed: false, blockedReason: "Critical tickets require staff review." };
   }
 
