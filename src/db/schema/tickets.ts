@@ -54,6 +54,10 @@ export const tickets = pgTable("tickets", {
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
     resolvedAt: timestamp("resolved_at"),
+    // Timestamp of the most recent *customer* (inbound) message. Drives inbox
+    // ordering ("new chat to the top") and per-user unread (vs ticket_reads).
+    // Null for staff-created tickets with no customer message yet.
+    lastInboundAt: timestamp("last_inbound_at"),
 });
 
 export const ticketMessages = pgTable("ticket_messages", {

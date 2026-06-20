@@ -14,7 +14,18 @@ export type TicketRealtimeEvent =
   | { type: "ticket:created"; ticketId: string }
   | { type: "ticket:updated"; ticketId: string }
   | { type: "triage:started"; ticketId: string }
-  | { type: "triage:completed"; ticketId: string; status: string };
+  | { type: "triage:completed"; ticketId: string; status: string }
+  // A new inbound (customer) message. Carries just enough metadata for the
+  // client to decide whether to alert (scope: assigned-to-me or unassigned in
+  // my modules) without an extra fetch, and to render a desktop notification.
+  | {
+      type: "message:received";
+      ticketId: string;
+      moduleId: string | null;
+      assigneeId: string | null;
+      requesterName: string | null;
+      preview: string;
+    };
 
 /**
  * Fire-and-forget publish. Realtime is a best-effort enhancement on top of the

@@ -17,6 +17,8 @@ import {
   RiFilter3Line,
   RiArrowUpDownLine,
   RiCloseLine,
+  RiNotification3Line,
+  RiNotificationOffLine,
 } from "@remixicon/react";
 import {
   DropdownMenu,
@@ -29,6 +31,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { TicketListItem, type TicketListEntry } from "./ticket-list-item";
+import { useTicketEvents } from "./ticket-events-context";
 import { useQueryParams } from "@/hooks/use-query-params";
 import type { TicketConfiguration } from "@/lib/tickets/ticket-configuration";
 
@@ -86,6 +89,12 @@ function effectiveSlaStatus(t: TicketListEntry): "safe" | "warning" | "breached"
   return t.resolutionSlaStatus ?? t.slaStatus;
 }
 
+// Newest activity = last customer message, falling back to creation time. This
+// is what floats tickets with a fresh inbound message to the top.
+function activityTime(t: TicketListEntry): number {
+  return new Date(t.lastInboundAt ?? t.createdAt).getTime();
+}
+
 interface TicketListProps {
   tickets: TicketListEntry[];
   modules: Module[];
@@ -124,6 +133,7 @@ const TAB_LABELS: Record<Tab, string> = {
 
 export function TicketList({ tickets, modules, configuration, configurationControl, onTicketCreated }: TicketListProps) {
   const { searchParams, setQueryParam } = useQueryParams();
+  const { soundEnabled, setSoundEnabled } = useTicketEvents();
   const [search, setSearch] = useState("");
   const [priorityFilter, setPriorityFilter] = useState<PriorityFilter>("all");
   const [moduleFilter, setModuleFilter] = useState<string>("all");
@@ -192,18 +202,14 @@ export function TicketList({ tickets, modules, configuration, configurationContr
     sorted.sort((a, b) => {
       switch (sortKey) {
         case "oldest":
-          return (
-            new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
-          );
+          return activityTime(a) - activityTime(b);
         case "priority":
           return PRIORITY_RANK[a.priority] - PRIORITY_RANK[b.priority];
         case "sla":
           return SLA_RANK[effectiveSlaStatus(a)] - SLA_RANK[effectiveSlaStatus(b)];
         case "newest":
         default:
-          return (
-            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-          );
+          return activityTime(b) - activityTime(a);
       }
     });
     return sorted;
@@ -220,10 +226,12 @@ export function TicketList({ tickets, modules, configuration, configurationContr
 
   const counts = useMemo(
     () => {
-      const acc = { inbox: 0, done: 0 };
+      const acc = { inbox: 0, done: 0, inboxUnread: 0 };
       for (const t of tickets) {
-        if (TAB_STATUS_SETS.inbox.has(t.status)) acc.inbox++;
-        else if (TAB_STATUS_SETS.done.has(t.status)) acc.done++;
+        if (TAB_STATUS_SETS.inbox.has(t.status)) {
+          acc.inbox++;
+          if (t.isUnread) acc.inboxUnread++;
+        } else if (TAB_STATUS_SETS.done.has(t.status)) acc.done++;
       }
       return acc;
     },
@@ -264,6 +272,28 @@ export function TicketList({ tickets, modules, configuration, configurationContr
       <div className="flex items-center justify-between p-4 pb-2">
         <h1 className="text-xl font-bold">Inbox</h1>
         <div className="flex items-center gap-1">
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => setSoundEnabled(!soundEnabled)}
+            className="size-8 p-0"
+            title={
+              soundEnabled
+                ? "Bisukan notifikasi pesan baru"
+                : "Aktifkan notifikasi pesan baru"
+            }
+            aria-label={
+              soundEnabled
+                ? "Bisukan notifikasi pesan baru"
+                : "Aktifkan notifikasi pesan baru"
+            }
+          >
+            {soundEnabled ? (
+              <RiNotification3Line className="size-4" />
+            ) : (
+              <RiNotificationOffLine className="size-4 text-muted-foreground" />
+            )}
+          </Button>
           {configurationControl}
           <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
             <SheetTrigger asChild>
@@ -515,13 +545,16 @@ export function TicketList({ tickets, modules, configuration, configurationContr
             >
               {TAB_LABELS[t]}{" "}
               {counts[t] > 0 && (
-                <span
-                  className={cn(
-                    "ml-1 text-xs",
-                    "text-muted-foreground",
-                  )}
-                >
+                <span className="ml-1 text-xs text-muted-foreground">
                   {counts[t]}
+                </span>
+              )}
+              {t === "inbox" && counts.inboxUnread > 0 && (
+                <span
+                  className="ml-1.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-semibold text-primary-foreground"
+                  aria-label={`${counts.inboxUnread} belum dibaca`}
+                >
+                  {counts.inboxUnread}
                 </span>
               )}
             </button>

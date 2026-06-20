@@ -3,6 +3,7 @@ export * from "./users"; // re-exports Better Auth `user` table as `users`
 export * from "./requesters";
 export * from "./modules";
 export * from "./tickets";
+export * from "./ticket-reads";
 export * from "./knowledge-base";
 export * from "./triage";
 export * from "./ai-config";

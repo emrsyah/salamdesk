@@ -9,6 +9,7 @@ import {
 } from "@/db/schema/tickets";
 import { and, desc, eq, inArray } from "drizzle-orm";
 import { sendWhatsAppMessage } from "./whatsapp.service";
+import { publishTicketEvent } from "@/lib/realtime";
 import { getSlaDeadlines } from "./ticket-sla.service";
 import {
   canTransitionTicketStatus,
@@ -877,9 +878,11 @@ export async function addRequesterMessageWithLifecycle(input: {
   content: string;
   source?: "web" | "whatsapp" | "email" | "manual" | "api";
 }) {
-  return db.transaction(async (tx) => {
+  const now = new Date();
+  const result = await db.transaction(async (tx) => {
     const ticket = await tx.query.tickets.findFirst({
       where: eq(tickets.id, input.ticketId),
+      with: { requester: { columns: { displayName: true } } },
     });
     if (!ticket) throw new TicketLifecycleError("Ticket not found.");
     if (ticket.status === "closed") {
@@ -899,6 +902,8 @@ export async function addRequesterMessageWithLifecycle(input: {
       })
       .returning();
 
+    // A customer message always bumps lastInboundAt — this is what floats the
+    // ticket to the top of the inbox and marks it unread for staff.
     if (ticket.status === "resolved") {
       if (ticket.autoCloseDueAt && ticket.autoCloseDueAt.getTime() < Date.now()) {
         throw new TicketLifecycleError("Resolved ticket reopen window has expired.");
@@ -907,7 +912,7 @@ export async function addRequesterMessageWithLifecycle(input: {
       const toStatus = ticket.assigneeId ? "in_progress" : "open";
       await tx
         .update(tickets)
-        .set({ status: toStatus, autoCloseDueAt: null, updatedAt: new Date() })
+        .set({ status: toStatus, autoCloseDueAt: null, lastInboundAt: now, updatedAt: now })
         .where(eq(tickets.id, input.ticketId));
 
       await tx.insert(ticketEvents).values({
@@ -922,12 +927,30 @@ export async function addRequesterMessageWithLifecycle(input: {
     } else {
       await tx
         .update(tickets)
-        .set({ updatedAt: new Date() })
+        .set({ lastInboundAt: now, updatedAt: now })
         .where(eq(tickets.id, input.ticketId));
     }
 
-    return message;
+    return {
+      message,
+      moduleId: ticket.moduleId,
+      assigneeId: ticket.assigneeId,
+      requesterName: ticket.requester?.displayName ?? null,
+    };
   });
+
+  // Best-effort realtime alert. Scope (assigned-to-me / unassigned-in-my-modules)
+  // and mute are decided on the client; this just carries the metadata.
+  await publishTicketEvent({
+    type: "message:received",
+    ticketId: input.ticketId,
+    moduleId: result.moduleId,
+    assigneeId: result.assigneeId,
+    requesterName: result.requesterName,
+    preview: input.content.slice(0, 120),
+  });
+
+  return result.message;
 }
 
 export async function createReopenedFromLink(input: {

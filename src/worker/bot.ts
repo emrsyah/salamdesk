@@ -96,6 +96,17 @@ export async function processInboundWaMessage(job: WaInboundJob): Promise<{
   console.log(`[BOT] Created ticket ${ticketId} for ${jid} (${pushName ?? "unknown"})`);
 
   await publishTicketEvent({ type: "ticket:created", ticketId });
+  // New WhatsApp ticket = a fresh customer message; alert in-scope agents.
+  // Module/assignee are null until triage runs, so only privileged staff are
+  // alerted client-side (operators get pinged once it's triaged into a module).
+  await publishTicketEvent({
+    type: "message:received",
+    ticketId,
+    moduleId: null,
+    assigneeId: null,
+    requesterName: pushName ?? null,
+    preview: text.slice(0, 120),
+  });
 
   // Enqueue AI triage — classifies module, priority, and searches KB
   await aiTriageQueue.add("triage", { ticketId, trigger: "intake" });

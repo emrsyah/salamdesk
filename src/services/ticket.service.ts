@@ -1,8 +1,9 @@
 import { db } from "@/db";
 import { tickets, ticketMessages, ticketEscalations } from "@/db/schema/tickets";
+import { ticketReads } from "@/db/schema/ticket-reads";
 import { aiSuggestions } from "@/db/schema/knowledge-base";
 import { triageEvents } from "@/db/schema/triage";
-import { eq, and, desc, asc, inArray, isNull, isNotNull } from "drizzle-orm";
+import { eq, and, desc, asc, inArray, isNull, isNotNull, sql } from "drizzle-orm";
 import crypto from "node:crypto";
 import { getSlaDeadlines } from "./ticket-sla.service";
 import {
@@ -81,7 +82,9 @@ type TicketContext = {
 export async function getTickets(ctx?: TicketContext) {
   const query = db.query.tickets.findMany({
     with: TICKETS_WITH,
-    orderBy: [desc(tickets.createdAt)],
+    // Most recent customer activity first ("new chat to the top"); tickets with
+    // no inbound message yet fall back to their creation time.
+    orderBy: [desc(sql`coalesce(${tickets.lastInboundAt}, ${tickets.createdAt})`)],
     where: (tickets, { and, eq, inArray, or }) => {
       const conditions = [];
 
@@ -142,12 +145,37 @@ export async function getTickets(ctx?: TicketContext) {
     return [];
   }
 
+  // Per-user unread: a ticket is unread when its last customer message is newer
+  // than this user's read cursor (or they've never opened it). One batched query.
+  const reads =
+    ctx?.userId && results.length > 0
+      ? await db.query.ticketReads.findMany({
+          where: and(
+            eq(ticketReads.userId, ctx.userId),
+            inArray(
+              ticketReads.ticketId,
+              results.map((t) => t.id),
+            ),
+          ),
+          columns: { ticketId: true, lastReadAt: true },
+        })
+      : [];
+  const lastReadByTicket = new Map(reads.map((r) => [r.ticketId, r.lastReadAt]));
+
   // Flatten the latest triage event into a single `triageStatus` field so the
   // client doesn't carry the relation array around.
-  return results.map(({ triageEvents: events, ...rest }) => ({
-    ...rest,
-    triageStatus: deriveTriageStatus(events?.[0]?.status, events?.[0]?.createdAt),
-  }));
+  return results.map(({ triageEvents: events, ...rest }) => {
+    const lastReadAt = lastReadByTicket.get(rest.id);
+    const isUnread =
+      !!rest.lastInboundAt &&
+      (!lastReadAt ||
+        new Date(rest.lastInboundAt).getTime() > new Date(lastReadAt).getTime());
+    return {
+      ...rest,
+      isUnread,
+      triageStatus: deriveTriageStatus(events?.[0]?.status, events?.[0]?.createdAt),
+    };
+  });
 }
 
 export async function getTicketById(id: string) {
@@ -305,6 +333,10 @@ export async function createTicket(data: {
     createdById: data.createdById ?? null,
     openedByStaffId: data.openedByStaffId ?? null,
     createdAt,
+    // WhatsApp tickets are born from a customer message, so seed lastInboundAt
+    // (floats them to the top of the inbox + marks unread). Staff-created
+    // tickets stay null until a customer actually replies.
+    lastInboundAt: data.source === "whatsapp" ? createdAt : null,
   }).execute();
 
   if (data.description) {

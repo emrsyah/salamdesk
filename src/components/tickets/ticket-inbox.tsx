@@ -10,7 +10,8 @@ import {
   type TicketDetailData,
 } from "@/components/tickets/ticket-detail";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { markTicketReadAction } from "@/actions/ticket-reads.actions";
 import { loadStoredTicketConfiguration } from "@/lib/tickets/ticket-configuration-storage";
 import type { TicketConfiguration } from "@/lib/tickets/ticket-configuration";
 import type { TicketListEntry } from "@/components/tickets/ticket-list-item";
@@ -34,6 +35,10 @@ interface TicketInboxProps {
   initialTickets: TicketListEntry[];
   initialTicket: TicketDetailData | null;
   defaultConfiguration: TicketConfiguration;
+  /** Current user — used to scope new-message sound/desktop alerts. */
+  currentUserId: string;
+  /** owner/admin/supervisor get alerts for all unassigned tickets. */
+  isPrivileged: boolean;
 }
 
 function TicketListSkeleton() {
@@ -104,6 +109,8 @@ export function TicketInbox({
   initialTickets,
   initialTicket,
   defaultConfiguration,
+  currentUserId,
+  isPrivileged,
 }: TicketInboxProps) {
   const { tickets, isLoading: ticketsLoading, refetch: refetchTickets } =
     useTickets(initialTickets);
@@ -115,6 +122,26 @@ export function TicketInbox({
   } = useTicketDetail(initialTicket);
   const [configuration, setConfiguration] = useState<TicketConfiguration>(defaultConfiguration);
   const [configurationHydrated, setConfigurationHydrated] = useState(false);
+
+  const notifyModuleIds = useMemo(() => modules.map((m) => m.id), [modules]);
+
+  // Mark the open ticket read — on open, and again when a new message lands
+  // while it's open (keyed on the latest message time) — then refresh the list
+  // so its unread indicator clears.
+  const openTicketActivity =
+    ticket?.id === selectedId
+      ? (ticket?.messages?.at(-1)?.createdAt ?? null)
+      : null;
+  useEffect(() => {
+    if (!selectedId) return;
+    let cancelled = false;
+    void markTicketReadAction(selectedId).then((res) => {
+      if (!cancelled && res.ok) refetchTickets();
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedId, openTicketActivity, refetchTickets]);
 
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {
@@ -132,7 +159,11 @@ export function TicketInbox({
   };
 
   return (
-    <TicketEventsProvider>
+    <TicketEventsProvider
+      currentUserId={currentUserId}
+      notifyModuleIds={notifyModuleIds}
+      isPrivileged={isPrivileged}
+    >
     <div className="flex min-h-0 h-full w-full bg-background overflow-hidden">
       {ticketsLoading ? (
         <TicketListSkeleton />

@@ -27,6 +27,10 @@ export type TicketListEntry = {
   resolutionDueAt?: Date | string | null;
   resolvedAt?: Date | string | null;
   createdAt: Date | string;
+  /** Time of the most recent customer message; drives ordering + unread. */
+  lastInboundAt?: Date | string | null;
+  /** True when a customer message arrived after this user last opened it. */
+  isUnread?: boolean;
   module: { id: string; name: string; color: string | null } | null;
   requester: { id: string; displayName: string; fullName: string | null } | null;
   createdBy: { id: string; name: string } | null;
@@ -116,6 +120,13 @@ export function TicketListItem({ ticket, isSelected }: TicketListItemProps) {
     >
       <div className="mb-2 flex items-start justify-between gap-3">
         <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+          {ticket.isUnread && (
+            <span
+              className="size-2 shrink-0 rounded-full bg-primary"
+              aria-label="Belum dibaca"
+              title="Belum dibaca"
+            />
+          )}
           <span className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
             {shortId}
             <RiInboxLine className="size-3.5" />
@@ -136,11 +147,16 @@ export function TicketListItem({ ticket, isSelected }: TicketListItemProps) {
           />
         </div>
         <span className="shrink-0 text-xs text-muted-foreground">
-          {timeAgo(ticket.createdAt)}
+          {timeAgo(ticket.lastInboundAt ?? ticket.createdAt)}
         </span>
       </div>
 
-      <h3 className="mb-3 line-clamp-2 pr-2 text-sm font-semibold leading-snug">
+      <h3
+        className={cn(
+          "mb-3 line-clamp-2 pr-2 text-sm leading-snug",
+          ticket.isUnread ? "font-bold text-foreground" : "font-semibold",
+        )}
+      >
         {ticket.title}
       </h3>
 

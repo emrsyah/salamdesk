@@ -51,6 +51,9 @@ export default async function TicketsPage({ searchParams }: TicketsPageProps) {
     redirect(`/app/tickets?${params.toString()}`);
   }
 
+  const isPrivileged =
+    user.role === "owner" || user.role === "admin" || user.role === "supervisor";
+
   return (
     <TicketInbox
       modules={moduleOptions}
@@ -58,6 +61,8 @@ export default async function TicketsPage({ searchParams }: TicketsPageProps) {
       assignableStaff={assignableStaff}
       initialTickets={initialTickets}
       initialTicket={initialTicket}
+      currentUserId={user.id}
+      isPrivileged={isPrivileged}
       defaultConfiguration={{
         ...DEFAULT_TICKET_CONFIGURATION,
         enabledModuleIds: moduleOptions.map((module) => module.id),
