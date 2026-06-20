@@ -1,3 +1,5 @@
+import { redirect } from "next/navigation";
+import { getSession } from "@/lib/auth/session";
 import { getApiKeysAction, revokeApiKeyAction } from "./actions";
 import { GenerateKeyDialog } from "./generate-key-dialog";
 import { Badge } from "@/components/ui/badge";
@@ -102,6 +104,15 @@ function getDaysUntil(date: Date | null) {
 }
 
 export default async function DeveloperPortalPage() {
+  // Authoritative RBAC guard. The middleware is only an optimistic fast-path
+  // and fails open on a cookie-cache miss, so this server-side check (DB-backed)
+  // is what actually keeps non-admins out of the developer portal.
+  const session = await getSession();
+  if (!session?.user) redirect("/sign-in");
+  if (!["owner", "admin"].includes((session.user as { role?: string }).role ?? "")) {
+    redirect("/app/tickets");
+  }
+
   const apiKeys = await getApiKeysAction();
   const activeKeys = apiKeys.filter((key) => getKeyStatus(key) === "active");
   const expiredKeys = apiKeys.filter((key) => getKeyStatus(key) === "expired");
