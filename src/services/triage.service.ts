@@ -1,4 +1,4 @@
-import { and, asc, count, desc, eq, gt } from "drizzle-orm";
+import { and, count, desc, eq, gt } from "drizzle-orm";
 import { db } from "@/db";
 import { aiSuggestions } from "@/db/schema/knowledge-base";
 import { ticketMessages, tickets } from "@/db/schema/tickets";
@@ -15,6 +15,7 @@ import {
   generateClarifyingReply,
 } from "@/services/triage-ai.service";
 import { searchKnowledgeBase } from "@/services/knowledge.service";
+import { buildTicketConversation } from "@/services/conversation-context.service";
 import { getAllModules } from "@/services/module.service";
 import { tryProcedure } from "@/services/procedure-runtime.service";
 import type { TicketPriority } from "@/services/ticket.service";
@@ -179,33 +180,16 @@ export async function triageTicket(
   try {
     const activeModules = await getAllModules({ activeOnly: true });
 
-    // Ground triage on the full requester conversation, not just the first
-    // message. `ticket.description` is frozen at creation, so follow-up
-    // messages (message_added re-triage) were previously ignored.
-    const requesterMessages = await db
-      .select({ content: ticketMessages.content })
-      .from(ticketMessages)
-      .where(
-        and(
-          eq(ticketMessages.ticketId, ticketId),
-          eq(ticketMessages.senderType, "requester"),
-          eq(ticketMessages.isInternalNote, false),
-        ),
-      )
-      .orderBy(asc(ticketMessages.createdAt));
-
-    // Recent conversation for classification/scope (broad context, capped to
-    // bound token cost on long threads); latest message for retrieval/reply
-    // (the requester's current need).
-    const RECENT_MESSAGE_CAP = 5;
-    const conversationText =
-      requesterMessages
-        .slice(-RECENT_MESSAGE_CAP)
-        .map((m) => m.content)
-        .join("\n")
-        .trim() || (ticket.description ?? "");
-    const latestMessage =
-      requesterMessages.at(-1)?.content?.trim() || ticket.description || ticket.title;
+    // Ground triage on the full conversation, not just the first message.
+    // `conversation.messages` is the interleaved thread (incl. the agent's own
+    // prior replies) used for reply generation so the AI has memory;
+    // `requesterText` is recent requester-only text for the lightweight
+    // classifiers; `latestUserText` is the current need, used for retrieval.
+    const conversation = await buildTicketConversation(ticketId, {
+      fallbackText: ticket.description ?? ticket.title,
+    });
+    const conversationText = conversation.requesterText;
+    const latestMessage = conversation.latestUserText || ticket.title;
 
     let classifiedModuleId = ticket.moduleId;
     let classifiedModuleName: string | null = null;
@@ -303,12 +287,12 @@ export async function triageTicket(
 
     if (kbMatches.length > 0) {
       const topMatch = kbMatches[0];
-      const kbEval = await evaluateKbMatch(
-        ticket.title,
-        latestMessage,
-        topMatch.title,
-        topMatch.content,
-        {
+      const kbEval = await evaluateKbMatch({
+        conversation: conversation.messages,
+        ticketTitle: ticket.title,
+        kbTitle: topMatch.title,
+        kbContent: topMatch.content,
+        behavior: {
           agentName: config.agentName,
           persona: config.persona,
           tone: config.tone,
@@ -316,7 +300,7 @@ export async function triageTicket(
           replySignature: config.replySignature,
           guardrails: config.guardrails,
         },
-      );
+      });
 
       if (kbEval.isRelevant) {
         result.replyConfidence = kbEval.confidence;
@@ -365,6 +349,7 @@ export async function triageTicket(
       const proc = await tryProcedure({
         ticketText: searchQuery,
         moduleName: classifiedModuleName,
+        conversation: conversation.messages,
         behavior: {
           agentName: config.agentName,
           persona: config.persona,
@@ -397,13 +382,17 @@ export async function triageTicket(
     let aiFirstReply = false;
     if (config.aiFirstMode && !result.suggestedReply && !offTopic) {
       try {
-        const clarifier = await generateClarifyingReply(ticket.title, conversationText, {
-          agentName: config.agentName,
-          persona: config.persona,
-          tone: config.tone,
-          language: config.language,
-          replySignature: config.replySignature,
-          guardrails: config.guardrails,
+        const clarifier = await generateClarifyingReply({
+          conversation: conversation.messages,
+          ticketTitle: ticket.title,
+          behavior: {
+            agentName: config.agentName,
+            persona: config.persona,
+            tone: config.tone,
+            language: config.language,
+            replySignature: config.replySignature,
+            guardrails: config.guardrails,
+          },
         });
         if (clarifier) {
           result.suggestedReply = clarifier;
@@ -504,7 +493,7 @@ export async function triageTicket(
         });
 
         if (ticket.source === "whatsapp" && ticket.waPhone) {
-          await sendWhatsAppMessage(ticket.waPhone, result.suggestedReply);
+          await sendWhatsAppMessage(ticket.waPhone, result.suggestedReply, { typing: true });
         }
 
         result.autoReplied = true;
@@ -539,7 +528,7 @@ export async function triageTicket(
         source: ticket.source,
       });
       if (ticket.source === "whatsapp" && ticket.waPhone) {
-        await sendWhatsAppMessage(ticket.waPhone, offHoursText);
+        await sendWhatsAppMessage(ticket.waPhone, offHoursText, { typing: true });
       }
       autoReplyBlockedReason =
         autoReplyBlockedReason ?? "Di luar jam operasional — kirim pesan otomatis di luar jam & draf untuk staf.";

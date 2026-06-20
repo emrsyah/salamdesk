@@ -41,8 +41,13 @@ export async function findOrCreateRequesterByPhone(
 export async function sendWhatsAppMessage(
   jid: string,
   text: string,
-  options?: { attachments?: WaOutboundAttachment[] },
+  options?: { attachments?: WaOutboundAttachment[]; typing?: boolean },
 ): Promise<void> {
-  const job: WaOutboundJob = { jid, text, attachments: options?.attachments };
+  const job: WaOutboundJob = {
+    jid,
+    text,
+    attachments: options?.attachments,
+    typing: options?.typing,
+  };
   await waOutboundQueue.add("send", job);
 }

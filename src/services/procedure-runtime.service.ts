@@ -1,4 +1,4 @@
-import type { ToolSet } from "ai";
+import type { ModelMessage, ToolSet } from "ai";
 import { listEnabledProcedures, type AgentProcedureRow } from "./agent-procedures.service";
 import { pickProcedure } from "./procedure-selection.service";
 import {
@@ -48,6 +48,8 @@ export async function tryProcedure(
     behavior: ProcedureBehavior;
     /** Minimum router confidence to apply a procedure (defaults to pickProcedure's own default). */
     minConfidence?: number;
+    /** Full interleaved conversation for memory; falls back to ticketText. */
+    conversation?: ModelMessage[];
   },
   deps: Partial<Deps> = {},
 ): Promise<ProcedureRuntimeResult | null> {
@@ -77,6 +79,7 @@ export async function tryProcedure(
     kbGrounding,
     moduleName: input.moduleName,
     tools,
+    conversation: input.conversation,
   });
 
   return { ...run, procedureId: matched.id, procedureTitle: matched.title, confidence: selection.confidence };

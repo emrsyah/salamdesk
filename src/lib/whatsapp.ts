@@ -59,6 +59,34 @@ export function getSocket(): WASocket | null {
 }
 
 /**
+ * Mark an inbound message as read (blue ticks), so the requester sees their
+ * message was received the instant it lands — before any reply is composed.
+ * Best-effort: never throws into the caller's pipeline.
+ */
+export async function markMessageRead(jid: string, messageId: string): Promise<void> {
+  if (!messageId || !sock || !isConnected) return;
+  try {
+    await sock.readMessages([{ remoteJid: jid, id: messageId, fromMe: false }]);
+  } catch (err) {
+    console.error(`[WA] readMessages failed for ${jid}:`, err);
+  }
+}
+
+/**
+ * Toggle the "typing…" (composing) presence on a chat, so the conversation
+ * feels live while the AI is thinking/about to reply. Pass `false` to clear it.
+ * Best-effort: presence is cosmetic and must never break a send.
+ */
+export async function sendTypingPresence(jid: string, typing: boolean): Promise<void> {
+  if (!sock || !isConnected) return;
+  try {
+    await sock.sendPresenceUpdate(typing ? "composing" : "paused", jid);
+  } catch (err) {
+    console.error(`[WA] presence update failed for ${jid}:`, err);
+  }
+}
+
+/**
  * Resolve a human-readable phone number from an addressing JID.
  *
  * For "<phone>@s.whatsapp.net" this is just the local part. For "<id>@lid"

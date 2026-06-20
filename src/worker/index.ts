@@ -75,11 +75,26 @@ inboundWorker.on("failed", (job, err) => {
 const outboundWorker = new Worker<WaOutboundJob>(
   "wa-outbound",
   async (job) => {
-    const { jid, text, attachments = [] } = job.data;
+    const { jid, text, attachments = [], typing = false } = job.data;
     const sock = getSocket();
 
     if (!sock) {
       throw new Error("WhatsApp socket not connected — will retry");
+    }
+
+    // For AI replies, re-assert "typing…" right before sending (the inbound
+    // composing presence has long since expired) and hold for a short,
+    // length-scaled beat so the reply lands at a believably human cadence
+    // instead of snapping in instantly. Cosmetic — guarded so it never blocks.
+    if (typing && jid?.includes("@")) {
+      try {
+        await sock.sendPresenceUpdate("composing", jid);
+        const pauseMs = Math.min(1500, Math.max(500, text.length * 15));
+        await new Promise((r) => setTimeout(r, pauseMs));
+        await sock.sendPresenceUpdate("paused", jid);
+      } catch (err) {
+        console.error(`[WORKER] Typing presence failed for ${jid}:`, err);
+      }
     }
 
     // jid already carries the correct domain (@lid or @s.whatsapp.net) — send

@@ -91,7 +91,7 @@ async function processAutoReply(job: { data: AiAutoReplyJob }) {
   });
 
   if (source === "whatsapp" && (jid ?? ticket.waPhone)) {
-    await sendWhatsAppMessage((jid ?? ticket.waPhone)!, content);
+    await sendWhatsAppMessage((jid ?? ticket.waPhone)!, content, { typing: true });
   }
 
   await db.insert(triageEvents).values({

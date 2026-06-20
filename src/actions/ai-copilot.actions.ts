@@ -9,6 +9,7 @@ import { db } from "@/db";
 import { tickets } from "@/db/schema/tickets";
 import { auth } from "@/lib/auth/auth";
 import { getKbArticleById, searchKnowledgeBase } from "@/services/knowledge.service";
+import { buildTicketConversation } from "@/services/conversation-context.service";
 import { getAiConfig } from "@/services/ai-config.service";
 import { evaluateKbMatch, refineReplyText, type RefineMode } from "@/services/triage-ai.service";
 import { exaSearch } from "@/services/exa.service";
@@ -189,12 +190,15 @@ export async function draftReplyFromKbAction(
     () =>
       startActiveObservation("copilot-draft-from-kb", async (span) => {
         span.update({ input: { ticketId, kbId, kbTitle: article.title } });
-        const evaluation = await evaluateKbMatch(
-          ticket.title,
-          ticket.description,
-          article.title,
-          article.content,
-          {
+        const conversation = await buildTicketConversation(ticketId, {
+          fallbackText: ticket.description ?? ticket.title,
+        });
+        const evaluation = await evaluateKbMatch({
+          conversation: conversation.messages,
+          ticketTitle: ticket.title,
+          kbTitle: article.title,
+          kbContent: article.content,
+          behavior: {
             agentName: config.agentName,
             persona: config.persona,
             tone: config.tone,
@@ -202,7 +206,7 @@ export async function draftReplyFromKbAction(
             replySignature: config.replySignature,
             guardrails: config.guardrails,
           },
-        );
+        });
 
         const draft: CopilotDraft = {
           isRelevant: evaluation.isRelevant,

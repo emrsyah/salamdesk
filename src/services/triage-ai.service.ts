@@ -1,6 +1,7 @@
-import { generateObject } from "ai";
+import { generateObject, type ModelMessage } from "ai";
 import { z } from "zod";
 import { getAiModel, aiTelemetry } from "@/lib/ai";
+import { withTrailingUser } from "@/services/conversation-context.service";
 import type { ProcedureBehavior } from "@/services/procedure-execution.service";
 
 /**
@@ -101,35 +102,43 @@ export type ClarifyingReply = z.infer<typeof ClarifyingReplySchema>;
  * just said "Halo" or sent a vague message), generate a short, friendly reply
  * that greets them and asks a clarifying follow-up question, so the agent always
  * responds instead of going silent. Honours the configured persona/voice.
+ *
+ * Takes the full interleaved conversation (incl. the agent's own prior replies)
+ * so it has memory — it won't re-ask a question it already asked. The stable
+ * persona/rules live in `system` (cacheable prefix); the dynamic conversation
+ * lives in `messages`.
  */
-export async function generateClarifyingReply(
-  title: string,
-  conversationText: string | null,
-  behavior?: ProcedureBehavior,
-): Promise<string> {
+export async function generateClarifyingReply(params: {
+  conversation: ModelMessage[];
+  ticketTitle: string;
+  behavior?: ProcedureBehavior;
+}): Promise<string> {
+  const { conversation, ticketTitle, behavior } = params;
   const preamble = behaviorPreamble(behavior);
   const signatureRule = behavior?.replySignature
     ? `\n- Akhiri balasan dengan tanda tangan: ${behavior.replySignature}.`
     : "";
 
+  const system = `${preamble || "Kamu adalah asisten helpdesk SIMRS di RSUD Karawang."}
+
+Konteks: percakapan di bawah belum cukup jelas atau hanya berupa sapaan, sehingga belum ada artikel/prosedur yang cocok.
+Tugasmu: balas pesan TERAKHIR requester dengan HANGAT dan RINGKAS (1–3 kalimat) lalu ajukan SATU pertanyaan klarifikasi agar kamu bisa membantu.
+Aturan:
+- Balas dalam Bahasa Indonesia.
+- Perhatikan SELURUH percakapan; JANGAN mengulang pertanyaan atau sapaan yang sudah pernah kamu sampaikan sebelumnya.
+- Jangan mengarang solusi atau fakta — kamu hanya menggali kebutuhan requester.
+- Jika hanya sapaan, sapa balik dan tanyakan ada kendala SIMRS apa yang bisa dibantu.
+- Jangan minta data sensitif (mis. password).${signatureRule}`;
+
   const { object } = await generateObject({
     model: getAiModel(),
     schema: ClarifyingReplySchema,
     temperature: 0.3,
+    system,
+    messages: conversation.length
+      ? conversation
+      : [{ role: "user", content: ticketTitle }],
     experimental_telemetry: aiTelemetry("generate-clarifying-reply"),
-    prompt: `${preamble || "Kamu adalah asisten helpdesk SIMRS di RSUD Karawang."}
-
-Pesan dari requester:
-Judul: ${title}
-Isi: ${conversationText ?? "(kosong)"}
-
-Pesan ini belum cukup jelas atau hanya berupa sapaan, sehingga belum ada artikel/prosedur yang cocok.
-Tugasmu: balas dengan HANGAT dan RINGKAS (1–3 kalimat) lalu ajukan SATU pertanyaan klarifikasi agar kamu bisa membantu.
-Aturan:
-- Balas dalam Bahasa Indonesia.
-- Jangan mengarang solusi atau fakta — kamu hanya menggali kebutuhan requester.
-- Jika hanya sapaan, sapa balik dan tanyakan ada kendala SIMRS apa yang bisa dibantu.
-- Jangan minta data sensitif (mis. password).${signatureRule}`,
   });
 
   return object.reply.trim();
@@ -245,37 +254,52 @@ ${input.text}`,
   return object.refinedText.trim();
 }
 
-export async function evaluateKbMatch(
-  title: string,
-  description: string | null,
-  kbTitle: string,
-  kbContent: string,
-  behavior?: ProcedureBehavior,
-): Promise<KbRelevance> {
+/**
+ * Judge whether a retrieved KB article answers the requester's current need and,
+ * if so, draft a grounded reply. Sees the full conversation (incl. the agent's
+ * prior replies) so the draft fits the thread and doesn't repeat itself. Stable
+ * persona/rules in `system` (cacheable); dynamic conversation + KB article in
+ * `messages`.
+ */
+export async function evaluateKbMatch(params: {
+  conversation: ModelMessage[];
+  ticketTitle: string;
+  kbTitle: string;
+  kbContent: string;
+  behavior?: ProcedureBehavior;
+}): Promise<KbRelevance> {
+  const { conversation, ticketTitle, kbTitle, kbContent, behavior } = params;
   const preamble = behaviorPreamble(behavior);
   const signatureRule = behavior?.replySignature
     ? `\n- Akhiri balasan dengan tanda tangan: ${behavior.replySignature}.`
     : "";
 
+  const system = `${preamble || "Kamu adalah asisten helpdesk SIMRS di RSUD Karawang."}
+
+Tugasmu: nilai apakah artikel Knowledge Base yang diberikan BERHUBUNGAN dengan kebutuhan requester pada percakapan, lalu—jika relevan—susun balasan yang membantu.
+Sebagai AI Helpdesk yang proaktif, beri respons sebisa mungkin jika ada kata kunci yang nyambung (mis. "antrian poli" dengan artikel "antrian").
+Aturan:
+- Perhatikan seluruh percakapan dan fokus pada pesan TERAKHIR requester; jangan mengulang yang sudah pernah kamu jawab.
+- Jika relevan (meski parsial), buat balasan maksimal 3 paragraf yang merangkum solusi dari artikel KB.
+- Balas dalam Bahasa Indonesia.${signatureRule}
+- Jika sangat jelas tidak ada hubungannya sama sekali, kembalikan isRelevant: false dan suggestedReply: null.`;
+
+  const kbBlock = `Judul tiket: ${ticketTitle}
+
+Artikel Knowledge Base yang ditemukan:
+Judul: ${kbTitle}
+Isi: ${kbContent.slice(0, 1500)}`;
+
   const { object } = await generateObject({
     model: getAiModel(),
     schema: KbRelevanceSchema,
     temperature: 0,
+    system,
+    messages: withTrailingUser(
+      conversation.length ? conversation : [{ role: "user", content: ticketTitle }],
+      kbBlock,
+    ),
     experimental_telemetry: aiTelemetry("evaluate-kb-match", { kbTitle }),
-    prompt: `${preamble || "Kamu adalah asisten helpdesk SIMRS di RSUD Karawang."}
-
-Tiket dari requester:
-Judul: ${title}
-Deskripsi: ${description ?? "(tidak ada deskripsi)"}
-
-Artikel Knowledge Base yang ditemukan:
-Judul: ${kbTitle}
-Isi: ${kbContent.slice(0, 1500)}
-
-Apakah artikel KB ini MUNGKIN BERHUBUNGAN dengan pertanyaan atau masalah requester, meskipun hanya secara parsial?
-Sebagai AI Helpdesk yang proaktif, kita ingin memberi respons ke pasien sebisa mungkin jika ada kata kunci yang nyambung (misal: "antrian poli" dengan artikel "antrian").
-Jika ya atau mungkin relevan, buat balasan yang membantu, maksimal 3 paragraf, yang merangkum solusi dari artikel KB tersebut.${signatureRule}
-Jika sangat jelas tidak ada hubungannya sama sekali, barulah kembalikan isRelevant: false dan suggestedReply: null.`,
   });
 
   return object;

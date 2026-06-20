@@ -1,4 +1,4 @@
-import { generateText, stepCountIs, type ToolSet } from "ai";
+import { generateText, stepCountIs, type ModelMessage, type ToolSet } from "ai";
 import { getAiModel, aiTelemetry } from "@/lib/ai";
 
 export const MAX_PROCEDURE_STEPS = 5; // bounds the tool-calling loop (guardrail: max calls/ticket)
@@ -51,7 +51,8 @@ type StepShape = { toolCalls?: unknown[]; toolResults?: { output?: unknown }[] }
 type GenerateTextResult = { text: string; steps?: StepShape[] };
 type GenerateTextFn = (args: {
   system: string;
-  prompt: string;
+  prompt?: string;
+  messages?: ModelMessage[];
   tools: ToolSet;
   stopWhen?: unknown;
 }) => Promise<GenerateTextResult>;
@@ -71,6 +72,12 @@ export async function runProcedure(input: {
   kbGrounding: KbGroundingDoc[];
   moduleName: string | null;
   tools: ToolSet;
+  /**
+   * Full interleaved conversation (incl. the agent's prior replies). When given,
+   * the procedure runs against the whole thread instead of just the latest
+   * message — so a multi-turn procedure has memory. Falls back to `ticketText`.
+   */
+  conversation?: ModelMessage[];
   generate?: GenerateTextFn;
 }): Promise<ProcedureRunResult> {
   const system = assembleSystemPrompt(input);
@@ -80,7 +87,7 @@ export async function runProcedure(input: {
       generateText({
         model: getAiModel(),
         system: args.system,
-        prompt: args.prompt,
+        ...(args.messages ? { messages: args.messages } : { prompt: args.prompt ?? "" }),
         tools: args.tools,
         stopWhen: args.stopWhen as Parameters<typeof generateText>[0]["stopWhen"],
         experimental_telemetry: aiTelemetry("run-procedure", {
@@ -91,6 +98,7 @@ export async function runProcedure(input: {
   const result = await generate({
     system,
     prompt: input.ticketText,
+    messages: input.conversation?.length ? input.conversation : undefined,
     tools: input.tools,
     stopWhen: stepCountIs(MAX_PROCEDURE_STEPS),
   });

@@ -94,7 +94,13 @@ async function runSequential(): Promise<{ timings: Timing[]; total: number }> {
 
   // evaluateKbMatch depends on the KB row (here mocked) — runs after retrieval.
   const k = await time("evaluateKbMatch (LLM)", () =>
-    evaluateKbMatch(SAMPLE.title, SAMPLE.text, MOCK_KB.title, MOCK_KB.content, BEHAVIOR),
+    evaluateKbMatch({
+      conversation: [{ role: "user", content: SAMPLE.text }],
+      ticketTitle: SAMPLE.title,
+      kbTitle: MOCK_KB.title,
+      kbContent: MOCK_KB.content,
+      behavior: BEHAVIOR,
+    }),
   );
   timings.push({ label: "evaluateKbMatch (LLM)", ms: k.ms, ok: k.ok, note: k.note });
 
@@ -107,7 +113,13 @@ async function runParallelizable(): Promise<number> {
   const c = independentCalls();
   const t0 = performance.now();
   await Promise.all([c.module(), c.priority(), c.onTopic(), c.embed()]);
-  await evaluateKbMatch(SAMPLE.title, SAMPLE.text, MOCK_KB.title, MOCK_KB.content, BEHAVIOR);
+  await evaluateKbMatch({
+    conversation: [{ role: "user", content: SAMPLE.text }],
+    ticketTitle: SAMPLE.title,
+    kbTitle: MOCK_KB.title,
+    kbContent: MOCK_KB.content,
+    behavior: BEHAVIOR,
+  });
   return performance.now() - t0;
 }
 

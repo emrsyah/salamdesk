@@ -114,6 +114,9 @@ export type WaOutboundJob = {
   text: string;
   // Optional media to send alongside the text (images inline, others as docs).
   attachments?: WaOutboundAttachment[];
+  // When true, show a "typing…" presence + brief human-like pause before sending
+  // (used for AI replies, so the chat feels live). Human agent replies omit it.
+  typing?: boolean;
 };
 
 export type AiTriageJob = {
