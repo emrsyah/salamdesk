@@ -1,7 +1,7 @@
 import { generateObject, generateText, type ModelMessage } from "ai";
 import { z } from "zod";
 import { getAiModel, aiTelemetry } from "@/lib/ai";
-import { withTrailingUser, type Img } from "@/services/conversation-context.service";
+import { withTrailingUser, stripImages, type Img } from "@/services/conversation-context.service";
 import type { ProcedureBehavior } from "@/services/procedure-execution.service";
 
 /**
@@ -168,14 +168,15 @@ Aturan:
 - Jika hanya sapaan, sapa balik dan tanyakan ada kendala SIMRS apa yang bisa dibantu.
 - Jangan minta data sensitif (mis. password).${signatureRule}`;
 
+  const textMessages = stripImages(
+    conversation.length ? conversation : [{ role: "user", content: ticketTitle }],
+  );
   const { object } = await generateObject({
     model: getAiModel(),
     schema: ClarifyingReplySchema,
     temperature: 0.3,
     system,
-    messages: conversation.length
-      ? conversation
-      : [{ role: "user", content: ticketTitle }],
+    messages: textMessages,
     experimental_telemetry: aiTelemetry("generate-clarifying-reply"),
   });
 
@@ -328,15 +329,15 @@ Artikel Knowledge Base yang ditemukan:
 Judul: ${kbTitle}
 Isi: ${kbContent.slice(0, 1500)}`;
 
+  const textConversation = stripImages(
+    conversation.length ? conversation : [{ role: "user", content: ticketTitle }],
+  );
   const { object } = await generateObject({
     model: getAiModel(),
     schema: KbRelevanceSchema,
     temperature: 0,
     system,
-    messages: withTrailingUser(
-      conversation.length ? conversation : [{ role: "user", content: ticketTitle }],
-      kbBlock,
-    ),
+    messages: withTrailingUser(textConversation, kbBlock),
     experimental_telemetry: aiTelemetry("evaluate-kb-match", { kbTitle }),
   });
 

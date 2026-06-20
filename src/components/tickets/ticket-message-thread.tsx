@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import { TicketDetailData } from "./ticket-detail";
 import { RiBookOpenLine, RiDownloadLine, RiFile3Line, RiMessage3Line, RiSparkling2Line } from "@remixicon/react";
 import { cn, formatTime } from "@/lib/utils";
@@ -11,15 +11,33 @@ type MessageAttachment = NonNullable<TicketDetailData["messages"][0]["attachment
 
 interface TicketMessageThreadProps {
   messages: TicketDetailData["messages"];
+  ticketId: string;
 }
 
 
 
-export function TicketMessageThread({ messages }: TicketMessageThreadProps) {
+export function TicketMessageThread({ messages, ticketId }: TicketMessageThreadProps) {
   const publicMessages = useMemo(() => messages.filter((m) => !m.isInternalNote), [messages]);
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  // Jump to the latest message instantly when a ticket is opened (no animation
+  // so the user never sees the thread scroll from the top).
+  useLayoutEffect(() => {
+    const el = scrollRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [ticketId]);
+
+  // Keep pinned to the bottom as new messages arrive within the same ticket.
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (el) el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+  }, [publicMessages.length]);
 
   return (
-    <div className="min-h-0 flex-1 overflow-y-auto bg-muted/15 px-4 py-3 sm:px-6">
+    <div
+      ref={scrollRef}
+      className="min-h-0 flex-1 overflow-y-auto bg-muted/15 px-4 py-3 sm:px-6"
+    >
       <div className="mx-auto max-w-5xl">
         {publicMessages.length === 0 ? (
           <EmptyThread

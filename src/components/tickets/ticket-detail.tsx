@@ -184,7 +184,7 @@ export function TicketDetail({
       />
       <div className="flex min-h-0 flex-1 overflow-hidden">
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-          <TicketMessageThread messages={ticket.messages} />
+          <TicketMessageThread messages={ticket.messages} ticketId={ticket.id} />
           {latestSuggestion && (
             <TicketAiSuggestion
               key={latestSuggestion.id}

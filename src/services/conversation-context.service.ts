@@ -159,6 +159,27 @@ export async function buildTicketConversation(
 }
 
 /**
+ * Strip image file-parts from user messages, collapsing array content to plain
+ * text (or "[Gambar]" when there's no text). Use before passing conversation
+ * history to generateObject callers — multimodal content inside structured-output
+ * requests is rejected by some providers. The vision pre-pass already produced
+ * text descriptions for classifiers; reply generators only need the text thread.
+ */
+export function stripImages(messages: ModelMessage[]): ModelMessage[] {
+  return messages.map((msg) => {
+    if (msg.role === "user" && Array.isArray(msg.content)) {
+      const text = (msg.content as { type: string; text?: string }[])
+        .filter((p) => p.type === "text")
+        .map((p) => p.text ?? "")
+        .join("\n")
+        .trim();
+      return { role: "user" as const, content: text || "[Gambar]" };
+    }
+    return msg;
+  });
+}
+
+/**
  * Append a dynamic block (e.g. a retrieved KB article) to the trailing user
  * turn, keeping role alternation intact. Dynamic content is deliberately kept
  * OUT of the system prompt so the stable system prefix stays cacheable
