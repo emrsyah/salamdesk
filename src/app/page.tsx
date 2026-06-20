@@ -72,7 +72,21 @@ export default async function LandingPage() {
   if (session?.user) redirect("/app/tickets");
 
   return (
-    <div className="min-h-svh bg-background text-foreground">
+    <div className="relative isolate min-h-svh overflow-x-clip bg-background text-foreground">
+      {/* scenic background image — spans behind the header and hero */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-x-0 top-0 -z-20 h-[920px] bg-cover bg-top bg-no-repeat"
+        style={{ backgroundImage: "url(/bg/1.png)" }}
+      />
+      {/* white cloudy fade — melts the image into the page before the next section */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[920px] bg-gradient-to-b from-transparent via-background/20 to-background"
+      />
+      {/* soft cloud puffs resting on the fade line */}
+      <div className="pointer-events-none absolute left-1/2 top-[820px] -z-10 h-72 w-[150%] -translate-x-1/2 rounded-[100%] bg-background blur-3xl" />
+
       <SiteHeader />
 
       <main>
@@ -81,7 +95,7 @@ export default async function LandingPage() {
           {/* dotted grid texture, masked to fade toward the edges */}
           <div
             aria-hidden
-            className="pointer-events-none absolute inset-0 -z-10"
+            className="pointer-events-none absolute inset-0 -z-10 opacity-40"
             style={{
               backgroundImage:
                 "radial-gradient(var(--border) 1px, transparent 1px)",
@@ -93,9 +107,8 @@ export default async function LandingPage() {
             }}
           />
           {/* warm ambient glow */}
-          <div className="pointer-events-none absolute -top-32 left-1/2 -z-10 size-[720px] -translate-x-1/2 rounded-full bg-primary/20 blur-[120px]" />
-          <div className="pointer-events-none absolute right-[8%] top-24 -z-10 size-72 rounded-full bg-amber-300/20 blur-3xl" />
-          <div className="pointer-events-none absolute left-[6%] top-40 -z-10 size-64 rounded-full bg-sky-300/10 blur-3xl" />
+          <div className="pointer-events-none absolute -top-32 left-1/2 -z-10 size-[720px] -translate-x-1/2 rounded-full bg-primary/10 blur-[120px]" />
+          <div className="pointer-events-none absolute right-[8%] top-24 -z-10 size-72 rounded-full bg-amber-300/10 blur-3xl" />
 
           <div className="mx-auto max-w-6xl px-6 pt-16 pb-12 sm:pt-24">
             <div className="mx-auto max-w-3xl text-center">
@@ -107,7 +120,7 @@ export default async function LandingPage() {
               <h1 className="mx-auto mt-6 max-w-3xl text-balance text-4xl font-bold leading-[1.1] tracking-tight sm:text-5xl">
                 Helpdesk cerdas untuk operasional rumah sakit.
               </h1>
-              <p className="mx-auto mt-4 max-w-2xl text-balance text-xl font-medium leading-snug text-muted-foreground sm:text-2xl">
+              <p className="mx-auto mt-4 max-w-2xl text-balance text-xl font-semibold leading-snug text-foreground/85 sm:text-2xl">
                 AI menjawab, SLA terpantau, semua modul dalam satu inbox.
               </p>
 
@@ -124,7 +137,7 @@ export default async function LandingPage() {
                     <RiArrowRightLine className="size-4" />
                   </Link>
                 </Button>
-                <Button asChild size="lg" variant="outline" className="h-12 px-6 text-base">
+                <Button asChild size="lg" variant="outline" className="h-12 border-border bg-background/80 px-6 text-base text-foreground shadow-sm backdrop-blur-sm hover:bg-background">
                   <Link href="#kontak">Jadwalkan Demo</Link>
                 </Button>
               </div>
