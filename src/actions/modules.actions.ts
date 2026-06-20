@@ -3,7 +3,7 @@
 import { db } from "@/db";
 import { modules, slaConfigs } from "@/db/schema/modules";
 import { eq, and } from "drizzle-orm";
-import { revalidatePath, revalidateTag } from "next/cache";
+import { revalidatePath, updateTag } from "next/cache";
 import { headers } from "next/headers";
 import { auth } from "@/lib/auth/auth";
 
@@ -30,7 +30,7 @@ export async function createModuleAction(formData: FormData) {
     return { error: "Nama atau slug modul sudah ada." };
   }
 
-  revalidateTag("modules");
+  updateTag("modules");
   revalidatePath("/app");
   return { success: true };
 }
@@ -46,7 +46,7 @@ export async function updateModuleAction(id: string, formData: FormData) {
     .set({ name, color: color || null })
     .where(eq(modules.id, id));
 
-  revalidateTag("modules");
+  updateTag("modules");
   revalidatePath("/app");
   return { success: true };
 }
@@ -60,7 +60,7 @@ export async function toggleModuleActiveAction(id: string) {
   if (!mod) return { error: "Modul tidak ditemukan." };
 
   await db.update(modules).set({ isActive: !mod.isActive }).where(eq(modules.id, id));
-  revalidateTag("modules");
+  updateTag("modules");
   revalidatePath("/app");
   return { success: true };
 }
@@ -87,7 +87,7 @@ export async function upsertSlaConfigAction(
       .values({ moduleId, priority, responseTimeMinutes, resolutionTimeMinutes });
   }
 
-  revalidateTag("sla-configs");
+  updateTag("sla-configs");
   revalidatePath("/app");
   return { success: true };
 }

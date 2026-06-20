@@ -4,7 +4,7 @@ import { db } from "@/db";
 import { users } from "@/db/schema/users";
 import { userModules } from "@/db/schema/modules";
 import { eq } from "drizzle-orm";
-import { revalidatePath, revalidateTag } from "next/cache";
+import { revalidatePath, updateTag } from "next/cache";
 import { headers } from "next/headers";
 import { auth } from "@/lib/auth/auth";
 
@@ -57,11 +57,11 @@ export async function createUserAction(formData: FormData) {
 
   if (moduleIds.length > 0) {
     await db.insert(userModules).values(moduleIds.map((moduleId) => ({ userId, moduleId })));
-    revalidateTag(`user-modules-${userId}`);
-    revalidateTag("modules");
+    updateTag(`user-modules-${userId}`);
+    updateTag("modules");
   }
 
-  revalidateTag("users");
+  updateTag("users");
   revalidatePath("/app/users");
   return { success: true };
 }
@@ -69,7 +69,7 @@ export async function createUserAction(formData: FormData) {
 export async function updateUserRoleAction(userId: string, role: UserRole) {
   await requireAdmin();
   await db.update(users).set({ role }).where(eq(users.id, userId));
-  revalidateTag("users");
+  updateTag("users");
   revalidatePath("/app/users");
   return { success: true };
 }
@@ -82,7 +82,7 @@ export async function toggleUserActiveAction(userId: string) {
   });
   if (!user) return { error: "User tidak ditemukan." };
   await db.update(users).set({ isActive: !user.isActive }).where(eq(users.id, userId));
-  revalidateTag("users");
+  updateTag("users");
   revalidatePath("/app/users");
   return { success: true };
 }
@@ -93,8 +93,8 @@ export async function setUserModulesAction(userId: string, moduleIds: string[]) 
   if (moduleIds.length > 0) {
     await db.insert(userModules).values(moduleIds.map((moduleId) => ({ userId, moduleId })));
   }
-  revalidateTag(`user-modules-${userId}`);
-  revalidateTag("modules");
+  updateTag(`user-modules-${userId}`);
+  updateTag("modules");
   revalidatePath("/app/users");
   return { success: true };
 }

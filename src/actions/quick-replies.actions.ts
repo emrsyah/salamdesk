@@ -3,7 +3,7 @@
 import { createQuickReply, updateQuickReply, deleteQuickReply } from "@/services/quick-reply.service";
 import { auth } from "@/lib/auth/auth";
 import { headers } from "next/headers";
-import { revalidatePath, revalidateTag } from "next/cache";
+import { revalidatePath, updateTag } from "next/cache";
 
 export async function createQuickReplyAction(data: {
   label: string;
@@ -23,7 +23,7 @@ export async function createQuickReplyAction(data: {
     createdById: session.user.id,
   });
 
-  revalidateTag("quick-replies");
+  updateTag("quick-replies");
   revalidatePath("/app/quick-replies");
 }
 
@@ -42,7 +42,7 @@ export async function updateQuickReplyAction(id: string, data: {
 
   await updateQuickReply(id, data);
 
-  revalidateTag("quick-replies");
+  updateTag("quick-replies");
   revalidatePath("/app/quick-replies");
 }
 
@@ -57,6 +57,6 @@ export async function deleteQuickReplyAction(id: string) {
 
   await deleteQuickReply(id);
 
-  revalidateTag("quick-replies");
+  updateTag("quick-replies");
   revalidatePath("/app/quick-replies");
 }
