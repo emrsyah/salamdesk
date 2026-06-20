@@ -73,7 +73,7 @@ export default async function LandingPage() {
   if (session?.user) redirect("/app/tickets");
 
   return (
-    <div className="relative isolate min-h-svh overflow-x-clip bg-background text-foreground">
+    <div className="theme-light relative isolate min-h-svh overflow-x-clip bg-background text-foreground">
       {/* scenic background image — spans behind the header and hero */}
       <div
         aria-hidden
