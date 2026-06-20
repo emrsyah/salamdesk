@@ -22,12 +22,23 @@ export default async function TicketsPage({ searchParams }: TicketsPageProps) {
     initialTicket,
   } = await getTicketPageData(user, resolvedSearchParams);
 
-  // Auto-select the first ticket on entry when none is selected yet. If the
-  // list is empty we simply render the inbox with no detail open.
+  // Auto-select the first ticket on entry when none is selected yet — but only
+  // a ticket that belongs to the currently visible tab. Otherwise the inbox tab
+  // (open/in_progress) could open a resolved/closed ticket that isn't even in
+  // the list. Statuses mirror TAB_STATUSES in ticket-list.tsx.
   const hasSelected =
     typeof resolvedSearchParams.selected === "string" &&
     resolvedSearchParams.selected.length > 0;
-  if (!hasSelected && initialTickets.length > 0) {
+  const activeTab =
+    resolvedSearchParams.tab === "done" ? "done" : "inbox";
+  const tabStatuses =
+    activeTab === "done"
+      ? ["resolved", "closed"]
+      : ["open", "in_progress"];
+  const firstVisibleTicket = initialTickets.find((ticket) =>
+    tabStatuses.includes(ticket.status),
+  );
+  if (!hasSelected && firstVisibleTicket) {
     const params = new URLSearchParams();
     for (const [key, value] of Object.entries(resolvedSearchParams)) {
       if (Array.isArray(value)) {
@@ -36,7 +47,7 @@ export default async function TicketsPage({ searchParams }: TicketsPageProps) {
         params.set(key, value);
       }
     }
-    params.set("selected", initialTickets[0].id);
+    params.set("selected", firstVisibleTicket.id);
     redirect(`/app/tickets?${params.toString()}`);
   }
 
