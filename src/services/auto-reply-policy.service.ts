@@ -57,7 +57,10 @@ export function canAutoReply(
     return { allowed: false, blockedReason: `Auto-reply is disabled for ${input.source}.` };
   }
 
-  if (input.priorAutoReplies >= config.maxAutoRepliesPerTicket) {
+  if (
+    config.limitAutoRepliesPerTicket &&
+    input.priorAutoReplies >= config.maxAutoRepliesPerTicket
+  ) {
     return {
       allowed: false,
       blockedReason: `Ticket already reached the auto-reply limit (${config.maxAutoRepliesPerTicket}).`,

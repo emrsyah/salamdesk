@@ -82,7 +82,12 @@ export const aiConfigs = pgTable("ai_configs", {
       "down",
       "error massal",
     ]),
-  // Cap auto-replies per ticket (e.g. 1 = only the first inbound).
+  // When true, enforce maxAutoRepliesPerTicket as a per-ticket cap. When false,
+  // there is no cap — the AI may keep auto-replying as long as the other gates
+  // pass. Default true (preserves the historical "cap at 1" behaviour).
+  limitAutoRepliesPerTicket: boolean("limit_auto_replies_per_ticket").notNull().default(true),
+  // Cap auto-replies per ticket (e.g. 1 = only the first inbound). Only applied
+  // when limitAutoRepliesPerTicket is true.
   maxAutoRepliesPerTicket: integer("max_auto_replies_per_ticket").notNull().default(1),
 
   // ---- Behavior / voice --------------------------------------------------

@@ -22,6 +22,7 @@ export default async function AgentAutomationPage() {
         skipCriticalPriority: config.skipCriticalPriority,
         requireKbGrounding: config.requireKbGrounding,
         blockedKeywords: config.blockedKeywords,
+        limitAutoRepliesPerTicket: config.limitAutoRepliesPerTicket,
         maxAutoRepliesPerTicket: config.maxAutoRepliesPerTicket,
         businessHours: config.businessHours ?? DEFAULT_BUSINESS_HOURS,
         offHoursReplyEnabled: config.offHoursReplyEnabled,

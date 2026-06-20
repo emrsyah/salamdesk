@@ -25,6 +25,7 @@ export type AiConfig = {
   skipCriticalPriority: boolean;
   requireKbGrounding: boolean;
   blockedKeywords: string[];
+  limitAutoRepliesPerTicket: boolean;
   maxAutoRepliesPerTicket: number;
   // Behavior / voice
   agentName: string;
@@ -66,6 +67,7 @@ export const DEFAULT_AI_CONFIG: AiConfig = {
     "down",
     "error massal",
   ],
+  limitAutoRepliesPerTicket: true,
   maxAutoRepliesPerTicket: 1,
   agentName: "Asisten",
   persona: "",
@@ -100,6 +102,7 @@ function rowToConfig(row: AiConfigRow): AiConfig {
     skipCriticalPriority: row.skipCriticalPriority,
     requireKbGrounding: row.requireKbGrounding,
     blockedKeywords: row.blockedKeywords,
+    limitAutoRepliesPerTicket: row.limitAutoRepliesPerTicket,
     maxAutoRepliesPerTicket: row.maxAutoRepliesPerTicket,
     agentName: row.agentName,
     persona: row.persona,
@@ -176,6 +179,8 @@ export async function updateAiConfig(update: AiConfigUpdate): Promise<AiConfig> 
       const trimmed = k.trim();
       return trimmed ? [trimmed] : [];
     });
+  if (update.limitAutoRepliesPerTicket !== undefined)
+    patch.limitAutoRepliesPerTicket = update.limitAutoRepliesPerTicket;
   if (update.maxAutoRepliesPerTicket !== undefined)
     patch.maxAutoRepliesPerTicket = Math.max(1, Math.round(update.maxAutoRepliesPerTicket));
   if (update.agentName !== undefined) patch.agentName = update.agentName.trim();

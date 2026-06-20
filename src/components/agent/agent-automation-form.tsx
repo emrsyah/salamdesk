@@ -35,6 +35,7 @@ type AutomationConfig = {
   skipCriticalPriority: boolean;
   requireKbGrounding: boolean;
   blockedKeywords: string[];
+  limitAutoRepliesPerTicket: boolean;
   maxAutoRepliesPerTicket: number;
   businessHours: BusinessHours;
   offHoursReplyEnabled: boolean;
@@ -220,15 +221,26 @@ export function AgentAutomationForm({ config }: { config: AutomationConfig }) {
             onChange={(e) => set("autoReplyDelayMinutes", Number(e.target.value))}
           />
         </Row>
-        <Row label="Maks balasan per tiket">
-          <Input
-            type="number"
-            min={1}
-            className="w-24"
-            value={form.maxAutoRepliesPerTicket}
-            onChange={(e) => set("maxAutoRepliesPerTicket", Number(e.target.value))}
+        <Row
+          label="Batasi balasan otomatis per tiket"
+          hint="Jika aktif, AI berhenti membalas otomatis setelah mencapai batas dalam satu tiket. Jika mati, AI boleh terus membalas selama gerbang lain lolos (tidak ada batas)."
+        >
+          <Switch
+            checked={form.limitAutoRepliesPerTicket}
+            onCheckedChange={(v) => set("limitAutoRepliesPerTicket", v)}
           />
         </Row>
+        {form.limitAutoRepliesPerTicket && (
+          <Row label="Maks balasan per tiket">
+            <Input
+              type="number"
+              min={1}
+              className="w-24"
+              value={form.maxAutoRepliesPerTicket}
+              onChange={(e) => set("maxAutoRepliesPerTicket", Number(e.target.value))}
+            />
+          </Row>
+        )}
         <Row
           label="Lewati tiket kritis"
           bypassed={form.aiFirstMode}
