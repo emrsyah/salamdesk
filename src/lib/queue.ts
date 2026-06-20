@@ -146,6 +146,9 @@ export type AiAutoReplyJob = {
   // ISO timestamp the reply was drafted/queued — used to detect whether a human
   // replied during the hold window.
   queuedAt: string;
+  // True when this is an AI-first clarifying reply — bypasses the per-ticket cap
+  // at send time, matching the policy applied at queue time.
+  isAiFirstReply?: boolean;
 };
 
 export type TicketLifecycleJob = Record<string, never>;

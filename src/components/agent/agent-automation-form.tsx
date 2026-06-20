@@ -204,7 +204,13 @@ export function AgentAutomationForm({ config }: { config: AutomationConfig }) {
         <Row label="Aktifkan balasan otomatis" hint="Jika mati, AI tetap menyusun draf tapi tidak pernah mengirim sendiri.">
           <Switch checked={form.autoReplyEnabled} onCheckedChange={(v) => set("autoReplyEnabled", v)} />
         </Row>
-        <Row label="Ambang keyakinan balasan" hint="0–1.">
+        <Row
+          label="Ambang keyakinan balasan"
+          hint="0–1."
+          bypassed={form.aiFirstMode}
+          bypassLabel="Dilewati AI-first"
+          bypassHint="Mode AI-first aktif: balasan klarifikasi selalu mendapat keyakinan 0.9 dan melewati ambang ini."
+        >
           <Input
             type="number"
             step="0.05"
@@ -227,6 +233,9 @@ export function AgentAutomationForm({ config }: { config: AutomationConfig }) {
         <Row
           label="Batasi balasan otomatis per tiket"
           hint="Jika aktif, AI berhenti membalas otomatis setelah mencapai batas dalam satu tiket. Jika mati, AI boleh terus membalas selama gerbang lain lolos (tidak ada batas)."
+          bypassed={form.aiFirstMode}
+          bypassLabel="Dilewati AI-first"
+          bypassHint="Mode AI-first aktif: balasan klarifikasi tidak terhitung dalam batas — AI tetap membalas setiap pesan meski batas sudah tercapai."
         >
           <Switch
             checked={form.limitAutoRepliesPerTicket}

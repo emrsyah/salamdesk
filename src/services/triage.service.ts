@@ -500,6 +500,7 @@ export async function triageTicket(
             source: ticket.source,
             jid: ticket.waPhone ?? null,
             queuedAt: new Date().toISOString(),
+            isAiFirstReply: aiFirstReply,
           },
           {
             delay: config.autoReplyDelayMinutes * 60_000,

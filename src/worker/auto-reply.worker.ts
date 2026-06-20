@@ -70,7 +70,11 @@ async function processAutoReply(job: { data: AiAutoReplyJob }) {
         eq(ticketMessages.isInternalNote, false),
       ),
     );
-  if (config.limitAutoRepliesPerTicket && (priorAuto?.value ?? 0) >= config.maxAutoRepliesPerTicket) {
+  if (
+    config.limitAutoRepliesPerTicket &&
+    (priorAuto?.value ?? 0) >= config.maxAutoRepliesPerTicket &&
+    !job.data.isAiFirstReply
+  ) {
     return cancel(ticketId, content, "Auto-reply limit already reached.");
   }
 

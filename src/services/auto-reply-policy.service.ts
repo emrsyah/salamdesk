@@ -59,7 +59,8 @@ export function canAutoReply(
 
   if (
     config.limitAutoRepliesPerTicket &&
-    input.priorAutoReplies >= config.maxAutoRepliesPerTicket
+    input.priorAutoReplies >= config.maxAutoRepliesPerTicket &&
+    !input.aiFirstReply
   ) {
     return {
       allowed: false,
@@ -75,7 +76,9 @@ export function canAutoReply(
     return { allowed: false, blockedReason: "No KB article supports the reply." };
   }
 
-  if (input.replyConfidence < config.replyConfidenceThreshold) {
+  // AI-first clarifying replies carry a fixed 0.9 confidence and are always safe
+  // to send — skip the threshold gate for them.
+  if (input.replyConfidence < config.replyConfidenceThreshold && !input.aiFirstReply) {
     return {
       allowed: false,
       blockedReason: `Reply confidence is below ${config.replyConfidenceThreshold}.`,
