@@ -13,6 +13,10 @@ export type AutoReplyPolicyInput = {
   source: string;
   // How many AI auto-replies this ticket already received.
   priorAutoReplies: number;
+  // True when the reply is an AI-first clarifier (no KB article, intentionally).
+  // Such replies skip the KB-grounding requirement — they exist precisely to ask
+  // the requester for more detail — but still honour every other gate.
+  aiFirstReply?: boolean;
 };
 
 export type AutoReplyPolicyDecision = {
@@ -64,7 +68,7 @@ export function canAutoReply(
     return { allowed: false, blockedReason: "No suggested reply was generated." };
   }
 
-  if (config.requireKbGrounding && !input.kbArticleId) {
+  if (config.requireKbGrounding && !input.kbArticleId && !input.aiFirstReply) {
     return { allowed: false, blockedReason: "No KB article supports the reply." };
   }
 

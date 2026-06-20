@@ -14,8 +14,10 @@ export type AiConfig = {
   moduleConfidenceThreshold: number;
   autoSetPriority: boolean;
   kbCrossModuleSearch: boolean;
+  proceduresEnabled: boolean;
   procedureConfidenceThreshold: number;
   offTopicGuardEnabled: boolean;
+  aiFirstMode: boolean;
   autoReplyEnabled: boolean;
   replyConfidenceThreshold: number;
   autoReplyDelayMinutes: number;
@@ -45,8 +47,10 @@ export const DEFAULT_AI_CONFIG: AiConfig = {
   moduleConfidenceThreshold: 0,
   autoSetPriority: true,
   kbCrossModuleSearch: true,
+  proceduresEnabled: true,
   procedureConfidenceThreshold: 0.6,
   offTopicGuardEnabled: true,
+  aiFirstMode: true,
   autoReplyEnabled: true,
   replyConfidenceThreshold: 0.5,
   autoReplyDelayMinutes: 0,
@@ -85,8 +89,10 @@ function rowToConfig(row: AiConfigRow): AiConfig {
     moduleConfidenceThreshold: Number(row.moduleConfidenceThreshold),
     autoSetPriority: row.autoSetPriority,
     kbCrossModuleSearch: row.kbCrossModuleSearch,
+    proceduresEnabled: row.proceduresEnabled,
     procedureConfidenceThreshold: Number(row.procedureConfidenceThreshold),
     offTopicGuardEnabled: row.offTopicGuardEnabled,
+    aiFirstMode: row.aiFirstMode,
     autoReplyEnabled: row.autoReplyEnabled,
     replyConfidenceThreshold: Number(row.replyConfidenceThreshold),
     autoReplyDelayMinutes: row.autoReplyDelayMinutes,
@@ -150,10 +156,12 @@ export async function updateAiConfig(update: AiConfigUpdate): Promise<AiConfig> 
   if (update.autoSetPriority !== undefined) patch.autoSetPriority = update.autoSetPriority;
   if (update.kbCrossModuleSearch !== undefined)
     patch.kbCrossModuleSearch = update.kbCrossModuleSearch;
+  if (update.proceduresEnabled !== undefined) patch.proceduresEnabled = update.proceduresEnabled;
   if (update.procedureConfidenceThreshold !== undefined)
     patch.procedureConfidenceThreshold = clamp01(update.procedureConfidenceThreshold).toFixed(2);
   if (update.offTopicGuardEnabled !== undefined)
     patch.offTopicGuardEnabled = update.offTopicGuardEnabled;
+  if (update.aiFirstMode !== undefined) patch.aiFirstMode = update.aiFirstMode;
   if (update.autoReplyEnabled !== undefined) patch.autoReplyEnabled = update.autoReplyEnabled;
   if (update.replyConfidenceThreshold !== undefined)
     patch.replyConfidenceThreshold = clamp01(update.replyConfidenceThreshold).toFixed(2);

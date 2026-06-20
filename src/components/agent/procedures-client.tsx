@@ -40,10 +40,36 @@ function toDraft(p: Procedure | null): Draft {
     : { id: null, title: "", whenToUse: "", content: emptyProcedureContent(), enabled: true, order: 0 };
 }
 
-export function ProceduresClient({ procedures, sources }: { procedures: Procedure[]; sources: MentionSource[] }) {
+export function ProceduresClient({
+  procedures,
+  sources,
+  proceduresEnabled,
+}: {
+  procedures: Procedure[];
+  sources: MentionSource[];
+  proceduresEnabled: boolean;
+}) {
   const router = useRouter();
   const [draft, setDraft] = useState<Draft | null>(null);
   const [saving, setSaving] = useState(false);
+  const [enabled, setEnabled] = useState(proceduresEnabled);
+  const [togglingRuntime, setTogglingRuntime] = useState(false);
+
+  async function toggleRuntime(next: boolean) {
+    setEnabled(next); // optimistic
+    setTogglingRuntime(true);
+    try {
+      const { updateAgentAutomationAction } = await import("@/actions/agent.actions");
+      await updateAgentAutomationAction({ proceduresEnabled: next });
+      toast.success(next ? "Prosedur diaktifkan" : "Prosedur dinonaktifkan");
+      router.refresh();
+    } catch (e) {
+      setEnabled(!next); // revert
+      toast.error(e instanceof Error ? e.message : "Gagal memperbarui");
+    } finally {
+      setTogglingRuntime(false);
+    }
+  }
 
   async function toggleEnabled(p: Procedure, enabled: boolean) {
     try {
@@ -165,8 +191,25 @@ export function ProceduresClient({ procedures, sources }: { procedures: Procedur
         title="Prosedur"
         description="Playbook langkah-demi-langkah yang diikuti agen ketika tiket cocok dengan deskripsi “kapan dipakai”. Prosedur dapat memanggil Tools dan merujuk artikel KB; balasannya tetap memakai persona dari tab Perilaku."
       >
+        <StatusPill on={enabled} label={enabled ? "Runtime aktif" : "Runtime mati"} />
         <StatusPill on={enabledCount > 0} label={`${enabledCount}/${procedures.length} aktif`} />
       </AgentTabIntro>
+
+      <div className="flex items-start justify-between gap-3 rounded-lg border p-4">
+        <div className="min-w-0">
+          <p className="text-sm font-medium">Jalankan prosedur saat triage</p>
+          <p className="mt-0.5 text-sm text-muted-foreground">
+            Saklar utama runtime prosedur. Jika mati, AI melewati pencocokan & eksekusi prosedur
+            sepenuhnya (dan menghemat panggilan AI tambahan), lalu memakai balasan KB biasa.
+          </p>
+        </div>
+        <Switch
+          checked={enabled}
+          disabled={togglingRuntime}
+          onCheckedChange={toggleRuntime}
+          aria-label="Jalankan prosedur saat triage"
+        />
+      </div>
 
       <div className="flex items-center justify-between gap-3">
         <p className="text-sm font-medium">Daftar prosedur</p>

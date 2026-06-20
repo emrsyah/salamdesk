@@ -27,6 +27,10 @@ export const aiConfigs = pgTable("ai_configs", {
   // restricting to the classified module. Prevents a misclassified module from
   // hiding the genuinely-relevant article. Default true (relevance wins).
   kbCrossModuleSearch: boolean("kb_cross_module_search").notNull().default(true),
+  // Master switch for the procedure runtime. When false, triage skips the
+  // procedure router + execution entirely (and saves those LLM round-trips),
+  // falling back to the plain KB reply. Managed from the Procedures page.
+  proceduresEnabled: boolean("procedures_enabled").notNull().default(true),
   // Minimum confidence (0–1) the procedure router must have to apply a procedure.
   // Below this, triage falls back to the plain KB reply.
   procedureConfidenceThreshold: numeric("procedure_confidence_threshold", { precision: 3, scale: 2 })
@@ -35,6 +39,15 @@ export const aiConfigs = pgTable("ai_configs", {
   // When true, off-topic tickets (outside the SIMRS/helpdesk scope) are never
   // auto-replied to — drafted for staff instead.
   offTopicGuardEnabled: boolean("off_topic_guard_enabled").notNull().default(true),
+
+  // When true, the agent always tries to answer: if no KB article or procedure
+  // matched (e.g. a bare "Halo" or a vague message), it generates a short
+  // clarifying / follow-up reply instead of staying silent. The clarifier is
+  // intentionally NOT KB-grounded, so it bypasses requireKbGrounding — but every
+  // other auto-reply gate (autoReplyEnabled, blocked keywords, skip-critical,
+  // business hours, max-replies) still applies, so send-vs-draft is controlled
+  // by the existing automation settings.
+  aiFirstMode: boolean("ai_first_mode").notNull().default(true),
 
   // ---- Auto-reply --------------------------------------------------------
   autoReplyEnabled: boolean("auto_reply_enabled").notNull().default(true),

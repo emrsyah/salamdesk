@@ -7,7 +7,13 @@ import { AI_MODEL } from "@/lib/ai";
 import { aiAutoReplyQueue } from "@/lib/queue";
 import { canAutoReply, OFF_HOURS_BLOCKED_REASON } from "@/services/auto-reply-policy.service";
 import { getAiConfig } from "@/services/ai-config.service";
-import { evaluateKbMatch, classifyModule, classifyPriority, classifyOnTopic } from "@/services/triage-ai.service";
+import {
+  evaluateKbMatch,
+  classifyModule,
+  classifyPriority,
+  classifyOnTopic,
+  generateClarifyingReply,
+} from "@/services/triage-ai.service";
 import { searchKnowledgeBase } from "@/services/knowledge.service";
 import { getAllModules } from "@/services/module.service";
 import { tryProcedure } from "@/services/procedure-runtime.service";
@@ -352,8 +358,10 @@ export async function triageTicket(
     }
 
     // --- Procedure attempt (additive; falls back to the KB suggestion on no match) ---
+    // Skipped entirely when procedures are turned off, which also removes the
+    // router + execution LLM round-trips from the triage critical path.
     let procedureForceDraft = false;
-    try {
+    if (config.proceduresEnabled) try {
       const proc = await tryProcedure({
         ticketText: searchQuery,
         moduleName: classifiedModuleName,
@@ -378,6 +386,34 @@ export async function triageTicket(
     } catch (procErr) {
       // Never let a procedure failure break triage — fall back to the KB suggestion.
       console.error(`[AI] Procedure attempt failed for ticket ${ticketId}:`, procErr);
+    }
+
+    // --- AI-first fallback ---------------------------------------------------
+    // Nothing matched (no relevant KB article, no procedure) but AI-first mode is
+    // on and the message is on-topic: generate a friendly clarifying/follow-up
+    // reply so the agent always responds (e.g. to a bare "Halo"). The clarifier
+    // is not KB-grounded, so it carries the aiFirstReply flag to skip only that
+    // gate; all other auto-reply gates still apply.
+    let aiFirstReply = false;
+    if (config.aiFirstMode && !result.suggestedReply && !offTopic) {
+      try {
+        const clarifier = await generateClarifyingReply(ticket.title, conversationText, {
+          agentName: config.agentName,
+          persona: config.persona,
+          tone: config.tone,
+          language: config.language,
+          replySignature: config.replySignature,
+          guardrails: config.guardrails,
+        });
+        if (clarifier) {
+          result.suggestedReply = clarifier;
+          // High confidence: asking for clarification is always a safe action.
+          result.replyConfidence = 0.9;
+          aiFirstReply = true;
+        }
+      } catch (clarErr) {
+        console.error(`[AI] Clarifying reply failed for ticket ${ticketId}:`, clarErr);
+      }
     }
 
     // These two writes and the prior-reply count are independent of each other.
@@ -415,6 +451,7 @@ export async function triageTicket(
       ticketText: searchQuery,
       source: ticket.source,
       priorAutoReplies,
+      aiFirstReply,
     };
     const policy = canAutoReply(policyInput, config, now);
 

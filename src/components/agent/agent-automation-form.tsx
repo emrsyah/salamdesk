@@ -27,6 +27,7 @@ type AutomationConfig = {
   kbCrossModuleSearch: boolean;
   procedureConfidenceThreshold: number;
   offTopicGuardEnabled: boolean;
+  aiFirstMode: boolean;
   autoReplyEnabled: boolean;
   replyConfidenceThreshold: number;
   autoReplyDelayMinutes: number;
@@ -189,6 +190,12 @@ export function AgentAutomationForm({ config }: { config: AutomationConfig }) {
         title="Balasan Otomatis"
         description="Syarat agar draf balasan AI benar-benar dikirim ke pelapor tanpa staf."
       >
+        <Row
+          label="Mode AI-first (selalu menjawab)"
+          hint="Jika tidak ada artikel KB atau prosedur yang cocok (mis. pelapor hanya menyapa “Halo” atau pesannya kurang jelas), AI tetap membalas dengan pertanyaan klarifikasi singkat alih-alih diam. Balasan klarifikasi ini melewati syarat “wajib didasari KB”, tapi tetap tunduk pada gerbang lain di bawah (kanal, kata kunci, kritis, jadwal, batas balasan)."
+        >
+          <Switch checked={form.aiFirstMode} onCheckedChange={(v) => set("aiFirstMode", v)} />
+        </Row>
         <Row label="Aktifkan balasan otomatis" hint="Jika mati, AI tetap menyusun draf tapi tidak pernah mengirim sendiri.">
           <Switch checked={form.autoReplyEnabled} onCheckedChange={(v) => set("autoReplyEnabled", v)} />
         </Row>

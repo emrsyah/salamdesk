@@ -14,6 +14,7 @@ export default async function AgentAutomationPage() {
         kbCrossModuleSearch: config.kbCrossModuleSearch,
         procedureConfidenceThreshold: config.procedureConfidenceThreshold,
         offTopicGuardEnabled: config.offTopicGuardEnabled,
+        aiFirstMode: config.aiFirstMode,
         autoReplyEnabled: config.autoReplyEnabled,
         replyConfidenceThreshold: config.replyConfidenceThreshold,
         autoReplyDelayMinutes: config.autoReplyDelayMinutes,

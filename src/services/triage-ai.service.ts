@@ -90,6 +90,49 @@ Tentukan apakah tiket ini MASIH dalam lingkup layanan di atas.
   return object;
 }
 
+const ClarifyingReplySchema = z.object({
+  reply: z.string().describe("Balasan singkat & ramah dalam Bahasa Indonesia yang menanyakan detail lebih lanjut."),
+});
+export type ClarifyingReply = z.infer<typeof ClarifyingReplySchema>;
+
+/**
+ * AI-first fallback: when no KB article or procedure matched (e.g. the requester
+ * just said "Halo" or sent a vague message), generate a short, friendly reply
+ * that greets them and asks a clarifying follow-up question, so the agent always
+ * responds instead of going silent. Honours the configured persona/voice.
+ */
+export async function generateClarifyingReply(
+  title: string,
+  conversationText: string | null,
+  behavior?: ProcedureBehavior,
+): Promise<string> {
+  const preamble = behaviorPreamble(behavior);
+  const signatureRule = behavior?.replySignature
+    ? `\n- Akhiri balasan dengan tanda tangan: ${behavior.replySignature}.`
+    : "";
+
+  const { object } = await generateObject({
+    model: getAiModel(),
+    schema: ClarifyingReplySchema,
+    temperature: 0.3,
+    prompt: `${preamble || "Kamu adalah asisten helpdesk SIMRS di RSUD Karawang."}
+
+Pesan dari requester:
+Judul: ${title}
+Isi: ${conversationText ?? "(kosong)"}
+
+Pesan ini belum cukup jelas atau hanya berupa sapaan, sehingga belum ada artikel/prosedur yang cocok.
+Tugasmu: balas dengan HANGAT dan RINGKAS (1–3 kalimat) lalu ajukan SATU pertanyaan klarifikasi agar kamu bisa membantu.
+Aturan:
+- Balas dalam Bahasa Indonesia.
+- Jangan mengarang solusi atau fakta — kamu hanya menggali kebutuhan requester.
+- Jika hanya sapaan, sapa balik dan tanyakan ada kendala SIMRS apa yang bisa dibantu.
+- Jangan minta data sensitif (mis. password).${signatureRule}`,
+  });
+
+  return object.reply.trim();
+}
+
 export async function classifyModule(
   title: string,
   description: string | null,
