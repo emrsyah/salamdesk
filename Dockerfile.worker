@@ -21,6 +21,13 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci
 
+# The lockfile is generated on Windows during dev, so it carries a real entry
+# only for sharp's win32 binary — the linux-x64 package is referenced but not
+# resolved, and `npm ci` silently skips it. The worker then crashes at runtime
+# ("Could not load the sharp module using the linux-x64 runtime"). Pull the
+# matching linux-x64 binary explicitly (it brings its libvips dep with it).
+RUN npm install --no-save "@img/sharp-linux-x64@$(node -p "require('sharp/package.json').version")"
+
 # ---------------------------------------------------------------------------
 FROM node:22-slim AS runtime
 
