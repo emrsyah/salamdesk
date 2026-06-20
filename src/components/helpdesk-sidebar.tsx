@@ -62,7 +62,6 @@ const ANTRIAN_ITEMS: NavItem[] = [
   { title: "Saya", url: "/app/tickets?assignee=me", icon: <RiUserLine /> },
   { title: "Kritis", url: "/app/tickets?priority=critical", icon: <RiErrorWarningLine /> },
   { title: "SLA Terlewat", url: "/app/tickets?sla=breached", icon: <RiTimerLine /> },
-  { title: "Diselesaikan AI", url: "/app/tickets?tab=done&resolvedBy=ai", icon: <RiSparklingLine /> },
 ];
 
 const LAINNYA_ITEMS: NavItem[] = [
