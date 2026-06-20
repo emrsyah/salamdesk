@@ -217,8 +217,26 @@ export async function triageTicket(
       !moduleLockedByUser &&
       (!ticket.moduleId || isFollowUp);
 
-    if (shouldClassifyModule) {
-      const moduleResult = await classifyModule(ticket.title, conversationText, activeModules);
+    // Fire the three independent LLM classifiers concurrently. Each depends only
+    // on the ticket text, not on one another, so running them in parallel cuts
+    // two round-trips of wall-clock latency off the pipeline. KB retrieval below
+    // depends on the module result, so it stays sequential after this barrier.
+    const [moduleResult, priorityResult, topic] = await Promise.all([
+      shouldClassifyModule
+        ? classifyModule(ticket.title, conversationText, activeModules)
+        : Promise.resolve(null),
+      config.autoSetPriority
+        ? classifyPriority(ticket.title, conversationText, ticket.priority)
+        : Promise.resolve(null),
+      config.offTopicGuardEnabled
+        ? classifyOnTopic(ticket.title, conversationText, {
+            persona: config.persona,
+            guardrails: config.guardrails,
+          })
+        : Promise.resolve(null),
+    ]);
+
+    if (shouldClassifyModule && moduleResult) {
       if (moduleResult.moduleId && moduleResult.confidence >= config.moduleConfidenceThreshold) {
         classifiedModuleId = moduleResult.moduleId;
         classifiedModuleName = moduleResult.moduleName;
@@ -248,8 +266,7 @@ export async function triageTicket(
     result.moduleName = classifiedModuleName;
     result.moduleConfidence = moduleConfidence;
 
-    if (config.autoSetPriority) {
-      const priorityResult = await classifyPriority(ticket.title, conversationText, ticket.priority);
+    if (config.autoSetPriority && priorityResult) {
       result.priority = priorityResult.priority;
       priorityReason = priorityResult.reasoning;
     } else {
@@ -259,11 +276,7 @@ export async function triageTicket(
 
     // Scope guard: clearly off-topic tickets must never be auto-answered.
     let offTopic = false;
-    if (config.offTopicGuardEnabled) {
-      const topic = await classifyOnTopic(ticket.title, conversationText, {
-        persona: config.persona,
-        guardrails: config.guardrails,
-      });
+    if (config.offTopicGuardEnabled && topic) {
       offTopic = !topic.onTopic;
       if (offTopic) moduleReason = moduleReason ?? topic.reasoning;
     }
