@@ -1,5 +1,5 @@
 import type { ModelMessage } from "ai";
-import { and, asc, eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { ticketMessages } from "@/db/schema/tickets";
 
@@ -16,25 +16,44 @@ const CLASSIFIER_MESSAGE_CAP = 5;
 export type TicketConversation = {
   /**
    * Interleaved history as model messages (oldest → newest), with the agent's
-   * own prior replies included as `assistant` turns. This is what gives the AI
-   * memory — so it stops re-asking the same question or repeating answers.
+   * own prior replies included as `assistant` turns and inbound images as image
+   * file-parts on `user` turns. This is what gives the AI memory + vision.
    */
   messages: ModelMessage[];
-  /** Most recent requester message — the current need, used for KB retrieval. */
+  /** Most recent requester message text — the current need, used for retrieval. */
   latestUserText: string;
+  /** Images on the most recent requester message (for the vision pre-pass). */
+  latestImages: Img[];
   /** Recent requester-only text (last few), used by the lightweight classifiers. */
   requesterText: string;
 };
 
-type Turn = { role: "user" | "assistant"; text: string };
+export type Img = { url: string; mediaType: string; data?: Uint8Array };
+type Turn = { role: "user" | "assistant"; text: string; images: Img[] };
+
+/**
+ * Fetch image bytes so we can send them INLINE to the LLM rather than as a URL.
+ * Passing a URL makes the model provider fetch it server-side, which fails for
+ * any host with hotlink protection — sending bytes is provider/host-agnostic.
+ * Best-effort: returns null on failure (caller falls back to the URL).
+ */
+async function fetchImageBytes(url: string): Promise<Uint8Array | null> {
+  try {
+    const res = await fetch(url);
+    if (!res.ok) return null;
+    return new Uint8Array(await res.arrayBuffer());
+  } catch {
+    return null;
+  }
+}
 
 /**
  * Build the conversation context for a ticket from its non-internal messages.
  *
- * Requester messages map to `user`; AI/staff replies map to `assistant`. A
- * brand-new ticket may have no message rows yet (intake stores the first
- * message only on `tickets.description`), so `fallbackText` seeds a single user
- * turn in that case — callers should pass the ticket description/title.
+ * Requester messages map to `user`; AI/staff replies map to `assistant`. Inbound
+ * image attachments become image file-parts on their user turn so a vision model
+ * can see them. A brand-new ticket may have no message rows yet, so
+ * `fallbackText` seeds a single user turn — callers should pass the ticket body.
  */
 export async function buildTicketConversation(
   ticketId: string,
@@ -42,30 +61,36 @@ export async function buildTicketConversation(
 ): Promise<TicketConversation> {
   const maxChars = opts?.maxChars ?? DEFAULT_MAX_CHARS;
 
-  const rows = await db
-    .select({
-      content: ticketMessages.content,
-      senderType: ticketMessages.senderType,
-    })
-    .from(ticketMessages)
-    .where(
-      and(eq(ticketMessages.ticketId, ticketId), eq(ticketMessages.isInternalNote, false)),
-    )
-    .orderBy(asc(ticketMessages.createdAt));
+  const rows = await db.query.ticketMessages.findMany({
+    where: and(
+      eq(ticketMessages.ticketId, ticketId),
+      eq(ticketMessages.isInternalNote, false),
+    ),
+    orderBy: (fields, { asc }) => [asc(fields.createdAt)],
+    columns: { content: true, senderType: true },
+    with: { attachments: { columns: { fileUrl: true, mimeType: true } } },
+  });
 
   const turns: Turn[] = rows
-    .map((r) => ({
-      role: r.senderType === "requester" ? ("user" as const) : ("assistant" as const),
-      text: (r.content ?? "").trim(),
-    }))
-    .filter((t) => t.text.length > 0);
+    .map((r) => {
+      const role: Turn["role"] = r.senderType === "requester" ? "user" : "assistant";
+      const images: Img[] = (r.attachments ?? [])
+        .filter((a) => a.mimeType?.startsWith("image/"))
+        .map((a) => ({ url: a.fileUrl, mediaType: a.mimeType }));
+      let text = (r.content ?? "").trim();
+      // Drop the "[Gambar]" placeholder when the real image is attached — the
+      // image part already conveys it.
+      if (images.length > 0 && text === "[Gambar]") text = "";
+      return { role, text, images };
+    })
+    .filter((t) => t.text.length > 0 || t.images.length > 0);
 
   // Seed from the ticket body when there are no message rows yet (fresh intake).
   if (turns.length === 0 && opts?.fallbackText?.trim()) {
-    turns.push({ role: "user", text: opts.fallbackText.trim() });
+    turns.push({ role: "user", text: opts.fallbackText.trim(), images: [] });
   }
 
-  // Keep the most recent turns within the character budget.
+  // Keep the most recent turns within the character budget (images count as 0).
   const budgeted: Turn[] = [];
   let total = 0;
   for (let i = turns.length - 1; i >= 0; i--) {
@@ -74,31 +99,63 @@ export async function buildTicketConversation(
     if (total >= maxChars) break;
   }
 
-  // Merge consecutive same-role turns into one message so the history strictly
-  // alternates roles — some providers reject two `user` (or two `assistant`)
-  // messages in a row.
-  const messages: ModelMessage[] = [];
+  // Merge consecutive same-role turns so the history strictly alternates roles —
+  // some providers reject two `user` (or two `assistant`) messages in a row.
+  const merged: Turn[] = [];
   for (const turn of budgeted) {
-    const last = messages[messages.length - 1];
-    if (last && last.role === turn.role && typeof last.content === "string") {
-      last.content = `${last.content}\n${turn.text}`;
+    const last = merged[merged.length - 1];
+    if (last && last.role === turn.role) {
+      last.text = last.text ? `${last.text}\n${turn.text}`.trim() : turn.text;
+      last.images.push(...turn.images);
     } else {
-      messages.push({ role: turn.role, content: turn.text });
+      merged.push({ role: turn.role, text: turn.text, images: [...turn.images] });
     }
   }
 
-  const latestUserText =
-    [...turns].reverse().find((t) => t.role === "user")?.text ?? opts?.fallbackText?.trim() ?? "";
+  // Fetch bytes for every in-budget image once, in parallel, and attach them to
+  // the shared Img objects (so latestImages/describeImages reuse them — no
+  // re-fetch across the 3+ LLM calls a triage makes).
+  const imagesInBudget = merged.flatMap((t) => (t.role === "user" ? t.images : []));
+  await Promise.all(
+    [...new Set(imagesInBudget.map((i) => i.url))].map(async (url) => {
+      const bytes = await fetchImageBytes(url);
+      if (bytes) for (const img of imagesInBudget) if (img.url === url) img.data = bytes;
+    }),
+  );
+
+  const messages: ModelMessage[] = merged.map((turn) => {
+    // Images ride on user turns only — assistant image parts are unusual and
+    // unnecessary (the agent's own sent images don't need re-describing).
+    if (turn.role === "user" && turn.images.length > 0) {
+      return {
+        role: "user",
+        content: [
+          ...(turn.text ? [{ type: "text" as const, text: turn.text }] : []),
+          ...turn.images.map((img) => ({
+            type: "file" as const,
+            mediaType: img.mediaType,
+            data: img.data ?? new URL(img.url),
+          })),
+        ],
+      };
+    }
+    return { role: turn.role, content: turn.text || "[Gambar]" };
+  });
+
+  const lastUserTurn = [...turns].reverse().find((t) => t.role === "user");
+  const latestUserText = lastUserTurn?.text ?? opts?.fallbackText?.trim() ?? "";
+  const latestImages = lastUserTurn?.images ?? [];
 
   const requesterText =
     turns
       .filter((t) => t.role === "user")
       .slice(-CLASSIFIER_MESSAGE_CAP)
       .map((t) => t.text)
+      .filter(Boolean)
       .join("\n")
       .trim() || (opts?.fallbackText?.trim() ?? "");
 
-  return { messages, latestUserText, requesterText };
+  return { messages, latestUserText, latestImages, requesterText };
 }
 
 /**
@@ -113,13 +170,22 @@ export function withTrailingUser(
 ): ModelMessage[] {
   const messages = conversation.slice();
   const last = messages[messages.length - 1];
-  if (last && last.role === "user" && typeof last.content === "string") {
-    messages[messages.length - 1] = {
-      role: "user",
-      content: `${last.content}\n\n${dynamicBlock}`,
-    };
-  } else {
-    messages.push({ role: "user", content: dynamicBlock });
+  if (last && last.role === "user") {
+    if (typeof last.content === "string") {
+      messages[messages.length - 1] = {
+        role: "user",
+        content: `${last.content}\n\n${dynamicBlock}`,
+      };
+      return messages;
+    }
+    if (Array.isArray(last.content)) {
+      messages[messages.length - 1] = {
+        role: "user",
+        content: [...last.content, { type: "text", text: dynamicBlock }],
+      };
+      return messages;
+    }
   }
+  messages.push({ role: "user", content: dynamicBlock });
   return messages;
 }

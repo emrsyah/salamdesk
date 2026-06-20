@@ -877,8 +877,13 @@ export async function addRequesterMessageWithLifecycle(input: {
   requesterId?: string | null;
   content: string;
   source?: "web" | "whatsapp" | "email" | "manual" | "api";
+  attachments?: MessageAttachmentInput[];
 }) {
   const now = new Date();
+  const attachments = input.attachments ?? [];
+  // An image-only message has no text — store a placeholder so the NOT NULL
+  // content column is satisfied and the thread renders something.
+  const messageContent = input.content.trim() || (attachments.length ? "[Gambar]" : input.content);
   const result = await db.transaction(async (tx) => {
     const ticket = await tx.query.tickets.findFirst({
       where: eq(tickets.id, input.ticketId),
@@ -896,11 +901,24 @@ export async function addRequesterMessageWithLifecycle(input: {
         requesterId: input.requesterId ?? ticket.requesterId,
         senderId: null,
         senderType: "requester",
-        content: input.content,
+        content: messageContent,
         isInternalNote: false,
         source: input.source ?? "api",
       })
       .returning();
+
+    if (attachments.length > 0) {
+      await tx.insert(ticketMessageAttachments).values(
+        attachments.map((attachment) => ({
+          messageId: message.id,
+          fileName: attachment.fileName,
+          fileUrl: attachment.fileUrl,
+          storageKey: attachment.storageKey,
+          mimeType: attachment.mimeType,
+          fileSize: attachment.fileSize ?? null,
+        })),
+      );
+    }
 
     // A customer message always bumps lastInboundAt — this is what floats the
     // ticket to the top of the inbox and marks it unread for staff.
@@ -947,7 +965,7 @@ export async function addRequesterMessageWithLifecycle(input: {
     moduleId: result.moduleId,
     assigneeId: result.assigneeId,
     requesterName: result.requesterName,
-    preview: input.content.slice(0, 120),
+    preview: messageContent.slice(0, 120),
   });
 
   return result.message;

@@ -1,8 +1,46 @@
-import { generateObject, type ModelMessage } from "ai";
+import { generateObject, generateText, type ModelMessage } from "ai";
 import { z } from "zod";
 import { getAiModel, aiTelemetry } from "@/lib/ai";
-import { withTrailingUser } from "@/services/conversation-context.service";
+import { withTrailingUser, type Img } from "@/services/conversation-context.service";
 import type { ProcedureBehavior } from "@/services/procedure-execution.service";
+
+/**
+ * Vision pre-pass: turn one or more inbound images into a short factual
+ * Indonesian description. Used to give the text-only KB retrieval and
+ * classifiers something to work with when a requester sends a screenshot with
+ * little or no caption. The reply generators see the image directly (via the
+ * conversation messages), so this is only for the text-keyed steps.
+ */
+export async function describeImages(images: Img[], contextText?: string): Promise<string> {
+  if (images.length === 0) return "";
+
+  const { text } = await generateText({
+    model: getAiModel(),
+    experimental_telemetry: aiTelemetry("describe-image", { count: images.length }),
+    messages: [
+      {
+        role: "user",
+        content: [
+          {
+            type: "text",
+            text: `Pengguna mengirim gambar ke helpdesk SIMRS RSUD Karawang${
+              contextText ? ` dengan keterangan: "${contextText}"` : ""
+            }. Deskripsikan isi gambar secara RINGKAS dan FAKTUAL dalam Bahasa Indonesia (1–2 kalimat), fokus pada hal yang relevan untuk dukungan teknis: pesan error, nama menu/modul, angka, atau kondisi layar. Jangan menebak hal yang tidak terlihat.`,
+          },
+          ...images.map((img) => ({
+            type: "file" as const,
+            mediaType: img.mediaType,
+            // Prefer inline bytes (fetched by buildTicketConversation); fall back
+            // to the URL only if the fetch failed.
+            data: img.data ?? new URL(img.url),
+          })),
+        ],
+      },
+    ],
+  });
+
+  return text.trim();
+}
 
 /**
  * Build the voice/behaviour preamble shared with the procedure runtime, so KB

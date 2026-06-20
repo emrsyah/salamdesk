@@ -1,8 +1,11 @@
 import makeWASocket, {
   DisconnectReason,
+  downloadMediaMessage,
   fetchLatestBaileysVersion,
+  getContentType,
   makeCacheableSignalKeyStore,
   useMultiFileAuthState,
+  type WAMessage,
   type WASocket,
 } from "@whiskeysockets/baileys";
 import { Boom } from "@hapi/boom";
@@ -10,7 +13,8 @@ import { rm, readdir, mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import pino from "pino";
 import qrcode from "qrcode-terminal";
-import { waInboundQueue, type WaInboundJob } from "./queue";
+import { UTApi } from "uploadthing/server";
+import { waInboundQueue, type WaInboundAttachment, type WaInboundJob } from "./queue";
 import { normalisePhone } from "@/services/whatsapp.service";
 import { redisConnection } from "./redis";
 
@@ -42,6 +46,58 @@ async function clearAuthState(): Promise<void> {
 }
 
 const logger = pino({ level: "silent" });
+
+// Server-side UploadThing client for re-hosting inbound WhatsApp media so it has
+// a stable public URL (for the ticket thread UI and for vision LLM calls).
+const utapi = new UTApi({ token: process.env.UPLOADTHING_TOKEN });
+
+/**
+ * Download an inbound image from WhatsApp and re-host it on UploadThing,
+ * returning an attachment record ready to persist. Best-effort: returns null on
+ * any failure so a media hiccup never blocks ticket creation.
+ */
+async function downloadAndStoreWaMedia(
+  msg: WAMessage,
+  messageId: string,
+): Promise<WaInboundAttachment | null> {
+  try {
+    const buffer = (await downloadMediaMessage(
+      msg,
+      "buffer",
+      {},
+      { logger, reuploadRequest: sock!.updateMediaMessage },
+    )) as Buffer;
+
+    const mimeType = msg.message?.imageMessage?.mimetype ?? "image/jpeg";
+    const rawExt = mimeType.split("/")[1]?.split(";")[0] || "jpg";
+    const ext = rawExt === "jpeg" ? "jpg" : rawExt;
+    const fileName = `wa-${messageId}.${ext}`;
+
+    // Slice out a plain ArrayBuffer backing (a Node Buffer's ArrayBufferLike
+    // isn't a valid BlobPart under strict lib types).
+    const bytes = buffer.buffer.slice(
+      buffer.byteOffset,
+      buffer.byteOffset + buffer.byteLength,
+    ) as ArrayBuffer;
+    const file = new File([bytes], fileName, { type: mimeType });
+    const res = await utapi.uploadFiles(file);
+    if (res.error || !res.data) {
+      console.error(`[WA] Media upload failed for ${messageId}:`, res.error);
+      return null;
+    }
+
+    return {
+      fileName,
+      fileUrl: res.data.ufsUrl,
+      storageKey: res.data.key,
+      mimeType,
+      fileSize: res.data.size ?? buffer.length,
+    };
+  } catch (err) {
+    console.error(`[WA] Failed to download/store media for ${messageId}:`, err);
+    return null;
+  }
+}
 
 let sock: WASocket | null = null;
 let isConnecting = false;
@@ -320,13 +376,26 @@ export async function connectToWhatsApp(): Promise<void> {
         // "@g.us") are noisy and not meant to become tickets.
         if (jid.endsWith("@g.us")) continue;
 
-        // Extract plain text (supports text messages; media comes later in Phase 5+)
+        // Plain text, or an image caption. Only images are "understood" for now;
+        // other media (video/audio/document) is still skipped.
+        const messageType = getContentType(msg.message ?? undefined);
+        const isImage = messageType === "imageMessage";
         const text =
           msg.message?.conversation ||
           msg.message?.extendedTextMessage?.text ||
+          msg.message?.imageMessage?.caption ||
           "";
 
-        if (!text.trim()) continue; // Ignore media-only messages for now
+        if (!text.trim() && !isImage) continue; // nothing usable yet
+
+        const messageId = msg.key.id ?? "";
+
+        // Re-host the image so it has a stable URL for the thread + vision calls.
+        let attachments: WaInboundAttachment[] | undefined;
+        if (isImage) {
+          const stored = await downloadAndStoreWaMedia(msg, messageId);
+          if (stored) attachments = [stored];
+        }
 
         // Since Baileys v7 / WhatsApp's LID system, 1:1 chats often arrive as
         // "<id>@lid" instead of "<phone>@s.whatsapp.net". We reply to the full
@@ -334,9 +403,8 @@ export async function connectToWhatsApp(): Promise<void> {
         // for the requester profile (LID→PN is not always available).
         const phone = await resolvePhone(jid);
         const pushName = msg.pushName ?? null;
-        const messageId = msg.key.id ?? "";
 
-        const job: WaInboundJob = { jid, phone, text, pushName, messageId };
+        const job: WaInboundJob = { jid, phone, text, pushName, messageId, attachments };
 
         jobs.push({
           name: "inbound",

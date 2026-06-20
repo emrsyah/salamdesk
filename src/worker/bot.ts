@@ -28,7 +28,7 @@ export async function processInboundWaMessage(job: WaInboundJob): Promise<{
   action: "created" | "appended" | "reopened" | "linked_created";
   ticketId: string;
 }> {
-  const { jid, phone, text, pushName, messageId } = job;
+  const { jid, phone, text, pushName, messageId, attachments } = job;
 
   // Acknowledge instantly so the chat feels live: blue ticks + "typing…" the
   // moment the message lands, well before triage finishes composing a reply.
@@ -53,6 +53,7 @@ export async function processInboundWaMessage(job: WaInboundJob): Promise<{
       requesterId,
       content: text,
       source: "whatsapp",
+      attachments,
     });
 
     console.log(
@@ -73,8 +74,9 @@ export async function processInboundWaMessage(job: WaInboundJob): Promise<{
         requesterId,
         content: text,
         source: "whatsapp",
+        attachments,
       });
-      
+
       await aiTriageQueue.add("triage", { ticketId: existingTicket.id, trigger: "message_added" });
       console.log(`[BOT] Enqueued AI triage (message_added) for reopened ticket ${existingTicket.id}`);
 
@@ -86,9 +88,15 @@ export async function processInboundWaMessage(job: WaInboundJob): Promise<{
   }
 
   // 3. Create a fresh ticket
-  // Title: first 100 chars of the message (WA messages are often short descriptions)
-  const title =
-    text.length > 100 ? `${text.slice(0, 97)}…` : text;
+  // Title: first 100 chars of the message (WA messages are often short
+  // descriptions); an image-only message falls back to a placeholder title.
+  const title = text.trim()
+    ? text.length > 100
+      ? `${text.slice(0, 97)}…`
+      : text
+    : attachments?.length
+      ? "[Gambar]"
+      : text;
 
   const { id: ticketId } = await createTicket({
     title,
@@ -98,6 +106,7 @@ export async function processInboundWaMessage(job: WaInboundJob): Promise<{
     source: "whatsapp",
     requesterId,
     waPhone: jid, // full addressing JID — used to route outbound replies
+    attachments,
   });
 
   console.log(`[BOT] Created ticket ${ticketId} for ${jid} (${pushName ?? "unknown"})`);

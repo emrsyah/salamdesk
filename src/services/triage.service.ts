@@ -13,6 +13,7 @@ import {
   classifyPriority,
   classifyOnTopic,
   generateClarifyingReply,
+  describeImages,
 } from "@/services/triage-ai.service";
 import { searchKnowledgeBase } from "@/services/knowledge.service";
 import { buildTicketConversation } from "@/services/conversation-context.service";
@@ -188,8 +189,33 @@ export async function triageTicket(
     const conversation = await buildTicketConversation(ticketId, {
       fallbackText: ticket.description ?? ticket.title,
     });
-    const conversationText = conversation.requesterText;
-    const latestMessage = conversation.latestUserText || ticket.title;
+    let conversationText = conversation.requesterText;
+    let latestMessage = conversation.latestUserText || ticket.title;
+
+    // Vision pre-pass: when the requester sent image(s) with little/no text,
+    // caption them so the text-only KB retrieval + classifiers have something to
+    // match on. The reply generators (KB eval, clarifier, procedure) already see
+    // the image directly via `conversation.messages`, so this is text-keyed only.
+    if (
+      conversation.latestImages.length > 0 &&
+      conversation.latestUserText.trim().length < 15
+    ) {
+      try {
+        const desc = await describeImages(conversation.latestImages, conversation.latestUserText);
+        if (desc) {
+          const tagged = `[Gambar] ${desc}`;
+          latestMessage = conversation.latestUserText.trim()
+            ? `${conversation.latestUserText}\n${tagged}`
+            : tagged;
+          conversationText =
+            [conversation.requesterText.trim(), tagged]
+              .filter((t) => t && t !== "[Gambar]")
+              .join("\n") || tagged;
+        }
+      } catch (err) {
+        console.error(`[AI] Image description failed for ticket ${ticketId}:`, err);
+      }
+    }
 
     let classifiedModuleId = ticket.moduleId;
     let classifiedModuleName: string | null = null;

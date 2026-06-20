@@ -87,6 +87,17 @@ export const KNOWLEDGE_INGESTION_JOBS = {
   ingestDocument: "ingest-document",
 } as const;
 
+// An inbound media file already downloaded from WhatsApp and re-hosted on
+// UploadThing, ready to attach to the ticket message. Mirrors
+// MessageAttachmentInput so it threads straight through to persistence.
+export type WaInboundAttachment = {
+  fileName: string;
+  fileUrl: string;
+  storageKey: string;
+  mimeType: string;
+  fileSize?: number | null;
+};
+
 export type WaInboundJob = {
   // Full WhatsApp addressing JID, e.g. "6281234567890@s.whatsapp.net" or
   // "80646684844239@lid". This is what we reply to — never reconstruct it.
@@ -98,6 +109,8 @@ export type WaInboundJob = {
   text: string;
   pushName: string | null;
   messageId: string;
+  // Re-hosted media (images) sent with this message, if any.
+  attachments?: WaInboundAttachment[];
 };
 
 export type WaOutboundAttachment = {

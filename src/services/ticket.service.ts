@@ -1,5 +1,5 @@
 import { db } from "@/db";
-import { tickets, ticketMessages, ticketEscalations } from "@/db/schema/tickets";
+import { tickets, ticketMessages, ticketMessageAttachments, ticketEscalations } from "@/db/schema/tickets";
 import { ticketReads } from "@/db/schema/ticket-reads";
 import { aiSuggestions } from "@/db/schema/knowledge-base";
 import { triageEvents } from "@/db/schema/triage";
@@ -10,6 +10,7 @@ import {
   assignTicketWithLifecycle,
   resolveTicketWithLifecycle,
   transitionTicketStatus,
+  type MessageAttachmentInput,
 } from "./ticket-lifecycle.service";
 
 export type TicketPriority = "low" | "medium" | "critical";
@@ -307,6 +308,7 @@ export async function createTicket(data: {
   openedByStaffId?: string | null;
   createdById?: string | null;
   waPhone?: string | null;
+  attachments?: MessageAttachmentInput[];
 }) {
   const createdAt = new Date();
   const { firstResponseDueAt, resolutionDueAt } = await getSlaDeadlines({
@@ -339,16 +341,35 @@ export async function createTicket(data: {
     lastInboundAt: data.source === "whatsapp" ? createdAt : null,
   }).execute();
 
-  if (data.description) {
-    await db.insert(ticketMessages).values({
-      ticketId: id,
-      senderId: data.openedByStaffId ?? null,
-      requesterId: data.requesterId ?? null,
-      senderType: data.requesterId ? "requester" : "staff",
-      content: data.description,
-      isInternalNote: false,
-      source: data.source,
-    }).execute();
+  const attachments = data.attachments ?? [];
+  // Create the opening message when there's text OR an attachment (an image-only
+  // intake still needs a message row to hang the attachment + render the thread).
+  if (data.description || attachments.length > 0) {
+    const [message] = await db
+      .insert(ticketMessages)
+      .values({
+        ticketId: id,
+        senderId: data.openedByStaffId ?? null,
+        requesterId: data.requesterId ?? null,
+        senderType: data.requesterId ? "requester" : "staff",
+        content: data.description || "[Gambar]",
+        isInternalNote: false,
+        source: data.source,
+      })
+      .returning();
+
+    if (attachments.length > 0) {
+      await db.insert(ticketMessageAttachments).values(
+        attachments.map((attachment) => ({
+          messageId: message.id,
+          fileName: attachment.fileName,
+          fileUrl: attachment.fileUrl,
+          storageKey: attachment.storageKey,
+          mimeType: attachment.mimeType,
+          fileSize: attachment.fileSize ?? null,
+        })),
+      );
+    }
   }
 
   return { id };
