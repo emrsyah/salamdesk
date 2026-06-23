@@ -23,6 +23,7 @@ import type { TicketPriority } from "@/services/ticket.service";
 import { sendWhatsAppMessage } from "@/services/whatsapp.service";
 import { getSlaDeadlines } from "@/services/ticket-sla.service";
 import { publishTicketEvent } from "@/lib/realtime";
+import { publishDashboardEvent, type GateBypass } from "@/lib/dashboard-events";
 
 /** Count AI auto-replies already sent on a ticket (public, non-internal). */
 async function countAutoReplies(ticketId: string): Promise<number> {
@@ -211,6 +212,12 @@ export async function triageTicket(
             [conversation.requesterText.trim(), tagged]
               .filter((t) => t && t !== "[Gambar]")
               .join("\n") || tagged;
+          void publishDashboardEvent({
+            type: "vision.captioned",
+            ticketId,
+            label: `Membaca gambar: ${desc.slice(0, 80)}`,
+            caption: desc,
+          });
         }
       } catch (err) {
         console.error(`[AI] Image description failed for ticket ${ticketId}:`, err);
@@ -297,6 +304,35 @@ export async function triageTicket(
       if (offTopic) moduleReason = moduleReason ?? topic.reasoning;
     }
 
+    // --- Live-wall: classifier results -------------------------------------
+    void publishDashboardEvent({
+      type: "classify.module",
+      ticketId,
+      label: result.moduleName
+        ? `Modul: ${result.moduleName} (${Math.round(result.moduleConfidence * 100)}%)`
+        : "Modul: belum ditentukan",
+      moduleId: result.moduleId,
+      moduleName: result.moduleName,
+      confidence: result.moduleConfidence,
+      reason: moduleReason ?? "",
+    });
+    void publishDashboardEvent({
+      type: "classify.priority",
+      ticketId,
+      label: `Prioritas: ${result.priority}`,
+      priority: result.priority,
+      reason: priorityReason ?? "",
+    });
+    if (config.offTopicGuardEnabled && topic) {
+      void publishDashboardEvent({
+        type: "guard.offtopic",
+        ticketId,
+        label: topic.onTopic ? "Dalam topik SIMRS" : "Di luar topik — ditahan",
+        onTopic: topic.onTopic,
+        reason: topic.reasoning,
+      });
+    }
+
     // Retrieve against the requester's CURRENT message only. Including the
     // ticket title (the first message) biased follow-ups back to the original
     // topic — e.g. a billing-titled ticket kept surfacing billing KB when the
@@ -309,6 +345,15 @@ export async function triageTicket(
       // module (higher precision when classification is reliable).
       scope: config.kbCrossModuleSearch ? "all" : "module",
       limit: 3,
+    });
+
+    void publishDashboardEvent({
+      type: "kb.searched",
+      ticketId,
+      label: `Cari KB: ${kbMatches.length} kandidat`,
+      query: searchQuery.slice(0, 120),
+      chunksScanned: kbMatches.length,
+      matchCount: kbMatches.length,
     });
 
     if (kbMatches.length > 0) {
@@ -333,6 +378,15 @@ export async function triageTicket(
         result.suggestedReply = kbEval.suggestedReply;
         result.kbArticleId = topMatch.id;
         result.kbArticleTitle = topMatch.title;
+        void publishDashboardEvent({
+          type: "kb.matched",
+          ticketId,
+          label: `KB cocok: ${topMatch.title} (${Math.round(kbEval.confidence * 100)}%)`,
+          documentId: topMatch.id,
+          title: topMatch.title,
+          score: kbEval.confidence,
+          confidence: kbEval.confidence,
+        });
       }
     }
 
@@ -373,6 +427,7 @@ export async function triageTicket(
     let procedureForceDraft = false;
     if (config.proceduresEnabled) try {
       const proc = await tryProcedure({
+        ticketId,
         ticketText: searchQuery,
         moduleName: classifiedModuleName,
         conversation: conversation.messages,
@@ -393,6 +448,14 @@ export async function triageTicket(
         result.procedureTitle = proc.procedureTitle;
         // Guardrail: a procedure that escalates or hit a failed tool must never auto-send.
         if (proc.action !== "send") procedureForceDraft = true;
+        void publishDashboardEvent({
+          type: "procedure.picked",
+          ticketId,
+          label: `Prosedur: ${proc.procedureTitle} (${Math.round(proc.confidence * 100)}%)`,
+          procedureId: proc.procedureId,
+          title: proc.procedureTitle,
+          confidence: proc.confidence,
+        });
       }
     } catch (procErr) {
       // Never let a procedure failure break triage — fall back to the KB suggestion.
@@ -476,6 +539,20 @@ export async function triageTicket(
     autoReplyAllowed = policy.allowed;
     autoReplyBlockedReason = policy.blockedReason;
 
+    // An AI-first clarifier bypasses the content gates (asking a question is
+    // always safe); surface exactly which ones so the wall can flag the bypass.
+    const bypasses: GateBypass[] = aiFirstReply
+      ? ["kb-grounding", "confidence", "critical", "per-ticket-cap"]
+      : [];
+    void publishDashboardEvent({
+      type: "gate.decision",
+      ticketId,
+      label: policy.allowed ? "Lolos gate auto-reply" : `Ditahan: ${policy.blockedReason ?? "kebijakan"}`,
+      allowed: policy.allowed,
+      blockedReason: policy.blockedReason,
+      bypasses,
+    });
+
     if (procedureForceDraft) {
       autoReplyBlockedReason =
         autoReplyBlockedReason ?? "Prosedur meminta draf saja (eskalasi atau tool gagal).";
@@ -485,6 +562,10 @@ export async function triageTicket(
       autoReplyBlockedReason =
         autoReplyBlockedReason ?? "Pesan di luar topik layanan SIMRS — disiapkan sebagai draf untuk staf.";
     }
+
+    // What happened to the reply, for the live wall: held as a draft for staff
+    // unless we actually send (immediately) or schedule a delayed send.
+    let replyMode: "immediate" | "delayed" | "draft" = "draft";
 
     if (policy.allowed && result.suggestedReply && !procedureForceDraft && (!offTopic || aiFirstReply)) {
       if (config.autoReplyDelayMinutes > 0) {
@@ -508,10 +589,12 @@ export async function triageTicket(
           },
         );
         autoReplyBlockedReason = `Scheduled to auto-send in ${config.autoReplyDelayMinutes} min unless an agent replies first.`;
+        replyMode = "delayed";
       } else if (await autoReplyAlreadySentForLatestInbound(ticketId)) {
         // A prior (later-failed) attempt already delivered this reply — don't
         // double-send on retry.
         result.autoReplied = true;
+        replyMode = "immediate";
       } else {
         await db.insert(ticketMessages).values({
           ticketId,
@@ -527,7 +610,24 @@ export async function triageTicket(
         }
 
         result.autoReplied = true;
+        replyMode = "immediate";
       }
+    }
+
+    if (result.suggestedReply) {
+      void publishDashboardEvent({
+        type: "reply.sent",
+        ticketId,
+        label:
+          replyMode === "immediate"
+            ? "Balasan AI terkirim"
+            : replyMode === "delayed"
+              ? "Balasan dijadwalkan"
+              : "Disiapkan sebagai draf",
+        mode: replyMode,
+        isAiFirst: aiFirstReply,
+        preview: result.suggestedReply.slice(0, 160),
+      });
     }
 
     // Off-hours acknowledgment: only when we have a valid answer that is withheld

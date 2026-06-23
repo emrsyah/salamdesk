@@ -6,6 +6,7 @@ import { agentTools, agentCredentials } from "@/db/schema/agent";
 import { decryptSecret, getSecretKey } from "@/lib/crypto/secret-box";
 import { httpToolConfigSchema, exaToolConfigSchema, type HttpToolConfig } from "./agent-tools.types";
 import { exaSearch } from "./exa.service";
+import { publishDashboardEvent } from "@/lib/dashboard-events";
 
 export function interpolate(template: string, vars: Record<string, unknown>): string {
   return template.replace(/\{(\w+)\}/g, (_, k) => (vars[k] == null ? "" : String(vars[k])));
@@ -188,8 +189,56 @@ export async function executeHttpTool(
   return { ok: true, status: res.status, data: extractJsonPath(parsed, cfg.responseJsonPath) };
 }
 
+/**
+ * Wrap a tool's executor so each invocation streams a `tool.invoked` /
+ * `tool.result` pair to the exhibition live wall. Fire-and-forget — the events
+ * never affect the tool's return value, and `ok: false` results (our HTTP/Exa
+ * tools surface failures in-band) are reflected as a failed result event.
+ */
+function withDashboardEvents<TArgs, TResult>(
+  ctx: { ticketId: string | null } | undefined,
+  toolName: string,
+  kind: "http" | "exa",
+  inputOf: (args: TArgs) => string,
+  exec: (args: TArgs) => Promise<TResult>,
+): (args: TArgs) => Promise<TResult> {
+  return async (args: TArgs) => {
+    void publishDashboardEvent({
+      type: "tool.invoked",
+      ticketId: ctx?.ticketId ?? null,
+      label: `Tool: ${toolName}`,
+      tool: toolName,
+      kind,
+      input: inputOf(args).slice(0, 160),
+    });
+    try {
+      const result = await exec(args);
+      const ok = !(result && typeof result === "object" && (result as { ok?: boolean }).ok === false);
+      void publishDashboardEvent({
+        type: "tool.result",
+        ticketId: ctx?.ticketId ?? null,
+        label: `Tool ${toolName}: ${ok ? "berhasil" : "gagal"}`,
+        tool: toolName,
+        ok,
+        output: JSON.stringify(result).slice(0, 200),
+      });
+      return result;
+    } catch (err) {
+      void publishDashboardEvent({
+        type: "tool.result",
+        ticketId: ctx?.ticketId ?? null,
+        label: `Tool ${toolName}: gagal`,
+        tool: toolName,
+        ok: false,
+        output: err instanceof Error ? err.message : String(err),
+      });
+      throw err;
+    }
+  };
+}
+
 /** Build AI SDK tools from enabled rows. Tools whose secrets can't load are skipped. */
-export async function buildAgentTools() {
+export async function buildAgentTools(ctx?: { ticketId: string | null }) {
   let secretsOk = true;
   try {
     getSecretKey();
@@ -206,7 +255,13 @@ export async function buildAgentTools() {
       tools[row.name] = tool({
         description: row.description,
         inputSchema: z.object({ query: z.string().describe("Search query") }),
-        execute: async ({ query }) => ({ results: await exaSearch(query, cfg.numResults) }),
+        execute: withDashboardEvents(
+          ctx,
+          row.name,
+          "exa",
+          ({ query }) => query,
+          async ({ query }) => ({ results: await exaSearch(query, cfg.numResults) }),
+        ),
       });
     } else if (row.type === "http") {
       if (!secretsOk && row.credentialId) continue; // can't decrypt → skip
@@ -214,7 +269,13 @@ export async function buildAgentTools() {
       tools[row.name] = tool({
         description: row.description,
         inputSchema: paramsToInputSchema(cfg),
-        execute: async (args) => executeHttpTool(cfg, row.credentialId, args),
+        execute: withDashboardEvents(
+          ctx,
+          row.name,
+          "http",
+          (args: Record<string, unknown>) => JSON.stringify(args),
+          async (args: Record<string, unknown>) => executeHttpTool(cfg, row.credentialId, args),
+        ),
       });
     }
   }

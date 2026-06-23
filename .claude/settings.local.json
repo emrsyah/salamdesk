@@ -52,7 +52,8 @@
       "Bash(node -e \"const p=require\\('./package.json'\\); const deps={...p.dependencies,...p.devDependencies}; for \\(const k of ['motion','framer-motion','motion-dom','motion-utils']\\) console.log\\(k, '->', deps[k]||'\\(not in package.json\\)'\\)\")",
       "Bash(node -e \"const l=require\\('./package-lock.json'\\); console.log\\('node_modules/motion' in l.packages ? 'yes' : 'NO — lockfile missing motion'\\)\")",
       "Bash(node -e \"const l=require\\('./package-lock.json'\\); for \\(const k of ['node_modules/motion','node_modules/framer-motion','node_modules/motion-dom','node_modules/motion-utils']\\) console.log\\(k, '->', l.packages[k]?.version || 'MISSING'\\)\")",
-      "Bash(node -e \"const p=require\\('./package.json'\\); console.log\\(Object.entries\\(p.scripts\\).filter\\(\\([k,v]\\)=>/migrat|drizzle|db:/.test\\(k+v\\)\\).map\\(e=>e.join\\(': '\\)\\).join\\('\\\\n'\\)\\)\")"
+      "Bash(node -e \"const p=require\\('./package.json'\\); console.log\\(Object.entries\\(p.scripts\\).filter\\(\\([k,v]\\)=>/migrat|drizzle|db:/.test\\(k+v\\)\\).map\\(e=>e.join\\(': '\\)\\).join\\('\\\\n'\\)\\)\")",
+      "PowerShell(npx bun test src/services/procedure-runtime.service.test.ts 2>&1 | Select-Object -Last 15)"
     ]
   },
   "enableAllProjectMcpServers": true,

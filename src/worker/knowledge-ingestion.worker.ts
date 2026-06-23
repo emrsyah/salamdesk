@@ -12,6 +12,7 @@ import {
   failKnowledgeDocumentIngestion,
   markKnowledgeDocumentProcessing,
 } from "@/services/knowledge.service";
+import { publishDashboardEvent } from "@/lib/dashboard-events";
 
 function getTempDir() {
   // `||` (not `??`) — an empty KNOWLEDGE_INGESTION_TMP_DIR="" in .env must
@@ -66,6 +67,25 @@ export function createKnowledgeIngestionWorker(connection: ConnectionOptions) {
           throw new Error("No text could be extracted from the uploaded document");
         }
 
+        void publishDashboardEvent({
+          type: "ingestion.progress",
+          ticketId: null,
+          label: `Menyerap KB "${fileName}": ${chunks.length} potongan`,
+          documentId,
+          title: fileName,
+          stage: "chunking",
+          detail: `${chunks.length} potongan`,
+        });
+
+        void publishDashboardEvent({
+          type: "ingestion.progress",
+          ticketId: null,
+          label: `Membuat embedding "${fileName}"`,
+          documentId,
+          title: fileName,
+          stage: "embedding",
+          detail: `${chunks.length} potongan`,
+        });
         const embeddings = await embedKnowledgeChunks(chunks.map((chunk) => chunk.content));
         await completeKnowledgeDocumentIngestion({
           id: documentId,
@@ -75,9 +95,27 @@ export function createKnowledgeIngestionWorker(connection: ConnectionOptions) {
         });
 
         console.log(`[KNOWLEDGE] Document ${documentId} ingested with ${chunks.length} chunks`);
+        void publishDashboardEvent({
+          type: "ingestion.progress",
+          ticketId: null,
+          label: `KB siap: "${fileName}"`,
+          documentId,
+          title: fileName,
+          stage: "ready",
+          detail: `${chunks.length} potongan terindeks`,
+        });
         return { documentId, chunks: chunks.length };
       } catch (error) {
         await failKnowledgeDocumentIngestion(documentId, error);
+        void publishDashboardEvent({
+          type: "ingestion.progress",
+          ticketId: null,
+          label: `Gagal menyerap "${fileName}"`,
+          documentId,
+          title: fileName,
+          stage: "failed",
+          detail: error instanceof Error ? error.message : "Unknown error",
+        });
         throw error;
       } finally {
         if (filePath) {

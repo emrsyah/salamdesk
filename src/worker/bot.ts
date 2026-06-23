@@ -11,6 +11,7 @@ import {
 } from "@/services/ticket-lifecycle.service";
 import { aiTriageQueue } from "@/lib/queue";
 import { publishTicketEvent } from "@/lib/realtime";
+import { publishDashboardEvent } from "@/lib/dashboard-events";
 import type { WaInboundJob } from "@/lib/queue";
 
 /**
@@ -109,6 +110,15 @@ export async function processInboundWaMessage(job: WaInboundJob): Promise<{
   });
 
   console.log(`[BOT] Created ticket ${ticketId} for ${jid} (${pushName ?? "unknown"})`);
+
+  void publishDashboardEvent({
+    type: "ticket.new",
+    ticketId,
+    label: `Pesan baru dari ${pushName ?? phone}`,
+    requesterName: pushName ?? null,
+    preview: text.slice(0, 160),
+    channel: "whatsapp",
+  });
 
   await publishTicketEvent({ type: "ticket:created", ticketId });
   // New WhatsApp ticket = a fresh customer message; alert in-scope agents.

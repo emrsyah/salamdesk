@@ -21,7 +21,7 @@ type Deps = {
   listEnabled: () => Promise<AgentProcedureRow[]>;
   select: typeof pickProcedure;
   loadKb: (ids: string[]) => Promise<KbGroundingDoc[]>;
-  buildTools: () => Promise<ToolSet>;
+  buildTools: (ctx?: { ticketId: string | null }) => Promise<ToolSet>;
   run: typeof runProcedure;
 };
 
@@ -43,6 +43,8 @@ const defaultDeps: Deps = {
  */
 export async function tryProcedure(
   input: {
+    /** Ticket this run belongs to — attributed on live-wall tool events. */
+    ticketId?: string | null;
     ticketText: string;
     moduleName: string | null;
     behavior: ProcedureBehavior;
@@ -69,7 +71,7 @@ export async function tryProcedure(
 
   const content = matched.content as ProcedureContent;
   const kbGrounding = await d.loadKb(collectRefIds(content, "kb"));
-  const tools = await d.buildTools();
+  const tools = await d.buildTools({ ticketId: input.ticketId ?? null });
 
   const run = await d.run({
     ticketText: input.ticketText,

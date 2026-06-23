@@ -272,20 +272,43 @@ Dark theme, big type, brand accent for "live" pulses, generous motion.
 ## 7. File change checklist
 
 New:
-- [x] `src/lib/dashboard-events.ts` — **done (Phase 1)**
+- [x] `src/lib/dashboard-events.ts` — **done (Phase 1)** (runtime publisher + channel)
+- [x] `src/lib/dashboard-events.types.ts` — **done (Phase 3)** (pure types; client-safe, no ioredis)
 - [x] `src/app/api/exhibit/stream/route.ts` — **done (Phase 1)**
-- [ ] `src/app/exhibit/layout.tsx` + `src/app/exhibit/page.tsx`
-- [ ] `src/app/exhibit/exhibit-stream-context.tsx`
-- [ ] `src/components/exhibit/{live-feed,pipeline-theater,stats-panel,qr-corner}.tsx`
+- [x] `src/app/exhibit/layout.tsx` + `src/app/exhibit/page.tsx` — **done (Phase 3)**
+- [x] `src/app/exhibit/exhibit-stream-context.tsx` — **done (Phase 3)** (EventSource + ring buffer + derived pipelines/metrics)
+- [x] `src/components/exhibit/{live-feed,pipeline-theater,stats-panel,qr-corner,header-bar,event-meta}.tsx` — **done (Phase 3)**
 
-Edit (additive publishes only):
-- [ ] `src/services/triage.service.ts`
-- [ ] `src/services/procedure-execution.service.ts`
-- [ ] `src/services/triage-ai.service.ts`
-- [ ] `src/worker/knowledge-ingestion.worker.ts`
-- [ ] `src/worker/bot.ts`
+Edit (additive publishes only) — **done (Phase 2)**:
+- [x] `src/services/triage.service.ts` (vision, classify.module/priority, guard.offtopic, kb.searched/matched, procedure.picked, gate.decision, reply.sent)
+- [x] `src/services/agent-tool-executor.service.ts` (tool.invoked/result — wrapped tool executors)
+- [x] `src/services/procedure-runtime.service.ts` (threads ticketId → buildTools)
+- [x] `src/worker/knowledge-ingestion.worker.ts` (ingestion.progress)
+- [x] `src/worker/bot.ts` (ticket.new)
 
 Env:
-- [ ] `EXHIBIT_TOKEN` (optional kiosk gate), demo WhatsApp number for QR.
+- [ ] `EXHIBIT_TOKEN` — optional kiosk gate; when set, SSE requires `?token=` and layout forwards it.
+- [ ] `EXHIBIT_WA_NUMBER` — demo WhatsApp number (digits) for the QR deep link; QR hidden if unset.
+- [ ] `EXHIBIT_WA_PREFILL` — optional pre-filled message text for the wa.me link.
+
+## Status: Phases 1–3 complete
+
+Backend event spine, pipeline instrumentation, and the `/exhibit` live wall are
+implemented and pass `typecheck` (web + worker) + `eslint`. Remaining: **Phase 4
+polish** (visitor "👋 booth visitor" badge), the optional `/exhibit/inspect/[ticketId]`
+replay page, a demo-mode seeded replay so the wall is never empty, and a live
+end-to-end smoke test (`npm run dev` + a real/seeded WhatsApp message).
+
+### Notes for resuming agents
+- Event types live in `dashboard-events.types.ts` (pure, client-safe). The runtime
+  publisher + `DASHBOARD_EVENTS_CHANNEL` live in `dashboard-events.ts` and re-export
+  the types. **Client components must import types from `.types`** to avoid bundling ioredis.
+- `DashboardEventInput` uses a `DistributiveOmit` — a plain `Omit<Union, K>` collapses
+  the discriminated union to common keys (this bit us once in Phase 2).
+- The stream context caps the feed at 80 events and shows the 4 most-recently-active
+  pipelines; `tickets/min` decays on a 2s timer so it doesn't freeze between tickets.
+- All `recharts` series use `isAnimationActive={false}` (streaming-data stutter).
+- All publishes are fire-and-forget `void publishDashboardEvent(...)` — they never
+  await, never throw into triage, and mirror what's already written to `triage_events`.
 </content>
 </invoke>
