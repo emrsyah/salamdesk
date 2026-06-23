@@ -41,3 +41,42 @@ export function clockTime(ts: number): string {
     second: "2-digit",
   }).format(new Date(ts));
 }
+
+/**
+ * Plain-language stage for each event, for audiences who don't speak in
+ * `classify.module`. An icon + a short human Bahasa phrase so a passer-by can
+ * read the wall at a glance.
+ */
+export interface StepMeta {
+  icon: string;
+  title: string;
+}
+
+const STEP_META: Record<string, StepMeta> = {
+  "ticket.new": { icon: "💬", title: "Pesan masuk" },
+  "requester.firsttime": { icon: "✨", title: "Pelanggan baru" },
+  "vision.captioned": { icon: "🖼️", title: "Membaca gambar" },
+  "classify.module": { icon: "🎯", title: "Memahami masalah" },
+  "classify.priority": { icon: "🚦", title: "Menilai prioritas" },
+  "guard.offtopic": { icon: "🛡️", title: "Memeriksa topik" },
+  "kb.searched": { icon: "🔎", title: "Mencari di panduan" },
+  "kb.matched": { icon: "📖", title: "Menemukan jawaban" },
+  "procedure.picked": { icon: "🧭", title: "Memilih prosedur" },
+  "tool.invoked": { icon: "⚙️", title: "Menjalankan alat" },
+  "tool.result": { icon: "⚙️", title: "Hasil alat" },
+  "gate.decision": { icon: "✅", title: "Memeriksa keamanan" },
+  "reply.sent": { icon: "✍️", title: "Mengirim jawaban" },
+};
+
+const STEP_FALLBACK: StepMeta = { icon: "•", title: "Memproses" };
+
+export function stepMeta(type: DashboardEvent["type"] | string): StepMeta {
+  return STEP_META[type] ?? STEP_FALLBACK;
+}
+
+/** Humane elapsed time, e.g. 4200 → "4,2 dtk", 850 → "0,9 dtk". */
+export function formatDuration(ms: number | null | undefined): string {
+  if (ms == null) return "—";
+  const seconds = ms / 1000;
+  return `${seconds.toFixed(1).replace(".", ",")} dtk`;
+}

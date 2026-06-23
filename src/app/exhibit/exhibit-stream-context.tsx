@@ -44,6 +44,12 @@ export interface ExhibitMetrics {
   kbSearches: number;
   offTopicBlocked: number;
   toolCalls: number;
+  /** Total replies sent this session (auto + draft) — a climbing headline. */
+  resolved: number;
+  /** Latency (ms) of the most recently completed ticket → reply. */
+  lastReplyMs: number | null;
+  /** Rolling average reply latency (ms) across the session. */
+  avgReplyMs: number | null;
 }
 
 interface ExhibitStreamValue {
@@ -51,6 +57,8 @@ interface ExhibitStreamValue {
   feed: DashboardEvent[];
   pipelines: PipelineState[];
   metrics: ExhibitMetrics;
+  /** Epoch ms of the most recent event — drives the idle/attract state. */
+  lastEventAt: number | null;
   /** Kiosk token (if configured), so links can carry it to gated routes. */
   token?: string;
 }
@@ -65,6 +73,9 @@ const EMPTY_METRICS: ExhibitMetrics = {
   kbSearches: 0,
   offTopicBlocked: 0,
   toolCalls: 0,
+  resolved: 0,
+  lastReplyMs: null,
+  avgReplyMs: null,
 };
 
 const ExhibitStreamContext = createContext<ExhibitStreamValue>({
@@ -72,6 +83,7 @@ const ExhibitStreamContext = createContext<ExhibitStreamValue>({
   feed: [],
   pipelines: [],
   metrics: EMPTY_METRICS,
+  lastEventAt: null,
 });
 
 export function useExhibitStream() {
@@ -98,9 +110,14 @@ export function ExhibitStreamProvider({
     () => new Map(),
   );
   const [metrics, setMetrics] = useState<ExhibitMetrics>(EMPTY_METRICS);
+  const [lastEventAt, setLastEventAt] = useState<number | null>(null);
 
   // Sliding window of recent ticket-open timestamps for the tickets/min gauge.
   const ticketTimesRef = useRef<number[]>([]);
+  // ticketId → ticket.new timestamp, so we can measure time-to-reply.
+  const openTimesRef = useRef<Map<string, number>>(new Map());
+  // All completed reply latencies (ms), for the rolling average.
+  const replyMsRef = useRef<number[]>([]);
 
   useEffect(() => {
     const url = token
@@ -119,6 +136,22 @@ export function ExhibitStreamProvider({
         return;
       }
       if (!e?.type) return;
+
+      setLastEventAt(Date.now());
+
+      // Measure time-to-reply: remember when each ticket opened, and on the
+      // reply compute how long the whole journey took.
+      let replyLatencyMs: number | null = null;
+      if (e.type === "ticket.new" && e.ticketId) {
+        openTimesRef.current.set(e.ticketId, e.ts);
+      } else if (e.type === "reply.sent" && e.ticketId) {
+        const startedAt = openTimesRef.current.get(e.ticketId);
+        if (startedAt != null) {
+          replyLatencyMs = Math.max(0, e.ts - startedAt);
+          openTimesRef.current.delete(e.ticketId);
+          replyMsRef.current.push(replyLatencyMs);
+        }
+      }
 
       // 1. Feed — newest first, capped.
       setFeed((prev) => [e, ...prev].slice(0, FEED_CAPACITY));
@@ -208,6 +241,13 @@ export function ExhibitStreamProvider({
           case "reply.sent": {
             if (e.mode === "draft") next.drafted = m.drafted + 1;
             else next.autoReplied = m.autoReplied + 1;
+            next.resolved = m.resolved + 1;
+            if (replyLatencyMs != null) {
+              next.lastReplyMs = replyLatencyMs;
+              const all = replyMsRef.current;
+              next.avgReplyMs =
+                all.reduce((s, v) => s + v, 0) / all.length;
+            }
             break;
           }
         }
@@ -240,8 +280,8 @@ export function ExhibitStreamProvider({
   );
 
   const value = useMemo<ExhibitStreamValue>(
-    () => ({ connected, feed, pipelines: pipelineList, metrics, token }),
-    [connected, feed, pipelineList, metrics, token],
+    () => ({ connected, feed, pipelines: pipelineList, metrics, lastEventAt, token }),
+    [connected, feed, pipelineList, metrics, lastEventAt, token],
   );
 
   return (

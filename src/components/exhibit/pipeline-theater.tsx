@@ -7,8 +7,23 @@ import {
   type PipelineState,
 } from "@/app/exhibit/exhibit-stream-context";
 import type { DashboardEvent } from "@/lib/dashboard-events.types";
-import { eventMeta } from "./event-meta";
+import { eventMeta, formatDuration } from "./event-meta";
+import { AttractScreen } from "./attract-screen";
 import { cn } from "@/lib/utils";
+
+/** Pull the human-facing payoff out of a finished pipeline's event stream. */
+export function pipelineSummary(pipeline: PipelineState) {
+  const reply = pipeline.steps.find((s) => s.type === "reply.sent");
+  const kb = pipeline.steps.find((s) => s.type === "kb.matched");
+  const firstTs = pipeline.steps[0]?.ts;
+  const lastTs = reply?.ts;
+  return {
+    replyPreview: reply && reply.type === "reply.sent" ? reply.preview : null,
+    isDraft: reply && reply.type === "reply.sent" ? reply.mode === "draft" : false,
+    kbTitle: kb && kb.type === "kb.matched" ? kb.title : null,
+    latencyMs: firstTs != null && lastTs != null ? Math.max(0, lastTs - firstTs) : null,
+  };
+}
 
 /** A confidence bar (0–1) that animates its width as the value lands. */
 function ConfidenceBar({ value, accent }: { value: number; accent: string }) {
@@ -78,6 +93,7 @@ function PipelineCard({
   const inspectHref = token
     ? `/exhibit/inspect/${pipeline.ticketId}?token=${encodeURIComponent(token)}`
     : `/exhibit/inspect/${pipeline.ticketId}`;
+  const summary = pipelineSummary(pipeline);
   return (
     <motion.div
       layout
@@ -126,6 +142,34 @@ function PipelineCard({
           ))}
         </AnimatePresence>
       </div>
+
+      {pipeline.done && summary.replyPreview && (
+        <motion.div
+          initial={{ opacity: 0, y: 6 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3, delay: 0.1 }}
+          className="mt-3 rounded-lg border border-emerald-500/20 bg-emerald-500/[0.06] p-3"
+        >
+          <div className="mb-1.5 flex items-center gap-2 font-mono text-[10px] uppercase tracking-wider">
+            <span className="text-emerald-400">
+              {summary.isDraft ? "✍️ Draf untuk staf" : "✍️ Jawaban AI"}
+            </span>
+            {summary.latencyMs != null && (
+              <span className="text-amber-300">
+                ⚡ {formatDuration(summary.latencyMs)}
+              </span>
+            )}
+          </div>
+          <p className="line-clamp-3 text-sm leading-relaxed text-zinc-200">
+            {summary.replyPreview}
+          </p>
+          {summary.kbTitle && (
+            <p className="mt-2 font-mono text-[10px] text-zinc-500">
+              📖 Sumber: {summary.kbTitle}
+            </p>
+          )}
+        </motion.div>
+      )}
     </motion.div>
   );
 }
@@ -135,22 +179,22 @@ function PipelineCard({
  * unfolding step by step as events arrive. Cards animate in on first activity
  * and out when evicted.
  */
-export function PipelineTheater() {
+export function PipelineTheater({ waLink }: { waLink: string | null }) {
   const { pipelines, token } = useExhibitStream();
 
   return (
     <div className="flex h-full flex-col">
-      <h2 className="mb-3 shrink-0 font-mono text-xs uppercase tracking-widest text-zinc-500">
-        Agent Pipeline
-      </h2>
+      <div className="mb-3 flex shrink-0 items-baseline justify-between gap-3">
+        <h2 className="font-mono text-xs uppercase tracking-widest text-zinc-500">
+          Agent Pipeline
+        </h2>
+        <p className="font-mono text-[10px] text-zinc-600">
+          Membaca → Memahami → Mencari → Menjawab
+        </p>
+      </div>
       <div className="flex-1 overflow-hidden">
         {pipelines.length === 0 ? (
-          <div className="flex h-full items-center justify-center text-center">
-            <p className="max-w-xs text-sm text-zinc-600">
-              Menunggu percakapan… kirim pesan WhatsApp untuk melihat agen
-              bekerja secara langsung.
-            </p>
-          </div>
+          <AttractScreen waLink={waLink} />
         ) : (
           <div className="grid gap-3">
             <AnimatePresence initial={false}>

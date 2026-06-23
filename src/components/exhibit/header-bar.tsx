@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useExhibitStream } from "@/app/exhibit/exhibit-stream-context";
+import { formatDuration } from "./event-meta";
 import { cn } from "@/lib/utils";
 
 /** Fires a scripted demo ticket onto the wall — for quiet booth moments. */
@@ -80,12 +81,23 @@ export function HeaderBar() {
         </span>
       </div>
       <div className="flex items-center gap-8 font-mono text-sm">
-        <span className="text-sky-400">
+        <span className="flex items-baseline gap-1.5 text-amber-300">
+          <span className="text-base">⚡</span>
+          <span className="text-lg font-bold tabular-nums">
+            {metrics.lastReplyMs != null ? formatDuration(metrics.lastReplyMs) : "—"}
+          </span>
+          <span className="text-zinc-500">waktu jawab</span>
+        </span>
+        <span className="text-emerald-400 tabular-nums">
+          {metrics.resolved}
+          <span className="ml-1 text-zinc-500">selesai</span>
+        </span>
+        <span className="text-sky-400 tabular-nums">
           {metrics.ticketsPerMin}
           <span className="ml-1 text-zinc-500">tiket/mnt</span>
         </span>
-        <span className="text-emerald-400">
-          {autoRate}%<span className="ml-1 text-zinc-500">auto-resolved</span>
+        <span className="text-emerald-400 tabular-nums">
+          {autoRate}%<span className="ml-1 text-zinc-500">otomatis</span>
         </span>
         <span className="text-zinc-300">{now}</span>
         <DemoButton />

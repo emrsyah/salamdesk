@@ -3,6 +3,7 @@ import { LiveFeed } from "@/components/exhibit/live-feed";
 import { PipelineTheater } from "@/components/exhibit/pipeline-theater";
 import { StatsPanel } from "@/components/exhibit/stats-panel";
 import { QrCorner } from "@/components/exhibit/qr-corner";
+import { SpotlightOverlay } from "@/components/exhibit/spotlight-overlay";
 
 // The wall is purely event-driven; nothing to prerender or cache.
 export const dynamic = "force-dynamic";
@@ -19,6 +20,7 @@ export default function ExhibitPage() {
   const waLink = buildWaLink();
   return (
     <div className="flex h-screen flex-col">
+      <SpotlightOverlay />
       <HeaderBar />
       <main className="grid flex-1 grid-cols-[20rem_1fr_22rem] gap-6 overflow-hidden p-6">
         {/* Left — live activity ticker */}
@@ -28,7 +30,7 @@ export default function ExhibitPage() {
 
         {/* Center — pipeline theater */}
         <section className="overflow-hidden">
-          <PipelineTheater />
+          <PipelineTheater waLink={waLink} />
         </section>
 
         {/* Right — stats + QR self-try */}
