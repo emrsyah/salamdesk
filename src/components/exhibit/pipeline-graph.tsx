@@ -274,20 +274,32 @@ const NODE_TYPES = { triage: TriageNode, frame: FrameNode };
 
 /** Resolve every node's live status from the focused ticket's event stream. */
 function deriveStatuses(pipeline: PipelineState): Record<string, { status: NodeStatus; detail: string | null }> {
-  const steps = pipeline.steps;
-  const latest = steps[steps.length - 1];
-  // Active = mid-run. `reply.sent` is terminal; any other latest event means the
-  // engine is still working — including a follow-up after an earlier reply, since
-  // triage re-runs on every inbound message. So re-runs light up again instead of
-  // freezing on the first pass.
-  const activeNode =
-    latest && latest.type !== "reply.sent" ? NODE_OF[latest.type] : null;
+  // Triage publishes events fire-and-forget, so they can arrive out of array
+  // order (e.g. `kb.searched` landing AFTER `reply.sent`). Reason purely by `ts`
+  // so the graph never freezes mid-pipeline after the answer already went out.
+  const steps = [...pipeline.steps]
+    .filter((s) => NODE_OF[s.type])
+    .sort((a, b) => a.ts - b.ts);
+
+  let replyTs = -Infinity;
+  for (const s of steps) if (s.type === "reply.sent" && s.ts > replyTs) replyTs = s.ts;
+
+  // Active = the furthest non-terminal step newer than the last reply. If a reply
+  // exists with nothing after it → done (no active node). If no reply yet → the
+  // latest step. A follow-up re-run produces newer events and re-lights.
+  let activeNode: string | undefined;
+  const postReply = steps.filter((s) => s.ts > replyTs && s.type !== "reply.sent");
+  if (postReply.length > 0) {
+    activeNode = NODE_OF[postReply[postReply.length - 1].type];
+  } else if (replyTs === -Infinity) {
+    const latest = steps[steps.length - 1];
+    activeNode = latest ? NODE_OF[latest.type] : "intake";
+  }
 
   const lastFor = (nodeId: string): DashboardEvent | null => {
-    for (let i = steps.length - 1; i >= 0; i--) {
-      if (NODE_OF[steps[i].type] === nodeId) return steps[i];
-    }
-    return null;
+    let found: DashboardEvent | null = null;
+    for (const s of steps) if (NODE_OF[s.type] === nodeId) found = s;
+    return found;
   };
 
   const out: Record<string, { status: NodeStatus; detail: string | null }> = {};

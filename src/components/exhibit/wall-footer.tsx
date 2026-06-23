@@ -1,6 +1,8 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { QRCodeSVG } from "qrcode.react";
+import { AnimatePresence, motion } from "motion/react";
 import { Cell, Pie, PieChart, ResponsiveContainer } from "recharts";
 import { useExhibitStream } from "@/app/exhibit/exhibit-stream-context";
 
@@ -36,6 +38,81 @@ function Stat({
  * top-module mix, KB hit rate, guardrail blocks, tool calls, drafts — plus the
  * "scan to try" QR pinned right.
  */
+/** Tap-to-enlarge QR — a footer thumbnail that opens a big, scannable modal. */
+function ScanToTry({ waLink }: { waLink: string }) {
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open]);
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="ml-auto flex items-center gap-2.5 rounded-xl p-1 text-right transition-colors hover:bg-zinc-100"
+        aria-label="Perbesar kode QR untuk dipindai"
+      >
+        <div className="leading-tight">
+          <p className="text-sm font-semibold text-zinc-900">Coba sendiri 👋</p>
+          <p className="font-mono text-[10px] text-zinc-500">Klik untuk perbesar &amp; pindai</p>
+        </div>
+        <div className="rounded-md border border-zinc-200 bg-white p-1">
+          <QRCodeSVG value={waLink} size={48} level="M" />
+        </div>
+      </button>
+
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            onClick={() => setOpen(false)}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-950/60 p-6 backdrop-blur-sm"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Pindai untuk mencoba"
+          >
+            <motion.div
+              initial={{ scale: 0.92, y: 16, opacity: 0 }}
+              animate={{ scale: 1, y: 0, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              transition={{ type: "spring", stiffness: 240, damping: 24 }}
+              onClick={(e) => e.stopPropagation()}
+              className="relative flex flex-col items-center rounded-3xl border border-zinc-200 bg-white p-8 shadow-2xl"
+            >
+              <button
+                type="button"
+                onClick={() => setOpen(false)}
+                aria-label="Tutup"
+                className="absolute right-4 top-4 flex size-8 items-center justify-center rounded-full text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-700"
+              >
+                ✕
+              </button>
+              <p className="mb-1 text-xl font-bold tracking-tight text-zinc-950">
+                Pindai untuk mulai 👋
+              </p>
+              <p className="mb-6 max-w-xs text-center text-sm text-zinc-500">
+                Buka kamera WhatsApp, arahkan ke kode ini, lalu kirim pesan — agen
+                kami menjawab langsung di layar.
+              </p>
+              <div className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm">
+                <QRCodeSVG value={waLink} size={300} level="M" />
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </>
+  );
+}
+
 export function WallFooter({ waLink }: { waLink: string | null }) {
   const { metrics } = useExhibitStream();
 
@@ -95,20 +172,8 @@ export function WallFooter({ waLink }: { waLink: string | null }) {
       <Stat label="Tool" value={metrics.toolCalls} tone="text-amber-600" />
       <Stat label="Draf staf" value={metrics.drafted} tone="text-amber-600" />
 
-      {/* Scan-to-try, pinned right */}
-      {waLink && (
-        <div className="ml-auto flex items-center gap-2.5">
-          <div className="leading-tight text-right">
-            <p className="text-sm font-semibold text-zinc-900">Coba sendiri 👋</p>
-            <p className="font-mono text-[10px] text-zinc-500">
-              Pindai · chat · lihat di layar
-            </p>
-          </div>
-          <div className="rounded-md border border-zinc-200 bg-white p-1">
-            <QRCodeSVG value={waLink} size={44} level="M" />
-          </div>
-        </div>
-      )}
+      {/* Scan-to-try, pinned right — click to enlarge */}
+      {waLink && <ScanToTry waLink={waLink} />}
     </footer>
   );
 }

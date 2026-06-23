@@ -8,7 +8,7 @@ import {
   type PipelineState,
 } from "@/app/exhibit/exhibit-stream-context";
 import { formatDuration } from "./event-meta";
-import { pipelineSummary } from "./pipeline-utils";
+import { pipelineSummary, ticketSignals } from "./pipeline-utils";
 import { SectionHeader } from "./section-header";
 import { TriageGraph } from "./pipeline-graph";
 import { cn } from "@/lib/utils";
@@ -92,6 +92,44 @@ function ThinkingDots({ className }: { className?: string }) {
   );
 }
 
+const PRIORITY_CHIP: Record<string, { label: string; cls: string }> = {
+  low: { label: "Rendah", cls: "border-blue-200/70 bg-blue-50 text-blue-700" },
+  medium: { label: "Sedang", cls: "border-orange-200/70 bg-orange-50 text-orange-700" },
+  critical: { label: "Kritis", cls: "border-red-200/70 bg-red-50 text-red-700" },
+};
+
+/** The ticket's live module + priority — "where they are right now". */
+function StatusChips({
+  moduleName,
+  priority,
+}: {
+  moduleName: string | null;
+  priority: "low" | "medium" | "critical" | null;
+}) {
+  const pr = priority ? PRIORITY_CHIP[priority] : null;
+  if (!moduleName && !pr) return null;
+  return (
+    <span className="flex items-center gap-1.5">
+      {moduleName && (
+        <span className="inline-flex items-center gap-1 rounded-full border border-violet-200/70 bg-violet-50 px-2 py-0.5 font-mono text-[10px] font-medium text-violet-700">
+          <span className="size-1.5 rounded-full bg-violet-500" />
+          {moduleName}
+        </span>
+      )}
+      {pr && (
+        <span
+          className={cn(
+            "inline-flex items-center rounded-full border px-2 py-0.5 font-mono text-[10px] font-medium",
+            pr.cls,
+          )}
+        >
+          {pr.label}
+        </span>
+      )}
+    </span>
+  );
+}
+
 /** One ticket's live engine: caption · the graph · the answer payoff. */
 function PipelineLane({
   pipeline,
@@ -104,6 +142,7 @@ function PipelineLane({
   solo: boolean;
 }) {
   const summary = pipelineSummary(pipeline);
+  const signals = ticketSignals(pipeline);
   const name = pipeline.requesterName?.trim() || "Pelanggan";
   const inspectHref = token
     ? `/exhibit/inspect/${pipeline.ticketId}?token=${encodeURIComponent(token)}`
@@ -124,7 +163,7 @@ function PipelineLane({
           {name.charAt(0).toUpperCase()}
         </span>
         <div className="min-w-0 flex-1">
-          <p className="flex items-center gap-2 text-sm font-semibold text-zinc-900">
+          <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm font-semibold text-zinc-900">
             <Link href={inspectHref} className="truncate hover:text-sky-600">
               {name}
             </Link>
@@ -133,10 +172,16 @@ function PipelineLane({
                 👋 BOOTH
               </span>
             )}
+            <StatusChips moduleName={signals.moduleName} priority={signals.priority} />
           </p>
           <p className="truncate text-xs text-zinc-500">{pipeline.preview}</p>
         </div>
-        {pipeline.done ? (
+        {signals.running ? (
+          <span className="flex shrink-0 items-center gap-1.5 rounded-full border border-amber-200/70 bg-amber-50 px-2.5 py-1 font-mono text-[10px] font-medium text-amber-700">
+            <ThinkingDots className="text-amber-500" />
+            BERPIKIR
+          </span>
+        ) : signals.replied ? (
           <span className="flex shrink-0 items-center gap-1.5 rounded-full border border-emerald-200/70 bg-emerald-50 px-2.5 py-1 font-mono text-[10px] font-medium text-emerald-700">
             ✓ SELESAI
             {summary.latencyMs != null && (
@@ -145,12 +190,7 @@ function PipelineLane({
               </span>
             )}
           </span>
-        ) : (
-          <span className="flex shrink-0 items-center gap-1.5 rounded-full border border-amber-200/70 bg-amber-50 px-2.5 py-1 font-mono text-[10px] font-medium text-amber-700">
-            <ThinkingDots className="text-amber-500" />
-            BERPIKIR
-          </span>
-        )}
+        ) : null}
       </div>
 
       {/* The engine */}
@@ -160,7 +200,7 @@ function PipelineLane({
 
       {/* The payoff — slim, one line when stacked. */}
       <AnimatePresence initial={false}>
-        {pipeline.done && summary.replyPreview && (
+        {signals.replied && summary.replyPreview && (
           <motion.div
             key="answer"
             initial={{ opacity: 0, height: 0 }}

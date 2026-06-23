@@ -1,37 +1,20 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useExhibitStream } from "@/app/exhibit/exhibit-stream-context";
 import { formatDuration } from "./event-meta";
 import { cn } from "@/lib/utils";
 
-/** Fires a scripted demo ticket onto the wall — for quiet booth moments. */
+/** Opens the guided, step-by-step demo of how the agent processes a message. */
 function DemoButton() {
-  const [busy, setBusy] = useState(false);
   return (
-    <button
-      type="button"
-      disabled={busy}
-      onClick={async () => {
-        setBusy(true);
-        try {
-          await fetch("/api/exhibit/demo", { method: "POST" });
-        } catch {
-          /* best-effort */
-        } finally {
-          // The flow plays out over a few seconds server-side; re-enable after.
-          setTimeout(() => setBusy(false), 6_000);
-        }
-      }}
-      className={cn(
-        "rounded-full px-4 py-1.5 text-xs font-semibold transition-transform duration-200",
-        busy
-          ? "cursor-not-allowed bg-muted text-muted-foreground"
-          : "bg-primary text-primary-foreground hover:scale-[1.03] active:scale-95",
-      )}
+    <Link
+      href="/exhibit/demo"
+      className="rounded-full bg-primary px-4 py-1.5 text-xs font-semibold text-primary-foreground transition-transform duration-200 hover:scale-[1.03] active:scale-95"
     >
-      {busy ? "Memutar…" : "▶ Demo"}
-    </button>
+      ▶ Demo
+    </Link>
   );
 }
 
