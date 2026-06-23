@@ -36,7 +36,14 @@ export interface DashboardEventBase {
  */
 export type DashboardEvent = DashboardEventBase &
   (
-    | { type: "ticket.new"; requesterName: string | null; preview: string; channel: string }
+    | {
+        type: "ticket.new";
+        requesterName: string | null;
+        preview: string;
+        channel: string;
+        /** True when the message matches the exhibition QR prefill — a booth visitor. */
+        boothVisitor?: boolean;
+      }
     | { type: "requester.firsttime"; requesterName: string | null }
     | { type: "vision.captioned"; caption: string }
     | {

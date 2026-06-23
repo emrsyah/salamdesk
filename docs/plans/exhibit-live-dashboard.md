@@ -291,13 +291,22 @@ Env:
 - [ ] `EXHIBIT_WA_NUMBER` — demo WhatsApp number (digits) for the QR deep link; QR hidden if unset.
 - [ ] `EXHIBIT_WA_PREFILL` — optional pre-filled message text for the wa.me link.
 
-## Status: Phases 1–3 complete
+## Status: Phases 1–4 complete
 
-Backend event spine, pipeline instrumentation, and the `/exhibit` live wall are
-implemented and pass `typecheck` (web + worker) + `eslint`. Remaining: **Phase 4
-polish** (visitor "👋 booth visitor" badge), the optional `/exhibit/inspect/[ticketId]`
-replay page, a demo-mode seeded replay so the wall is never empty, and a live
-end-to-end smoke test (`npm run dev` + a real/seeded WhatsApp message).
+Backend event spine, pipeline instrumentation, the `/exhibit` live wall, and the
+Phase 4 polish are implemented and pass `typecheck` (web + worker) + `eslint`.
+
+Phase 4 additions:
+- **Booth-visitor badge** — `ticket.new` carries `boothVisitor` (set in `bot.ts`
+  when inbound text matches `EXHIBIT_WA_PREFILL`); the pipeline card gets a fuchsia
+  ring + "👋 BOOTH" tag.
+- **Replay page** — `src/app/exhibit/inspect/[ticketId]/page.tsx`: read-only triage
+  trail (from `triage_events`) + message thread. Pipeline-card requester name links to it.
+- **Demo mode** — `POST /api/exhibit/demo` publishes a scripted ticket flow; a "▶ Demo"
+  button in the header triggers it (gated by `EXHIBIT_TOKEN` when set).
+
+Remaining (optional): a live end-to-end smoke test with `npm run dev` + a real or
+seeded WhatsApp message, and any visual tuning once seen on the actual screen.
 
 ### Notes for resuming agents
 - Event types live in `dashboard-events.types.ts` (pure, client-safe). The runtime

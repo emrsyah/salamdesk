@@ -27,6 +27,8 @@ export interface PipelineState {
   steps: DashboardEvent[];
   /** True once a `reply.sent` arrives — card can animate out shortly after. */
   done: boolean;
+  /** Came in via the exhibition QR prefill. */
+  boothVisitor: boolean;
 }
 
 export interface ExhibitMetrics {
@@ -135,12 +137,16 @@ export function ExhibitStreamProvider({
               lastTs: e.ts,
               steps: [],
               done: false,
+              boothVisitor:
+                e.type === "ticket.new" ? e.boothVisitor === true : false,
             };
           next.set(ticketId, {
             ...base,
             requesterName:
               e.type === "ticket.new" ? e.requesterName : base.requesterName,
             preview: e.type === "ticket.new" ? e.preview : base.preview,
+            boothVisitor:
+              e.type === "ticket.new" ? e.boothVisitor === true : base.boothVisitor,
             lastTs: e.ts,
             steps: [...base.steps, e],
             done: base.done || e.type === "reply.sent",

@@ -4,6 +4,36 @@ import { useEffect, useState } from "react";
 import { useExhibitStream } from "@/app/exhibit/exhibit-stream-context";
 import { cn } from "@/lib/utils";
 
+/** Fires a scripted demo ticket onto the wall — for quiet booth moments. */
+function DemoButton() {
+  const [busy, setBusy] = useState(false);
+  return (
+    <button
+      type="button"
+      disabled={busy}
+      onClick={async () => {
+        setBusy(true);
+        try {
+          await fetch("/api/exhibit/demo", { method: "POST" });
+        } catch {
+          /* best-effort */
+        } finally {
+          // The flow plays out over a few seconds server-side; re-enable after.
+          setTimeout(() => setBusy(false), 6_000);
+        }
+      }}
+      className={cn(
+        "rounded-full border border-white/10 px-3 py-1 text-xs font-semibold transition",
+        busy
+          ? "cursor-not-allowed text-zinc-600"
+          : "text-zinc-300 hover:border-white/30 hover:text-white",
+      )}
+    >
+      {busy ? "Memutar…" : "▶ Demo"}
+    </button>
+  );
+}
+
 /** Top bar: brand, live connection pulse, headline metrics, wall clock. */
 export function HeaderBar() {
   const { connected, metrics } = useExhibitStream();
@@ -58,6 +88,7 @@ export function HeaderBar() {
           {autoRate}%<span className="ml-1 text-zinc-500">auto-resolved</span>
         </span>
         <span className="text-zinc-300">{now}</span>
+        <DemoButton />
       </div>
     </header>
   );

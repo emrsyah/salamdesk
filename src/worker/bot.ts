@@ -111,13 +111,21 @@ export async function processInboundWaMessage(job: WaInboundJob): Promise<{
 
   console.log(`[BOT] Created ticket ${ticketId} for ${jid} (${pushName ?? "unknown"})`);
 
+  // A booth visitor arrives via the exhibition QR, whose prefill seeds the first
+  // message — flag those so the wall can spotlight them.
+  const prefill = process.env.EXHIBIT_WA_PREFILL?.trim();
+  const boothVisitor =
+    !!prefill && text.trim().toLowerCase().includes(prefill.toLowerCase());
   void publishDashboardEvent({
     type: "ticket.new",
     ticketId,
-    label: `Pesan baru dari ${pushName ?? phone}`,
+    label: boothVisitor
+      ? `👋 Pengunjung booth: ${pushName ?? phone}`
+      : `Pesan baru dari ${pushName ?? phone}`,
     requesterName: pushName ?? null,
     preview: text.slice(0, 160),
     channel: "whatsapp",
+    boothVisitor,
   });
 
   await publishTicketEvent({ type: "ticket:created", ticketId });

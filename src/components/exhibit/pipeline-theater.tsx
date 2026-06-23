@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { AnimatePresence, motion } from "motion/react";
 import {
   useExhibitStream,
@@ -77,13 +78,27 @@ function PipelineCard({ pipeline }: { pipeline: PipelineState }) {
       transition={{ duration: 0.35, ease: "easeOut" }}
       className={cn(
         "rounded-xl border bg-white/[0.03] p-4",
-        pipeline.done ? "border-emerald-500/30" : "border-white/10",
+        pipeline.boothVisitor
+          ? "border-fuchsia-500/40 ring-1 ring-fuchsia-500/20"
+          : pipeline.done
+            ? "border-emerald-500/30"
+            : "border-white/10",
       )}
     >
       <div className="mb-3 flex items-center justify-between gap-3">
         <div className="min-w-0">
-          <p className="truncate text-sm font-semibold text-zinc-100">
-            {pipeline.requesterName ?? "Pelanggan"}
+          <p className="flex items-center gap-2 text-sm font-semibold text-zinc-100">
+            <Link
+              href={`/exhibit/inspect/${pipeline.ticketId}`}
+              className="truncate hover:text-sky-400"
+            >
+              {pipeline.requesterName ?? "Pelanggan"}
+            </Link>
+            {pipeline.boothVisitor && (
+              <span className="shrink-0 rounded-full bg-fuchsia-500/15 px-1.5 py-0.5 font-mono text-[9px] font-semibold text-fuchsia-300">
+                👋 BOOTH
+              </span>
+            )}
           </p>
           <p className="truncate text-xs text-zinc-500">{pipeline.preview}</p>
         </div>

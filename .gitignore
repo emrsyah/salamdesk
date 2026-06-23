@@ -13,6 +13,7 @@ nul
 !.yarn/versions
 
 .env
+.env.worker
 
 # testing
 /coverage
