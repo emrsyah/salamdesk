@@ -77,46 +77,6 @@ export function stepMeta(type: DashboardEvent["type"] | string): StepMeta {
   return STEP_META[type] ?? STEP_FALLBACK;
 }
 
-/**
- * The agent's reasoning collapses into four human-readable phases — the journey
- * the wall promises ("Membaca → Memahami → Mencari → Menjawab"). Each raw event
- * type belongs to exactly one phase, so a card can light up its progress rail.
- */
-export interface Phase {
-  key: string;
-  label: string;
-  icon: string;
-}
-
-export const PHASES: Phase[] = [
-  { key: "read", label: "Membaca", icon: "👁️" },
-  { key: "understand", label: "Memahami", icon: "🎯" },
-  { key: "search", label: "Mencari", icon: "🔎" },
-  { key: "answer", label: "Menjawab", icon: "✍️" },
-];
-
-const PHASE_INDEX: Record<string, number> = {
-  "ticket.new": 0,
-  "requester.firsttime": 0,
-  "vision.captioned": 0,
-  "ingestion.progress": 0,
-  "classify.module": 1,
-  "classify.priority": 1,
-  "guard.offtopic": 1,
-  "kb.searched": 2,
-  "kb.matched": 2,
-  "procedure.picked": 2,
-  "tool.invoked": 2,
-  "tool.result": 2,
-  "gate.decision": 3,
-  "reply.sent": 3,
-};
-
-/** Which of the four phases an event belongs to (0–3). Defaults to phase 0. */
-export function phaseIndex(type: DashboardEvent["type"] | string): number {
-  return PHASE_INDEX[type] ?? 0;
-}
-
 /** Humane elapsed time, e.g. 4200 → "4,2 dtk", 850 → "0,9 dtk". */
 export function formatDuration(ms: number | null | undefined): string {
   if (ms == null) return "—";

@@ -7,7 +7,7 @@ import {
   type PipelineState,
 } from "@/app/exhibit/exhibit-stream-context";
 import { formatDuration, stepMeta } from "./event-meta";
-import { pipelineSummary } from "./pipeline-theater";
+import { pipelineSummary } from "./pipeline-utils";
 
 /** How long the celebration lingers after the reply lands, before fading out. */
 const SPOTLIGHT_HOLD_MS = 9_000;
