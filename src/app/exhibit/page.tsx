@@ -1,8 +1,5 @@
 import { HeaderBar } from "@/components/exhibit/header-bar";
-import { LiveFeed } from "@/components/exhibit/live-feed";
-import { PipelineTheater } from "@/components/exhibit/pipeline-theater";
-import { StatsPanel } from "@/components/exhibit/stats-panel";
-import { QrCorner } from "@/components/exhibit/qr-corner";
+import { WallMain } from "@/components/exhibit/wall-main";
 import { SpotlightOverlay } from "@/components/exhibit/spotlight-overlay";
 
 // The wall is purely event-driven; nothing to prerender or cache.
@@ -19,28 +16,27 @@ function buildWaLink(): string | null {
 export default function ExhibitPage() {
   const waLink = buildWaLink();
   return (
-    <div className="flex h-screen flex-col">
+    <div className="relative isolate flex h-screen flex-col overflow-hidden">
+      {/* Brand atmosphere — the landing-page sky, fading into the canvas so the
+          operator console stays legible underneath it. */}
+      <div aria-hidden className="pointer-events-none absolute inset-0 -z-10">
+        <div
+          className="absolute inset-x-0 top-0 h-[90vh] bg-cover bg-top bg-no-repeat opacity-90"
+          style={{
+            backgroundImage: "url(/bg/4.png)",
+            maskImage:
+              "linear-gradient(to bottom, black 55%, transparent 100%)",
+            WebkitMaskImage:
+              "linear-gradient(to bottom, black 55%, transparent 100%)",
+          }}
+        />
+        <div className="absolute inset-0 bg-gradient-to-b from-transparent via-background/55 to-background" />
+        <div className="absolute -top-32 left-1/2 size-[720px] -translate-x-1/2 rounded-full bg-primary/10 blur-[120px]" />
+      </div>
+
       <SpotlightOverlay />
       <HeaderBar />
-      <main className="grid flex-1 grid-cols-[20rem_1fr_22rem] gap-6 overflow-hidden p-6">
-        {/* Left — live activity ticker */}
-        <section className="overflow-hidden">
-          <LiveFeed />
-        </section>
-
-        {/* Center — pipeline theater */}
-        <section className="overflow-hidden">
-          <PipelineTheater waLink={waLink} />
-        </section>
-
-        {/* Right — stats + QR self-try */}
-        <section className="flex flex-col gap-4 overflow-hidden">
-          <div className="flex-1 overflow-hidden">
-            <StatsPanel />
-          </div>
-          <QrCorner waLink={waLink} />
-        </section>
-      </main>
+      <WallMain waLink={waLink} />
     </div>
   );
 }

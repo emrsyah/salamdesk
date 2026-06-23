@@ -20,7 +20,7 @@ export default function ExhibitLayout({
   // Server-side: the kiosk token (if configured) is forwarded to the SSE URL.
   const token = process.env.EXHIBIT_TOKEN;
   return (
-    <div className="min-h-screen bg-white text-zinc-950">
+    <div className="theme-light min-h-screen bg-background text-foreground">
       <ExhibitStreamProvider token={token}>{children}</ExhibitStreamProvider>
     </div>
   );

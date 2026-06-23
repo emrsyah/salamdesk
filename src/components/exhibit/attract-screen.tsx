@@ -2,69 +2,92 @@
 
 import { QRCodeSVG } from "qrcode.react";
 import { motion } from "motion/react";
+import { RiShieldCheckLine, RiWhatsappLine } from "@remixicon/react";
 
 const STEPS = [
-  { n: "1", icon: "📲", title: "Pindai kode QR", detail: "Buka kamera, arahkan ke sini" },
-  { n: "2", icon: "💬", title: "Kirim pesan WhatsApp", detail: "Pesan sudah disiapkan — tinggal kirim" },
-  { n: "3", icon: "👀", title: "Lihat diri Anda di layar", detail: "AI menjawab Anda secara langsung" },
+  { n: "1", title: "Pindai kode QR", detail: "Buka kamera, arahkan ke sini" },
+  { n: "2", title: "Kirim pesan WhatsApp", detail: "Pesan sudah disiapkan — tinggal kirim" },
+  { n: "3", title: "Lihat diri Anda di layar", detail: "AI menjawab Anda secara langsung" },
 ];
 
 /**
- * The attract loop shown when the wall is quiet — its job is to convert a
- * passer-by into someone who scans. Big value prop, a large QR, and a dead
- * simple 1-2-3 so anyone gets it in a glance.
+ * Idle/attract hero — the wall when no tickets are in flight. Built in the
+ * marketing language of the landing page (sky atmosphere lives on the page
+ * behind this) so the booth reads as "the landing page, alive". A two-column
+ * hero fills the wide wall rather than floating in a void.
  */
 export function AttractScreen({ waLink }: { waLink: string | null }) {
   return (
-    <div className="flex h-full flex-col items-center justify-center px-6 text-center">
+    <div className="flex min-h-full items-center justify-center px-12 py-10">
       <motion.div
-        initial={{ opacity: 0, y: 12 }}
+        initial={{ opacity: 0, y: 14 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5 }}
-        className="max-w-xl"
+        className="grid w-full max-w-6xl items-center gap-10 lg:grid-cols-[1.1fr_0.9fr]"
       >
-        <p className="font-mono text-xs uppercase tracking-[0.3em] text-amber-600">
-          SalamDesk
-        </p>
-        <h1 className="mt-3 text-balance text-4xl font-bold leading-tight tracking-tight text-zinc-950">
-          AI yang menjawab keluhan WhatsApp Anda dalam{" "}
-          <span className="text-amber-500">hitungan detik</span>
-        </h1>
-        <p className="mt-3 text-lg text-zinc-500">
-          Coba sendiri sekarang — kirim pesan, lihat agen kami bekerja langsung
-          di layar ini.
-        </p>
+        {/* Left — message */}
+        <div className="text-left">
+          <span className="inline-flex items-center gap-2 rounded-full border border-border bg-muted/50 px-3 py-1 font-heading text-[11px] uppercase tracking-wider text-muted-foreground">
+            <span className="size-1.5 rounded-full bg-primary" />
+            AI Helpdesk untuk SIMRS &amp; Rumah Sakit
+          </span>
 
-        {waLink && (
-          <motion.div
-            animate={{ scale: [1, 1.03, 1] }}
-            transition={{ duration: 2.4, repeat: Infinity, ease: "easeInOut" }}
-            className="mt-8 inline-flex rounded-3xl border border-zinc-200 bg-white p-4 shadow-lg"
-          >
-            <QRCodeSVG value={waLink} size={208} level="M" />
-          </motion.div>
-        )}
+          <h1 className="mt-4 max-w-xl text-balance text-4xl font-bold leading-[1.05] tracking-tight text-foreground xl:text-5xl">
+            AI yang menjawab keluhan WhatsApp Anda dalam{" "}
+            <span className="text-primary">hitungan detik</span>
+          </h1>
 
-        <div className="mt-8 grid grid-cols-3 gap-3 text-left">
-          {STEPS.map((s, i) => (
-            <motion.div
-              key={s.n}
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.2 + i * 0.12 }}
-              className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm"
-            >
-              <div className="flex items-center gap-2">
-                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-amber-100 font-mono text-xs font-bold text-amber-700">
+          <p className="mt-3 max-w-lg text-pretty text-lg font-medium leading-snug text-foreground/80 xl:text-xl">
+            Coba sendiri sekarang — pindai, kirim pesan, dan lihat agen kami
+            bekerja langsung di layar ini.
+          </p>
+
+          <div className="mt-6 grid max-w-xl grid-cols-3 gap-3">
+            {STEPS.map((s, i) => (
+              <motion.div
+                key={s.n}
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.25 + i * 0.12 }}
+                className="rounded-2xl border border-border bg-background/70 p-4 shadow-sm backdrop-blur-sm"
+              >
+                <span className="flex size-6 items-center justify-center rounded-full bg-primary font-heading text-xs font-bold text-primary-foreground">
                   {s.n}
                 </span>
-                <span className="text-lg">{s.icon}</span>
-              </div>
-              <p className="mt-2 text-sm font-semibold text-zinc-900">{s.title}</p>
-              <p className="mt-0.5 text-xs text-zinc-500">{s.detail}</p>
-            </motion.div>
-          ))}
+                <p className="mt-2 text-sm font-semibold text-foreground">{s.title}</p>
+                <p className="mt-0.5 text-xs text-muted-foreground">{s.detail}</p>
+              </motion.div>
+            ))}
+          </div>
+
+          <p className="mt-5 flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-muted-foreground">
+            <span className="inline-flex items-center gap-1.5">
+              <RiShieldCheckLine className="size-4 text-primary" />
+              Dirancang untuk alur kerja ITSM rumah sakit
+            </span>
+            <span className="inline-flex items-center gap-1.5">
+              <RiWhatsappLine className="size-4 text-primary" />
+              Terintegrasi WhatsApp
+            </span>
+          </p>
         </div>
+
+        {/* Right — the scan target */}
+        {waLink && (
+          <div className="flex flex-col items-center">
+            <motion.div
+              animate={{ scale: [1, 1.025, 1] }}
+              transition={{ duration: 2.6, repeat: Infinity, ease: "easeInOut" }}
+              className="rounded-3xl border border-border bg-white p-5 shadow-xl"
+            >
+              <QRCodeSVG value={waLink} size={224} level="M" />
+            </motion.div>
+            <p className="mt-4 inline-flex items-center gap-2 font-heading text-sm font-semibold text-foreground">
+              <RiWhatsappLine className="size-4 text-primary" />
+              Pindai untuk mulai 👋
+            </p>
+          </div>
+        )}
       </motion.div>
     </div>
   );

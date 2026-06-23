@@ -24,10 +24,10 @@ function DemoButton() {
         }
       }}
       className={cn(
-        "rounded-md px-3 py-1 text-xs font-semibold transition",
+        "rounded-full px-4 py-1.5 text-xs font-semibold transition-transform duration-200",
         busy
-          ? "cursor-not-allowed bg-zinc-100 text-zinc-400"
-          : "bg-yellow-400 text-yellow-950 hover:bg-yellow-500",
+          ? "cursor-not-allowed bg-muted text-muted-foreground"
+          : "bg-primary text-primary-foreground hover:scale-[1.03] active:scale-95",
       )}
     >
       {busy ? "Memutar…" : "▶ Demo"}
@@ -60,9 +60,14 @@ export function HeaderBar() {
       : 0;
 
   return (
-    <header className="flex items-center justify-between border-b border-zinc-200 px-8 py-4">
+    <header className="flex items-center justify-between border-b border-border/60 bg-background/70 px-8 py-4 backdrop-blur-md">
       <div className="flex items-center gap-3">
-        <span className="text-xl font-bold tracking-tight text-zinc-950">
+        <img
+          src="/android-chrome-512x512.png"
+          alt="SalamDesk"
+          className="size-8 rounded-lg"
+        />
+        <span className="text-xl font-bold tracking-tight text-foreground">
           SalamDesk
         </span>
         <span

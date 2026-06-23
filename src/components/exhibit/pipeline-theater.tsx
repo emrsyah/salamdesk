@@ -8,7 +8,6 @@ import {
 } from "@/app/exhibit/exhibit-stream-context";
 import type { DashboardEvent } from "@/lib/dashboard-events.types";
 import { eventMeta, formatDuration } from "./event-meta";
-import { AttractScreen } from "./attract-screen";
 import { cn } from "@/lib/utils";
 
 /** Pull the human-facing payoff out of a finished pipeline's event stream. */
@@ -179,7 +178,7 @@ function PipelineCard({
  * unfolding step by step as events arrive. Cards animate in on first activity
  * and out when evicted.
  */
-export function PipelineTheater({ waLink }: { waLink: string | null }) {
+export function PipelineTheater() {
   const { pipelines, token } = useExhibitStream();
 
   return (
@@ -194,7 +193,9 @@ export function PipelineTheater({ waLink }: { waLink: string | null }) {
       </div>
       <div className="flex-1 overflow-hidden">
         {pipelines.length === 0 ? (
-          <AttractScreen waLink={waLink} />
+          <div className="flex h-full items-center justify-center">
+            <p className="text-sm text-muted-foreground">Menunggu percakapan…</p>
+          </div>
         ) : (
           <div className="grid gap-3">
             <AnimatePresence initial={false}>
