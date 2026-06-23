@@ -51,6 +51,8 @@ interface ExhibitStreamValue {
   feed: DashboardEvent[];
   pipelines: PipelineState[];
   metrics: ExhibitMetrics;
+  /** Kiosk token (if configured), so links can carry it to gated routes. */
+  token?: string;
 }
 
 const EMPTY_METRICS: ExhibitMetrics = {
@@ -238,8 +240,8 @@ export function ExhibitStreamProvider({
   );
 
   const value = useMemo<ExhibitStreamValue>(
-    () => ({ connected, feed, pipelines: pipelineList, metrics }),
-    [connected, feed, pipelineList, metrics],
+    () => ({ connected, feed, pipelines: pipelineList, metrics, token }),
+    [connected, feed, pipelineList, metrics, token],
   );
 
   return (

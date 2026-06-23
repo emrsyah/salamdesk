@@ -68,7 +68,16 @@ function StepRow({ step }: { step: DashboardEvent }) {
   );
 }
 
-function PipelineCard({ pipeline }: { pipeline: PipelineState }) {
+function PipelineCard({
+  pipeline,
+  token,
+}: {
+  pipeline: PipelineState;
+  token?: string;
+}) {
+  const inspectHref = token
+    ? `/exhibit/inspect/${pipeline.ticketId}?token=${encodeURIComponent(token)}`
+    : `/exhibit/inspect/${pipeline.ticketId}`;
   return (
     <motion.div
       layout
@@ -88,10 +97,7 @@ function PipelineCard({ pipeline }: { pipeline: PipelineState }) {
       <div className="mb-3 flex items-center justify-between gap-3">
         <div className="min-w-0">
           <p className="flex items-center gap-2 text-sm font-semibold text-zinc-100">
-            <Link
-              href={`/exhibit/inspect/${pipeline.ticketId}`}
-              className="truncate hover:text-sky-400"
-            >
+            <Link href={inspectHref} className="truncate hover:text-sky-400">
               {pipeline.requesterName ?? "Pelanggan"}
             </Link>
             {pipeline.boothVisitor && (
@@ -130,7 +136,7 @@ function PipelineCard({ pipeline }: { pipeline: PipelineState }) {
  * and out when evicted.
  */
 export function PipelineTheater() {
-  const { pipelines } = useExhibitStream();
+  const { pipelines, token } = useExhibitStream();
 
   return (
     <div className="flex h-full flex-col">
@@ -149,7 +155,7 @@ export function PipelineTheater() {
           <div className="grid gap-3">
             <AnimatePresence initial={false}>
               {pipelines.map((p) => (
-                <PipelineCard key={p.ticketId} pipeline={p} />
+                <PipelineCard key={p.ticketId} pipeline={p} token={token} />
               ))}
             </AnimatePresence>
           </div>

@@ -40,9 +40,21 @@ const STATUS_COLOR: Record<string, string> = {
  */
 export default async function InspectPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ ticketId: string }>;
+  searchParams: Promise<{ token?: string }>;
 }) {
+  // This page reads full ticket conversations straight from the DB, so it must
+  // honour the same kiosk gate as the SSE/demo routes. When EXHIBIT_TOKEN is
+  // set, callers need a matching `?token=` (the wall forwards it on its links);
+  // otherwise we 404 rather than reveal whether the ticket exists.
+  const expectedToken = process.env.EXHIBIT_TOKEN;
+  if (expectedToken) {
+    const { token } = await searchParams;
+    if (token !== expectedToken) notFound();
+  }
+
   const { ticketId } = await params;
 
   const ticket = await db.query.tickets.findFirst({
