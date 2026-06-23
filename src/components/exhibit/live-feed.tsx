@@ -3,6 +3,7 @@
 import { AnimatePresence, motion } from "motion/react";
 import { useExhibitStream } from "@/app/exhibit/exhibit-stream-context";
 import { clockTime, eventMeta } from "./event-meta";
+import { SectionHeader } from "./section-header";
 import { cn } from "@/lib/utils";
 
 /**
@@ -15,10 +16,8 @@ export function LiveFeed() {
 
   return (
     <div className="flex h-full flex-col">
-      <h2 className="mb-3 shrink-0 font-mono text-xs uppercase tracking-widest text-zinc-500">
-        Aktivitas Langsung
-      </h2>
-      <div className="relative flex-1 overflow-hidden">
+      <SectionHeader label="Aktivitas Langsung" accent="bg-sky-500" />
+      <div className="relative flex-1 overflow-y-auto">
         <ul className="flex flex-col gap-1.5">
           <AnimatePresence initial={false}>
             {feed.map((e) => {

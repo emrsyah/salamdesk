@@ -2,6 +2,7 @@
 
 import { Cell, Pie, PieChart, ResponsiveContainer } from "recharts";
 import { useExhibitStream } from "@/app/exhibit/exhibit-stream-context";
+import { SectionHeader } from "./section-header";
 
 // DESIGN status spectrum at 600-level, legible on the white canvas.
 const MODULE_COLORS = [
@@ -60,9 +61,7 @@ export function StatsPanel() {
 
   return (
     <div className="flex h-full flex-col gap-4">
-      <h2 className="shrink-0 font-mono text-xs uppercase tracking-widest text-zinc-500">
-        Statistik
-      </h2>
+      <SectionHeader label="Statistik" accent="bg-emerald-500" />
 
       <div className="grid grid-cols-2 gap-2">
         <StatTile
