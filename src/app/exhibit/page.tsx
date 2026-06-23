@@ -25,9 +25,9 @@ export default function ExhibitPage() {
           style={{
             backgroundImage: "url(/bg/4.png)",
             maskImage:
-              "linear-gradient(to bottom, black 55%, transparent 100%)",
+              "linear-gradient(to bottom, black 95%, transparent 100%)",
             WebkitMaskImage:
-              "linear-gradient(to bottom, black 55%, transparent 100%)",
+              "linear-gradient(to bottom, black 95%, transparent 100%)",
           }}
         />
         <div className="absolute inset-0 bg-gradient-to-b from-transparent via-background/55 to-background" />
