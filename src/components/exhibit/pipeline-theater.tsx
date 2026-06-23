@@ -28,7 +28,7 @@ export function pipelineSummary(pipeline: PipelineState) {
 /** A confidence bar (0–1) that animates its width as the value lands. */
 function ConfidenceBar({ value, accent }: { value: number; accent: string }) {
   return (
-    <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-white/5">
+    <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-zinc-100">
       <motion.div
         className={cn("h-full rounded-full", accent)}
         initial={{ width: 0 }}
@@ -60,7 +60,7 @@ function StepRow({ step }: { step: DashboardEvent }) {
       initial={{ opacity: 0, x: -8 }}
       animate={{ opacity: 1, x: 0 }}
       transition={{ duration: 0.2 }}
-      className="border-l-2 border-white/10 pl-3"
+      className="border-l-2 border-zinc-200 pl-3"
     >
       <div className="flex items-center gap-2">
         <span
@@ -71,7 +71,7 @@ function StepRow({ step }: { step: DashboardEvent }) {
         >
           {meta.tag}
         </span>
-        <span className="text-sm text-zinc-300">{step.label}</span>
+        <span className="text-sm text-zinc-700">{step.label}</span>
       </div>
       {confidence != null && (
         <ConfidenceBar
@@ -102,22 +102,22 @@ function PipelineCard({
       exit={{ opacity: 0, scale: 0.97, transition: { duration: 0.3 } }}
       transition={{ duration: 0.35, ease: "easeOut" }}
       className={cn(
-        "rounded-xl border bg-white/[0.03] p-4",
+        "rounded-xl border bg-white p-4 shadow-sm",
         pipeline.boothVisitor
-          ? "border-fuchsia-500/40 ring-1 ring-fuchsia-500/20"
+          ? "border-amber-300 ring-1 ring-amber-200"
           : pipeline.done
-            ? "border-emerald-500/30"
-            : "border-white/10",
+            ? "border-emerald-200"
+            : "border-zinc-200",
       )}
     >
       <div className="mb-3 flex items-center justify-between gap-3">
         <div className="min-w-0">
-          <p className="flex items-center gap-2 text-sm font-semibold text-zinc-100">
-            <Link href={inspectHref} className="truncate hover:text-sky-400">
+          <p className="flex items-center gap-2 text-sm font-semibold text-zinc-900">
+            <Link href={inspectHref} className="truncate hover:text-sky-600">
               {pipeline.requesterName ?? "Pelanggan"}
             </Link>
             {pipeline.boothVisitor && (
-              <span className="shrink-0 rounded-full bg-fuchsia-500/15 px-1.5 py-0.5 font-mono text-[9px] font-semibold text-fuchsia-300">
+              <span className="shrink-0 rounded-full border border-amber-200 bg-amber-50 px-1.5 py-0.5 font-mono text-[9px] font-semibold text-amber-700">
                 👋 BOOTH
               </span>
             )}
@@ -125,12 +125,12 @@ function PipelineCard({
           <p className="truncate text-xs text-zinc-500">{pipeline.preview}</p>
         </div>
         {pipeline.done ? (
-          <span className="shrink-0 rounded-full bg-emerald-500/15 px-2 py-0.5 font-mono text-[10px] font-semibold text-emerald-400">
+          <span className="shrink-0 rounded-full border border-emerald-200/70 bg-emerald-50 px-2 py-0.5 font-mono text-[10px] font-medium text-emerald-700">
             SELESAI
           </span>
         ) : (
-          <span className="flex shrink-0 items-center gap-1.5 rounded-full bg-sky-500/15 px-2 py-0.5 font-mono text-[10px] font-semibold text-sky-400">
-            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-sky-400" />
+          <span className="flex shrink-0 items-center gap-1.5 rounded-full border border-sky-200/70 bg-sky-50 px-2 py-0.5 font-mono text-[10px] font-medium text-sky-700">
+            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-sky-500" />
             MENGANALISIS
           </span>
         )}
@@ -148,23 +148,23 @@ function PipelineCard({
           initial={{ opacity: 0, y: 6 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.3, delay: 0.1 }}
-          className="mt-3 rounded-lg border border-emerald-500/20 bg-emerald-500/[0.06] p-3"
+          className="mt-3 rounded-xl border border-amber-200 bg-gradient-to-br from-amber-50 to-yellow-50 p-3 shadow-sm"
         >
           <div className="mb-1.5 flex items-center gap-2 font-mono text-[10px] uppercase tracking-wider">
-            <span className="text-emerald-400">
-              {summary.isDraft ? "✍️ Draf untuk staf" : "✍️ Jawaban AI"}
+            <span className="text-amber-600">
+              {summary.isDraft ? "✦ Draf untuk staf" : "✦ Jawaban AI"}
             </span>
             {summary.latencyMs != null && (
-              <span className="text-amber-300">
+              <span className="text-amber-600/80">
                 ⚡ {formatDuration(summary.latencyMs)}
               </span>
             )}
           </div>
-          <p className="line-clamp-3 text-sm leading-relaxed text-zinc-200">
+          <p className="line-clamp-3 text-sm leading-relaxed text-zinc-800">
             {summary.replyPreview}
           </p>
           {summary.kbTitle && (
-            <p className="mt-2 font-mono text-[10px] text-zinc-500">
+            <p className="mt-2 font-mono text-[10px] text-amber-700/70">
               📖 Sumber: {summary.kbTitle}
             </p>
           )}

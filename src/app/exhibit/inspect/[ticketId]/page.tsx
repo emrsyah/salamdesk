@@ -21,16 +21,16 @@ function Field({ label, value }: { label: string; value: React.ReactNode }) {
       <dt className="font-mono text-[10px] uppercase tracking-wider text-zinc-500">
         {label}
       </dt>
-      <dd className="mt-0.5 text-sm text-zinc-200">{value}</dd>
+      <dd className="mt-0.5 text-sm text-zinc-800">{value}</dd>
     </div>
   );
 }
 
 const STATUS_COLOR: Record<string, string> = {
-  completed: "bg-emerald-500/15 text-emerald-400",
-  processing: "bg-sky-500/15 text-sky-400",
-  failed: "bg-rose-500/15 text-rose-400",
-  skipped: "bg-zinc-600/20 text-zinc-400",
+  completed: "border border-emerald-200/70 bg-emerald-50 text-emerald-700",
+  processing: "border border-sky-200/70 bg-sky-50 text-sky-700",
+  failed: "border border-red-200/70 bg-red-50 text-red-700",
+  skipped: "border border-zinc-200 bg-zinc-50 text-zinc-500",
 };
 
 /**
@@ -85,12 +85,14 @@ export default async function InspectPage({
     <div className="mx-auto max-w-4xl px-6 py-8">
       <Link
         href="/exhibit"
-        className="font-mono text-xs text-zinc-500 hover:text-zinc-300"
+        className="font-mono text-xs text-zinc-500 hover:text-zinc-900"
       >
         ← Kembali ke wall
       </Link>
 
-      <h1 className="mt-3 text-2xl font-semibold text-zinc-100">{ticket.title}</h1>
+      <h1 className="mt-3 text-2xl font-semibold tracking-tight text-zinc-950">
+        {ticket.title}
+      </h1>
       <p className="mt-1 font-mono text-xs text-zinc-500">
         {ticket.status} · {ticket.priority} · {ticket.id}
       </p>
@@ -105,13 +107,14 @@ export default async function InspectPage({
             {events.map((e) => (
               <div
                 key={e.id}
-                className="rounded-xl border border-white/10 bg-white/[0.03] p-4"
+                className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm"
               >
                 <div className="mb-3 flex items-center gap-2">
                   <span
                     className={cn(
-                      "rounded-full px-2 py-0.5 font-mono text-[10px] font-semibold",
-                      STATUS_COLOR[e.status] ?? "bg-zinc-600/20 text-zinc-400",
+                      "rounded-full px-2 py-0.5 font-mono text-[10px] font-medium",
+                      STATUS_COLOR[e.status] ??
+                        "border border-zinc-200 bg-zinc-50 text-zinc-500",
                     )}
                   >
                     {e.status}
@@ -119,7 +122,7 @@ export default async function InspectPage({
                   <span className="font-mono text-[10px] text-zinc-500">
                     {e.trigger}
                   </span>
-                  <span className="ml-auto font-mono text-[10px] text-zinc-600">
+                  <span className="ml-auto font-mono text-[10px] text-zinc-400">
                     {new Intl.DateTimeFormat("id-ID", {
                       dateStyle: "short",
                       timeStyle: "medium",
@@ -151,28 +154,28 @@ export default async function InspectPage({
                   <Field label="Model" value={e.model} />
                 </dl>
                 {e.moduleReason && (
-                  <p className="mt-3 text-xs text-zinc-400">
-                    <span className="text-zinc-600">Alasan modul: </span>
+                  <p className="mt-3 text-xs text-zinc-600">
+                    <span className="text-zinc-400">Alasan modul: </span>
                     {e.moduleReason}
                   </p>
                 )}
                 {e.suggestedReply && (
-                  <p className="mt-2 rounded-lg bg-white/[0.03] p-2 text-xs text-zinc-300">
+                  <p className="mt-2 rounded-lg border border-amber-200 bg-gradient-to-br from-amber-50 to-yellow-50 p-2 text-xs text-zinc-800">
                     {e.suggestedReply}
                   </p>
                 )}
                 {e.autoReplyBlockedReason && (
-                  <p className="mt-2 text-xs text-amber-400/80">
+                  <p className="mt-2 text-xs text-amber-700">
                     {e.autoReplyBlockedReason}
                   </p>
                 )}
                 {e.error && (
-                  <p className="mt-2 text-xs text-rose-400">{e.error}</p>
+                  <p className="mt-2 text-xs text-red-600">{e.error}</p>
                 )}
               </div>
             ))}
             {events.length === 0 && (
-              <p className="text-sm text-zinc-600">Belum ada triage.</p>
+              <p className="text-sm text-zinc-400">Belum ada triage.</p>
             )}
           </div>
         </section>
@@ -187,12 +190,12 @@ export default async function InspectPage({
               <div
                 key={m.id}
                 className={cn(
-                  "rounded-xl px-3 py-2 text-sm",
+                  "rounded-xl border px-3 py-2 text-sm",
                   m.senderType === "requester"
-                    ? "bg-white/[0.04] text-zinc-200"
+                    ? "border-zinc-200 bg-zinc-50 text-zinc-800"
                     : m.senderType === "ai_agent"
-                      ? "bg-emerald-500/10 text-emerald-100"
-                      : "bg-sky-500/10 text-sky-100",
+                      ? "border-amber-200 bg-gradient-to-br from-amber-50 to-yellow-50 text-zinc-800"
+                      : "border-sky-200/70 bg-sky-50 text-sky-900",
                 )}
               >
                 <p className="mb-1 font-mono text-[10px] uppercase tracking-wider text-zinc-500">
@@ -202,7 +205,7 @@ export default async function InspectPage({
               </div>
             ))}
             {messages.length === 0 && (
-              <p className="text-sm text-zinc-600">Belum ada pesan.</p>
+              <p className="text-sm text-zinc-400">Belum ada pesan.</p>
             )}
           </div>
         </section>

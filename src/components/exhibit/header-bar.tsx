@@ -24,10 +24,10 @@ function DemoButton() {
         }
       }}
       className={cn(
-        "rounded-full border border-white/10 px-3 py-1 text-xs font-semibold transition",
+        "rounded-md px-3 py-1 text-xs font-semibold transition",
         busy
-          ? "cursor-not-allowed text-zinc-600"
-          : "text-zinc-300 hover:border-white/30 hover:text-white",
+          ? "cursor-not-allowed bg-zinc-100 text-zinc-400"
+          : "bg-yellow-400 text-yellow-950 hover:bg-yellow-500",
       )}
     >
       {busy ? "Memutar…" : "▶ Demo"}
@@ -60,46 +60,48 @@ export function HeaderBar() {
       : 0;
 
   return (
-    <header className="flex items-center justify-between border-b border-white/10 px-8 py-4">
+    <header className="flex items-center justify-between border-b border-zinc-200 px-8 py-4">
       <div className="flex items-center gap-3">
-        <span className="text-xl font-bold tracking-tight">SalamDesk</span>
+        <span className="text-xl font-bold tracking-tight text-zinc-950">
+          SalamDesk
+        </span>
         <span
           className={cn(
-            "flex items-center gap-1.5 rounded-full px-2.5 py-1 font-mono text-[11px] font-semibold",
+            "flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 font-mono text-[11px] font-medium leading-4",
             connected
-              ? "bg-emerald-500/15 text-emerald-400"
-              : "bg-zinc-700/30 text-zinc-500",
+              ? "border-emerald-200/70 bg-emerald-50 text-emerald-700"
+              : "border-zinc-200 bg-zinc-50 text-zinc-500",
           )}
         >
           <span
             className={cn(
               "h-1.5 w-1.5 rounded-full",
-              connected ? "animate-pulse bg-emerald-400" : "bg-zinc-500",
+              connected ? "animate-pulse bg-emerald-500" : "bg-zinc-400",
             )}
           />
           {connected ? "LIVE" : "OFFLINE"}
         </span>
       </div>
       <div className="flex items-center gap-8 font-mono text-sm">
-        <span className="flex items-baseline gap-1.5 text-amber-300">
+        <span className="flex items-baseline gap-1.5 text-amber-600">
           <span className="text-base">⚡</span>
           <span className="text-lg font-bold tabular-nums">
             {metrics.lastReplyMs != null ? formatDuration(metrics.lastReplyMs) : "—"}
           </span>
           <span className="text-zinc-500">waktu jawab</span>
         </span>
-        <span className="text-emerald-400 tabular-nums">
+        <span className="text-emerald-600 tabular-nums">
           {metrics.resolved}
           <span className="ml-1 text-zinc-500">selesai</span>
         </span>
-        <span className="text-sky-400 tabular-nums">
+        <span className="text-sky-600 tabular-nums">
           {metrics.ticketsPerMin}
           <span className="ml-1 text-zinc-500">tiket/mnt</span>
         </span>
-        <span className="text-emerald-400 tabular-nums">
+        <span className="text-emerald-600 tabular-nums">
           {autoRate}%<span className="ml-1 text-zinc-500">otomatis</span>
         </span>
-        <span className="text-zinc-300">{now}</span>
+        <span className="text-zinc-600">{now}</span>
         <DemoButton />
       </div>
     </header>

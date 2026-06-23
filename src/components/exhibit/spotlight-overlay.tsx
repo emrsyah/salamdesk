@@ -14,7 +14,7 @@ const SPOTLIGHT_HOLD_MS = 9_000;
 
 /** A short burst of falling confetti — hand-rolled to avoid a new dependency. */
 function Confetti() {
-  const colors = ["#f0abfc", "#34d399", "#fbbf24", "#38bdf8", "#a78bfa"];
+  const colors = ["#0ea5e9", "#10b981", "#f59e0b", "#8b5cf6", "#ef4444"];
   // Deterministic spread (no Math.random) so SSR/animation stay stable.
   const pieces = Array.from({ length: 28 }, (_, i) => ({
     left: (i * 37) % 100,
@@ -61,18 +61,18 @@ function Stage({
       <span
         className={
           active
-            ? "flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-fuchsia-500/20 text-2xl ring-2 ring-fuchsia-400/50"
-            : "flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-white/[0.06] text-2xl"
+            ? "flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-amber-100 text-2xl ring-2 ring-amber-300"
+            : "flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-zinc-100 text-2xl"
         }
       >
         {icon}
       </span>
       <div className="min-w-0">
-        <p className="text-lg font-semibold text-zinc-100">{title}</p>
-        <p className="truncate text-sm text-zinc-400">{detail}</p>
+        <p className="text-lg font-semibold text-zinc-900">{title}</p>
+        <p className="truncate text-sm text-zinc-500">{detail}</p>
       </div>
       {active && (
-        <span className="ml-auto h-2.5 w-2.5 shrink-0 animate-pulse rounded-full bg-fuchsia-400" />
+        <span className="ml-auto h-2.5 w-2.5 shrink-0 animate-pulse rounded-full bg-amber-500" />
       )}
     </motion.div>
   );
@@ -88,7 +88,7 @@ function SpotlightCard({ pipeline }: { pipeline: PipelineState }) {
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       transition={{ duration: 0.4 }}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-950/80 backdrop-blur-md"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-white/75 backdrop-blur-md"
     >
       {pipeline.done && <Confetti />}
       <motion.div
@@ -96,17 +96,17 @@ function SpotlightCard({ pipeline }: { pipeline: PipelineState }) {
         animate={{ scale: 1, y: 0, opacity: 1 }}
         exit={{ scale: 0.96, opacity: 0 }}
         transition={{ type: "spring", stiffness: 220, damping: 24 }}
-        className="relative mx-6 w-full max-w-2xl rounded-3xl border border-fuchsia-500/30 bg-zinc-900/95 p-8 shadow-2xl ring-1 ring-fuchsia-500/10"
+        className="relative mx-6 w-full max-w-2xl rounded-3xl border border-amber-200 bg-white p-8 shadow-2xl ring-1 ring-amber-100"
       >
         <div className="mb-6 flex items-center justify-between gap-3">
           <div className="min-w-0">
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-fuchsia-500/15 px-2.5 py-1 font-mono text-[11px] font-semibold text-fuchsia-300">
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 font-mono text-[11px] font-semibold text-amber-700">
               👋 PENGUNJUNG BOOTH
             </span>
-            <h2 className="mt-3 truncate text-3xl font-bold text-zinc-50">
+            <h2 className="mt-3 truncate text-3xl font-bold tracking-tight text-zinc-950">
               Halo, {name}!
             </h2>
-            <p className="mt-1 text-base text-zinc-400">
+            <p className="mt-1 text-base text-zinc-500">
               {pipeline.done
                 ? "Pesan Anda sudah dijawab — lihat hasilnya 👇"
                 : "AI kami sedang membaca & menjawab pesan Anda…"}
@@ -117,7 +117,7 @@ function SpotlightCard({ pipeline }: { pipeline: PipelineState }) {
               <p className="font-mono text-[10px] uppercase tracking-wider text-zinc-500">
                 Waktu jawab
               </p>
-              <p className="text-4xl font-bold tabular-nums text-amber-300">
+              <p className="text-4xl font-bold tabular-nums text-amber-600">
                 {formatDuration(summary.latencyMs)}
               </p>
             </div>
@@ -145,16 +145,16 @@ function SpotlightCard({ pipeline }: { pipeline: PipelineState }) {
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.2 }}
-            className="mt-6 rounded-2xl border border-emerald-500/25 bg-emerald-500/[0.07] p-5"
+            className="mt-6 rounded-2xl border border-amber-200 bg-gradient-to-br from-amber-50 to-yellow-50 p-5 shadow-sm"
           >
-            <p className="mb-2 font-mono text-[11px] uppercase tracking-wider text-emerald-400">
-              {summary.isDraft ? "✍️ Draf untuk staf" : "✍️ Jawaban AI"}
+            <p className="mb-2 font-mono text-[11px] uppercase tracking-wider text-amber-600">
+              {summary.isDraft ? "✦ Draf untuk staf" : "✦ Jawaban AI"}
             </p>
-            <p className="text-lg leading-relaxed text-zinc-100">
+            <p className="text-lg leading-relaxed text-zinc-800">
               {summary.replyPreview}
             </p>
             {summary.kbTitle && (
-              <p className="mt-3 font-mono text-xs text-zinc-500">
+              <p className="mt-3 font-mono text-xs text-amber-700/70">
                 📖 Berdasarkan panduan: {summary.kbTitle}
               </p>
             )}

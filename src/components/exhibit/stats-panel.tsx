@@ -3,14 +3,15 @@
 import { Cell, Pie, PieChart, ResponsiveContainer } from "recharts";
 import { useExhibitStream } from "@/app/exhibit/exhibit-stream-context";
 
+// DESIGN status spectrum at 600-level, legible on the white canvas.
 const MODULE_COLORS = [
-  "#818cf8",
-  "#34d399",
-  "#fbbf24",
-  "#f472b6",
-  "#22d3ee",
-  "#a78bfa",
-  "#fb923c",
+  "#7c3aed", // violet-600
+  "#059669", // emerald-600
+  "#d97706", // amber-600
+  "#0284c7", // sky-600
+  "#dc2626", // red-600
+  "#ea580c", // orange-600
+  "#64748b", // slate-500
 ];
 
 function StatTile({
@@ -23,11 +24,11 @@ function StatTile({
   accent?: string;
 }) {
   return (
-    <div className="rounded-lg border border-white/5 bg-white/[0.02] px-3 py-2.5">
+    <div className="rounded-lg border border-zinc-200 bg-white px-3 py-2.5">
       <p className="font-mono text-[10px] uppercase tracking-wider text-zinc-500">
         {label}
       </p>
-      <p className={`mt-0.5 text-2xl font-semibold ${accent ?? "text-zinc-100"}`}>
+      <p className={`mt-0.5 text-2xl font-semibold ${accent ?? "text-zinc-900"}`}>
         {value}
       </p>
     </div>
@@ -60,31 +61,31 @@ export function StatsPanel() {
   return (
     <div className="flex h-full flex-col gap-4">
       <h2 className="shrink-0 font-mono text-xs uppercase tracking-widest text-zinc-500">
-        Statistics
+        Statistik
       </h2>
 
       <div className="grid grid-cols-2 gap-2">
         <StatTile
           label="Tiket / menit"
           value={metrics.ticketsPerMin}
-          accent="text-sky-400"
+          accent="text-sky-600"
         />
         <StatTile
           label="Auto-reply"
           value={`${autoRate}%`}
-          accent="text-emerald-400"
+          accent="text-emerald-600"
         />
-        <StatTile label="KB hit rate" value={`${kbHitRate}%`} accent="text-teal-400" />
+        <StatTile label="KB hit rate" value={`${kbHitRate}%`} accent="text-emerald-600" />
         <StatTile
           label="Off-topic blocked"
           value={metrics.offTopicBlocked}
-          accent="text-rose-400"
+          accent="text-red-600"
         />
-        <StatTile label="Tool calls" value={metrics.toolCalls} accent="text-orange-400" />
-        <StatTile label="Draf untuk staf" value={metrics.drafted} accent="text-amber-400" />
+        <StatTile label="Tool calls" value={metrics.toolCalls} accent="text-amber-600" />
+        <StatTile label="Draf untuk staf" value={metrics.drafted} accent="text-amber-600" />
       </div>
 
-      <div className="rounded-lg border border-white/5 bg-white/[0.02] p-3">
+      <div className="rounded-lg border border-zinc-200 bg-white p-3">
         <p className="mb-2 font-mono text-[10px] uppercase tracking-wider text-zinc-500">
           Modul teratas
         </p>
@@ -119,7 +120,7 @@ export function StatsPanel() {
                     className="h-2.5 w-2.5 shrink-0 rounded-sm"
                     style={{ background: MODULE_COLORS[i % MODULE_COLORS.length] }}
                   />
-                  <span className="truncate text-zinc-300">{m.name}</span>
+                  <span className="truncate text-zinc-700">{m.name}</span>
                   <span className="ml-auto font-mono text-zinc-500">{m.value}</span>
                 </li>
               ))}

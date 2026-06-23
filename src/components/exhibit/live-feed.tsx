@@ -16,7 +16,7 @@ export function LiveFeed() {
   return (
     <div className="flex h-full flex-col">
       <h2 className="mb-3 shrink-0 font-mono text-xs uppercase tracking-widest text-zinc-500">
-        Live Activity
+        Aktivitas Langsung
       </h2>
       <div className="relative flex-1 overflow-hidden">
         <ul className="flex flex-col gap-1.5">
@@ -31,7 +31,7 @@ export function LiveFeed() {
                   animate={{ opacity: 1, y: 0, scale: 1 }}
                   exit={{ opacity: 0, height: 0, marginBottom: 0 }}
                   transition={{ duration: 0.25, ease: "easeOut" }}
-                  className="rounded-md border border-white/5 bg-white/[0.02] px-3 py-2"
+                  className="rounded-md border border-zinc-200 bg-white px-3 py-2"
                 >
                   <div className="flex items-center gap-2">
                     <span className={cn("text-base leading-none", meta.accent)}>
@@ -45,11 +45,11 @@ export function LiveFeed() {
                     >
                       {meta.tag}
                     </span>
-                    <span className="ml-auto font-mono text-[10px] text-zinc-600">
+                    <span className="ml-auto font-mono text-[10px] text-zinc-400">
                       {clockTime(e.ts)}
                     </span>
                   </div>
-                  <p className="mt-1 line-clamp-2 text-sm text-zinc-300">
+                  <p className="mt-1 line-clamp-2 text-sm text-zinc-700">
                     {e.label}
                   </p>
                 </motion.li>
@@ -58,7 +58,7 @@ export function LiveFeed() {
           </AnimatePresence>
         </ul>
         {/* Fade the bottom so evicted rows dissolve rather than pop. */}
-        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-zinc-950 to-transparent" />
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-white to-transparent" />
       </div>
     </div>
   );

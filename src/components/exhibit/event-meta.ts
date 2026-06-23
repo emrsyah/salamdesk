@@ -8,26 +8,29 @@ export interface EventMeta {
   tag: string;
 }
 
+// Functional palette per DESIGN.md: sky=new/search, violet=in-progress,
+// orange=priority, red=guard, emerald=found/resolved, amber=AI/tool, slate=closed.
+// Rendered at 600 weight for contrast on the white canvas.
 const META: Record<string, EventMeta> = {
-  "ticket.new": { accent: "text-sky-400", tag: "BARU" },
-  "requester.firsttime": { accent: "text-emerald-400", tag: "PERTAMA" },
-  "vision.captioned": { accent: "text-fuchsia-400", tag: "GAMBAR" },
-  "classify.module": { accent: "text-indigo-400", tag: "MODUL" },
-  "classify.priority": { accent: "text-amber-400", tag: "PRIORITAS" },
-  "guard.offtopic": { accent: "text-rose-400", tag: "GUARD" },
-  "kb.searched": { accent: "text-cyan-400", tag: "KB" },
-  "kb.matched": { accent: "text-teal-400", tag: "KB ✓" },
-  "procedure.picked": { accent: "text-violet-400", tag: "PROSEDUR" },
-  "tool.invoked": { accent: "text-orange-400", tag: "TOOL" },
-  "tool.result": { accent: "text-orange-300", tag: "TOOL →" },
-  "gate.decision": { accent: "text-yellow-400", tag: "GATE" },
-  "reply.sent": { accent: "text-emerald-400", tag: "BALAS" },
-  "ingestion.progress": { accent: "text-blue-400", tag: "INGEST" },
-  "sla.changed": { accent: "text-red-400", tag: "SLA" },
-  "ticket.autoclosed": { accent: "text-zinc-400", tag: "TUTUP" },
+  "ticket.new": { accent: "text-sky-600", tag: "BARU" },
+  "requester.firsttime": { accent: "text-emerald-600", tag: "PERTAMA" },
+  "vision.captioned": { accent: "text-violet-600", tag: "GAMBAR" },
+  "classify.module": { accent: "text-violet-600", tag: "MODUL" },
+  "classify.priority": { accent: "text-orange-600", tag: "PRIORITAS" },
+  "guard.offtopic": { accent: "text-red-600", tag: "GUARD" },
+  "kb.searched": { accent: "text-sky-600", tag: "KB" },
+  "kb.matched": { accent: "text-emerald-600", tag: "KB ✓" },
+  "procedure.picked": { accent: "text-violet-600", tag: "PROSEDUR" },
+  "tool.invoked": { accent: "text-amber-600", tag: "TOOL" },
+  "tool.result": { accent: "text-amber-600", tag: "TOOL →" },
+  "gate.decision": { accent: "text-yellow-600", tag: "GATE" },
+  "reply.sent": { accent: "text-emerald-600", tag: "BALAS" },
+  "ingestion.progress": { accent: "text-sky-600", tag: "INGEST" },
+  "sla.changed": { accent: "text-red-600", tag: "SLA" },
+  "ticket.autoclosed": { accent: "text-slate-500", tag: "TUTUP" },
 };
 
-const FALLBACK: EventMeta = { accent: "text-zinc-400", tag: "EVENT" };
+const FALLBACK: EventMeta = { accent: "text-zinc-500", tag: "EVENT" };
 
 export function eventMeta(type: DashboardEvent["type"] | string): EventMeta {
   return META[type] ?? FALLBACK;
