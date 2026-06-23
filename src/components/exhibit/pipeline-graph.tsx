@@ -47,17 +47,17 @@ const NODE_DEFS: {
   y: number;
   optional?: boolean;
 }[] = [
-  { id: "intake", icon: "💬", label: "Pesan masuk", x: 0, y: 168 },
-  { id: "vision", icon: "🖼️", label: "Baca gambar", x: 175, y: 20, optional: true },
-  { id: "module", icon: "🎯", label: "Klasifikasi modul", x: 345, y: 92 },
-  { id: "priority", icon: "🚦", label: "Nilai prioritas", x: 345, y: 184 },
-  { id: "guard", icon: "🛡️", label: "Penjaga topik", x: 345, y: 276 },
-  { id: "kb", icon: "🔎", label: "Cari panduan", x: 580, y: 92 },
-  { id: "kbmatch", icon: "📖", label: "Susun jawaban", x: 800, y: 20, optional: true },
-  { id: "procedure", icon: "🧭", label: "Jalankan prosedur", x: 800, y: 148, optional: true },
-  { id: "tools", icon: "⚙️", label: "Panggil alat", x: 800, y: 276, optional: true },
-  { id: "gate", icon: "🚪", label: "Gerbang auto-reply", x: 1035, y: 184 },
-  { id: "reply", icon: "✍️", label: "Balasan", x: 1255, y: 184 },
+  { id: "intake", icon: "💬", label: "Pesan masuk", x: 0, y: 260 },
+  { id: "vision", icon: "🖼️", label: "Baca gambar", x: 150, y: 20, optional: true },
+  { id: "module", icon: "🎯", label: "Klasifikasi modul", x: 295, y: 110 },
+  { id: "priority", icon: "🚦", label: "Nilai prioritas", x: 295, y: 260 },
+  { id: "guard", icon: "🛡️", label: "Penjaga topik", x: 295, y: 410 },
+  { id: "kb", icon: "🔎", label: "Cari panduan", x: 510, y: 260 },
+  { id: "kbmatch", icon: "📖", label: "Susun jawaban", x: 715, y: 110, optional: true },
+  { id: "procedure", icon: "🧭", label: "Jalankan prosedur", x: 715, y: 260, optional: true },
+  { id: "tools", icon: "⚙️", label: "Panggil alat", x: 715, y: 410, optional: true },
+  { id: "gate", icon: "🚪", label: "Gerbang auto-reply", x: 930, y: 260 },
+  { id: "reply", icon: "✍️", label: "Balasan", x: 1145, y: 260 },
 ];
 
 /** Directed edges; `optional` ones render faint until actually traversed. */
@@ -116,6 +116,9 @@ const STATUS_WORD: Record<NodeStatus, string> = {
   blocked: "ditahan",
 };
 
+/** Hidden handle styling shared by all nodes (edges still attach to it). */
+const HANDLE_CLASS = "!h-1.5 !w-1.5 !border-0 !bg-transparent !opacity-0";
+
 function TriageNode({ data }: NodeProps) {
   const d = data as TriageNodeData;
   const active = d.status === "active";
@@ -123,39 +126,75 @@ function TriageNode({ data }: NodeProps) {
   const blocked = d.status === "blocked";
   const stroke = STATUS_STROKE[d.status];
 
+  // Idle nodes aren't the story. Render them small and quiet so the active and
+  // completed path carries the eye (per "shrink what isn't the key visual").
+  if (idle) {
+    return (
+      <div
+        className={cn(
+          "flex w-[150px] items-center gap-2 rounded-lg border bg-white/60 px-2.5 py-1.5",
+          d.optional
+            ? "border-dashed border-zinc-200 opacity-45"
+            : "border-zinc-200 opacity-70",
+        )}
+      >
+        <Handle type="target" position={Position.Left} isConnectable={false} className={HANDLE_CLASS} />
+        <span className="text-sm opacity-60 grayscale">{d.icon}</span>
+        <p className="truncate text-xs font-medium text-zinc-500">{d.label}</p>
+        <Handle type="source" position={Position.Right} isConnectable={false} className={HANDLE_CLASS} />
+      </div>
+    );
+  }
+
   return (
     <motion.div
       initial={false}
       animate={
         active && !d.reduceMotion
-          ? { boxShadow: [
-              `0 0 0 0 ${stroke}00`,
-              `0 0 0 6px ${stroke}22`,
-              `0 0 0 0 ${stroke}00`,
-            ] }
-          : { boxShadow: "0 0 0 0 rgba(0,0,0,0)" }
+          ? {
+              scale: 1.05,
+              boxShadow: [
+                `0 0 0 0 ${stroke}00`,
+                `0 0 0 10px ${stroke}26`,
+                `0 0 0 0 ${stroke}00`,
+              ],
+            }
+          : { scale: active ? 1.05 : 1, boxShadow: "0 0 0 0 rgba(0,0,0,0)" }
       }
       transition={
         active
-          ? { duration: 1.8, repeat: Infinity, ease: "easeInOut" }
+          ? { boxShadow: { duration: 1.7, repeat: Infinity, ease: "easeInOut" }, scale: { duration: 0.3 } }
           : { duration: 0.3 }
       }
       className={cn(
-        "relative w-[156px] rounded-xl border bg-white px-3 py-2.5 shadow-sm transition-colors",
-        active && "border-amber-300 ring-1 ring-amber-200",
+        "relative w-[160px] rounded-xl border bg-white px-3 py-2.5 shadow-sm transition-colors",
+        active && "z-10 border-amber-400 ring-2 ring-amber-300",
         d.status === "done" && "border-emerald-200",
         d.status === "sent" && "border-emerald-300 ring-1 ring-emerald-200",
         d.status === "draft" && "border-amber-300 ring-1 ring-amber-200",
         blocked && "border-red-300 ring-1 ring-red-200",
-        idle &&
-          cn("border-zinc-200", d.optional ? "border-dashed opacity-55" : "opacity-80"),
       )}
     >
+      {/* Unmistakable "currently running" badge. */}
+      {active && (
+        <div className="absolute -top-3 left-1/2 -translate-x-1/2">
+          <span className="flex items-center gap-1 rounded-full bg-amber-500 px-2 py-0.5 font-mono text-[9px] font-bold uppercase tracking-wider text-white shadow">
+            {!d.reduceMotion && (
+              <motion.span
+                className="size-1.5 rounded-full bg-white"
+                animate={{ opacity: [0.3, 1, 0.3] }}
+                transition={{ duration: 1.1, repeat: Infinity }}
+              />
+            )}
+            Diproses
+          </span>
+        </div>
+      )}
       <Handle
         type="target"
         position={Position.Left}
         isConnectable={false}
-        className="!h-1.5 !w-1.5 !border-0 !bg-zinc-300 !opacity-0"
+        className={HANDLE_CLASS}
       />
       <div className="flex items-center gap-2">
         <span
@@ -188,7 +227,6 @@ function TriageNode({ data }: NodeProps) {
             (d.status === "done" || d.status === "sent") && "text-emerald-600",
             blocked && "text-red-600",
             d.status === "draft" && "text-amber-600",
-            idle && "text-zinc-400",
           )}
         >
           {active && !d.reduceMotion && (
@@ -211,7 +249,7 @@ function TriageNode({ data }: NodeProps) {
         type="source"
         position={Position.Right}
         isConnectable={false}
-        className="!h-1.5 !w-1.5 !border-0 !bg-zinc-300 !opacity-0"
+        className={HANDLE_CLASS}
       />
     </motion.div>
   );
@@ -238,7 +276,12 @@ const NODE_TYPES = { triage: TriageNode, frame: FrameNode };
 function deriveStatuses(pipeline: PipelineState): Record<string, { status: NodeStatus; detail: string | null }> {
   const steps = pipeline.steps;
   const latest = steps[steps.length - 1];
-  const activeNode = pipeline.done ? null : latest ? NODE_OF[latest.type] : "intake";
+  // Active = mid-run. `reply.sent` is terminal; any other latest event means the
+  // engine is still working — including a follow-up after an earlier reply, since
+  // triage re-runs on every inbound message. So re-runs light up again instead of
+  // freezing on the first pass.
+  const activeNode =
+    latest && latest.type !== "reply.sent" ? NODE_OF[latest.type] : null;
 
   const lastFor = (nodeId: string): DashboardEvent | null => {
     for (let i = steps.length - 1; i >= 0; i--) {
@@ -286,8 +329,8 @@ export function TriageGraph({
       {
         id: "frame",
         type: "frame",
-        position: { x: 325, y: 64 },
-        data: { label: "Berpikir paralel", w: 200, h: 296 },
+        position: { x: 276, y: 82 },
+        data: { label: "Berpikir paralel", w: 210, h: 410 },
         draggable: false,
         selectable: false,
         zIndex: 0,
@@ -352,9 +395,9 @@ export function TriageGraph({
         edges={edges}
         nodeTypes={NODE_TYPES}
         fitView
-        fitViewOptions={{ padding: compact ? 0.05 : 0.1 }}
+        fitViewOptions={{ padding: compact ? 0.06 : 0.04 }}
         minZoom={0.2}
-        maxZoom={1.5}
+        maxZoom={1.6}
         nodesDraggable={false}
         nodesConnectable={false}
         nodesFocusable={false}

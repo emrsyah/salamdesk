@@ -4,16 +4,15 @@ import { useExhibitStream } from "@/app/exhibit/exhibit-stream-context";
 import { AttractScreen } from "./attract-screen";
 import { LiveFeed } from "./live-feed";
 import { PipelineTheater } from "./pipeline-theater";
-import { StatsPanel } from "./stats-panel";
-import { QrCorner } from "./qr-corner";
+import { WallFooter } from "./wall-footer";
 
 /**
  * The wall has two modes:
- *  - **Idle** (no tickets in flight): a full-bleed, landing-style attract hero —
- *    the booth's job here is to pull a passer-by into scanning, so the empty
- *    operator columns are hidden.
- *  - **Active** (tickets flowing): the three-pane operator console (feed ·
- *    pipeline theater · stats), matching the ticket app.
+ *  - **Idle** (no tickets in flight): a full-bleed, landing-style attract hero.
+ *  - **Active** (tickets flowing): the triage engine is the hero — a large
+ *    center stage of live node graphs — flanked by a narrow activity ticker on
+ *    the left and a slim metrics strip along the bottom. Everything that isn't
+ *    the engine is deliberately demoted.
  */
 export function WallMain({ waLink }: { waLink: string | null }) {
   const { pipelines } = useExhibitStream();
@@ -28,24 +27,21 @@ export function WallMain({ waLink }: { waLink: string | null }) {
   }
 
   return (
-    <main className="grid min-h-0 flex-1 grid-cols-[20rem_1fr_22rem] gap-6 overflow-hidden p-6">
-      {/* Left — live activity ticker */}
-      <section className="overflow-hidden">
-        <LiveFeed />
-      </section>
+    <main className="flex min-h-0 flex-1 flex-col overflow-hidden">
+      <div className="grid min-h-0 flex-1 grid-cols-[15rem_1fr] gap-4 overflow-hidden p-4">
+        {/* Left — narrow activity ticker (secondary) */}
+        <section className="overflow-hidden">
+          <LiveFeed />
+        </section>
 
-      {/* Center — pipeline theater */}
-      <section className="overflow-hidden">
-        <PipelineTheater />
-      </section>
+        {/* Center — the triage engine, the hero */}
+        <section className="overflow-hidden">
+          <PipelineTheater />
+        </section>
+      </div>
 
-      {/* Right — stats + QR self-try */}
-      <section className="flex flex-col gap-4 overflow-hidden">
-        <div className="flex-1 overflow-hidden">
-          <StatsPanel />
-        </div>
-        <QrCorner waLink={waLink} />
-      </section>
+      {/* Bottom — demoted metrics + scan-to-try */}
+      <WallFooter waLink={waLink} />
     </main>
   );
 }

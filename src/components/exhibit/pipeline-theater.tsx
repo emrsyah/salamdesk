@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { AnimatePresence, motion } from "motion/react";
 import {
@@ -23,8 +24,57 @@ export { pipelineSummary } from "./pipeline-utils";
  *   • 3  → three stacked lanes (default)
  * Capped by how many pipelines are kept live at once — raise
  * `PIPELINE_CAPACITY` in exhibit-stream-context.tsx to go above that.
+ *
+ * This is just the *default* — operators change it live via the on-screen
+ * control in the section header.
  */
 const WALL_GRAPH_COUNT = 3;
+/** Choices offered by the on-screen count control. */
+const COUNT_OPTIONS = [1, 2, 3, 4];
+
+/** Segmented control: how many concurrent tickets to render at once. */
+function CountControl({
+  value,
+  onChange,
+}: {
+  value: number;
+  onChange: (n: number) => void;
+}) {
+  return (
+    <div className="flex items-center gap-1.5">
+      <span className="font-mono text-[10px] uppercase tracking-wider text-zinc-500">
+        Tampil
+      </span>
+      <div
+        role="radiogroup"
+        aria-label="Jumlah tiket ditampilkan"
+        className="flex items-center gap-0.5 rounded-full border border-zinc-200 bg-white/80 p-0.5 backdrop-blur-sm"
+      >
+        {COUNT_OPTIONS.map((n) => {
+          const on = n === value;
+          return (
+            <button
+              key={n}
+              type="button"
+              role="radio"
+              aria-checked={on}
+              aria-label={`${n} tiket`}
+              onClick={() => onChange(n)}
+              className={cn(
+                "flex size-6 items-center justify-center rounded-full font-mono text-xs font-semibold tabular-nums transition-colors",
+                on
+                  ? "bg-violet-600 text-white shadow-sm"
+                  : "text-zinc-500 hover:bg-zinc-100",
+              )}
+            >
+              {n}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 
 /** Breathing dots — the "still thinking" tell. */
 function ThinkingDots({ className }: { className?: string }) {
@@ -148,20 +198,15 @@ function PipelineLane({
  */
 export function PipelineTheater() {
   const { pipelines, token } = useExhibitStream();
-  const lanes = pipelines.slice(0, WALL_GRAPH_COUNT);
+  const [count, setCount] = useState(WALL_GRAPH_COUNT);
+  const lanes = pipelines.slice(0, count);
 
   return (
     <div className="flex h-full flex-col">
       <SectionHeader
         label="Mesin Triage"
         accent="bg-violet-500"
-        right={
-          <p className="font-mono text-[10px] text-zinc-500">
-            {lanes.length > 0
-              ? `${lanes.length} tiket · alur agen langsung`
-              : "Diagram langsung"}
-          </p>
-        }
+        right={<CountControl value={count} onChange={setCount} />}
       />
 
       {lanes.length === 0 ? (
