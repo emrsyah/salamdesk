@@ -4,6 +4,7 @@ import { useMemo } from "react";
 import {
   Background,
   BackgroundVariant,
+  Controls,
   Handle,
   MarkerType,
   Position,
@@ -308,6 +309,11 @@ function deriveStatuses(pipeline: PipelineState): Record<string, { status: NodeS
     let status: NodeStatus;
     if (def.id === activeNode) {
       status = "active";
+    } else if (!ev && def.id === "intake" && steps.length > 0) {
+      // Intake is the universal entry point: if the pipeline has *any* step,
+      // the message was received — even when the originating `ticket.new` event
+      // didn't reach this client (e.g. the wall joined the stream mid-ticket).
+      status = "done";
     } else if (!ev) {
       status = "idle";
     } else if (def.id === "guard" && ev.type === "guard.offtopic" && !ev.onTopic) {
@@ -415,12 +421,14 @@ export function TriageGraph({
         nodesFocusable={false}
         edgesFocusable={false}
         elementsSelectable={false}
-        panOnDrag={false}
+        // Navigate the canvas itself: drag to pan, scroll/pinch to zoom. Nodes
+        // stay locked (nodesDraggable=false) so only the viewport moves.
+        panOnDrag
         panOnScroll={false}
-        zoomOnScroll={false}
-        zoomOnPinch={false}
-        zoomOnDoubleClick={false}
-        preventScrolling={false}
+        zoomOnScroll
+        zoomOnPinch
+        zoomOnDoubleClick
+        preventScrolling
         proOptions={{ hideAttribution: true }}
         className="!bg-transparent"
       >
@@ -429,6 +437,11 @@ export function TriageGraph({
           gap={22}
           size={1}
           color={compact ? "#f4f4f5" : "#e4e4e7"}
+        />
+        <Controls
+          showInteractive={false}
+          className="!shadow-md"
+          position="bottom-right"
         />
       </ReactFlow>
 

@@ -74,7 +74,7 @@ function ScanToTry({ waLink }: { waLink: string }) {
             exit={{ opacity: 0 }}
             transition={{ duration: 0.2 }}
             onClick={() => setOpen(false)}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-950/60 p-6 backdrop-blur-sm"
+            className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-zinc-950/60 p-6 backdrop-blur-sm"
             role="dialog"
             aria-modal="true"
             aria-label="Pindai untuk mencoba"
@@ -85,7 +85,7 @@ function ScanToTry({ waLink }: { waLink: string }) {
               exit={{ scale: 0.95, opacity: 0 }}
               transition={{ type: "spring", stiffness: 240, damping: 24 }}
               onClick={(e) => e.stopPropagation()}
-              className="relative flex flex-col items-center rounded-3xl border border-zinc-200 bg-white p-8 shadow-2xl"
+              className="relative my-auto flex max-h-full flex-col items-center overflow-y-auto rounded-3xl border border-zinc-200 bg-white p-8 shadow-2xl"
             >
               <button
                 type="button"
@@ -103,7 +103,12 @@ function ScanToTry({ waLink }: { waLink: string }) {
                 kami menjawab langsung di layar.
               </p>
               <div className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm">
-                <QRCodeSVG value={waLink} size={300} level="M" />
+                <QRCodeSVG
+                  value={waLink}
+                  size={300}
+                  level="M"
+                  className="h-auto w-[min(300px,55vh)]"
+                />
               </div>
             </motion.div>
           </motion.div>
