@@ -20,6 +20,9 @@
     "worker": "tsx src/worker/index.ts"
   },
   "dependencies": {
+    "@axiomhq/js": "^1.7.0",
+    "@axiomhq/logging": "^0.2.2",
+    "@axiomhq/nextjs": "^0.2.2",
     "@hapi/boom": "^10.0.1",
     "@hookform/resolvers": "^5.2.2",
     "@langfuse/otel": "^5.5.3",

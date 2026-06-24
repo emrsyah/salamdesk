@@ -6,6 +6,7 @@ import {
   TicketLifecycleError,
 } from "@/services/ticket-lifecycle.service";
 import { log } from "@/lib/logger";
+import { withAxiom } from "@/lib/axiom/server";
 
 const xlog = log("api:tickets-messages");
 
@@ -18,7 +19,7 @@ async function verifyAuth(req: NextRequest) {
   return await validateApiKey(token);
 }
 
-export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export const POST = withAxiom(async (req: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
   try {
     const isAuthorized = await verifyAuth(req);
     if (!isAuthorized) {
@@ -58,4 +59,4 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     }
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
   }
-}
+});

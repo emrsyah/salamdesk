@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth/session";
 import { redisConnection } from "@/lib/redis";
 import { log } from "@/lib/logger";
+import { withAxiom } from "@/lib/axiom/server";
 
 const xlog = log("api:wa-reconnect");
 
@@ -11,7 +12,7 @@ const xlog = log("api:wa-reconnect");
  * and let the worker wipe the dead auth + reconnect, producing a fresh QR
  * (see src/worker/index.ts and reconnectWhatsApp in src/lib/whatsapp.ts).
  */
-export async function POST() {
+export const POST = withAxiom(async () => {
   const session = await getSession();
   if (!session?.user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -46,4 +47,4 @@ export async function POST() {
       { status: 500 },
     );
   }
-}
+});

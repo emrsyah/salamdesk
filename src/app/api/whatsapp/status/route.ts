@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server";
 import { redisConnection } from "@/lib/redis";
 import { log } from "@/lib/logger";
+import { withAxiom } from "@/lib/axiom/server";
 
 const xlog = log("api:wa-status");
 
-export async function GET() {
+export const GET = withAxiom(async () => {
   try {
     // Single MGET instead of up to 3 sequential GETs — this endpoint is polled
     // frequently (status page + global banner), and Upstash bills per command.
@@ -26,4 +27,4 @@ export async function GET() {
     xlog.error({ err: error }, "failed to fetch whatsapp status from redis");
     return NextResponse.json({ status: "error", error: "Failed to connect to Redis" }, { status: 500 });
   }
-}
+});

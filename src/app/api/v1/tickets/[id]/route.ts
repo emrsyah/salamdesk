@@ -6,6 +6,7 @@ import { modules } from "@/db/schema/modules";
 import { requesters } from "@/db/schema/requesters";
 import { eq } from "drizzle-orm";
 import { log } from "@/lib/logger";
+import { withAxiom } from "@/lib/axiom/server";
 
 const xlog = log("api:tickets-detail");
 
@@ -18,7 +19,7 @@ async function verifyAuth(req: NextRequest) {
   return await validateApiKey(token);
 }
 
-export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export const GET = withAxiom(async (req: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
   try {
     const isAuthorized = await verifyAuth(req);
     if (!isAuthorized) {
@@ -54,4 +55,4 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     xlog.error({ err: error }, "get ticket failed");
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
   }
-}
+});

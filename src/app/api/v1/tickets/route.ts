@@ -7,6 +7,7 @@ import { createTicket } from "@/services/ticket.service";
 import { findOrCreateRequesterByIdentity } from "@/services/requester.service";
 import { findActiveTicketForRequester } from "@/services/ticket-lifecycle.service";
 import { log } from "@/lib/logger";
+import { withAxiom } from "@/lib/axiom/server";
 
 const xlog = log("api:tickets");
 
@@ -19,7 +20,7 @@ async function verifyAuth(req: NextRequest) {
   return await validateApiKey(token);
 }
 
-export async function POST(req: NextRequest) {
+export const POST = withAxiom(async (req: NextRequest) => {
   try {
     const isAuthorized = await verifyAuth(req);
     if (!isAuthorized) {
@@ -73,4 +74,4 @@ export async function POST(req: NextRequest) {
     xlog.error({ err: error }, "create ticket failed");
     return NextResponse.json({ error: error.message || "Internal Server Error" }, { status: 500 });
   }
-}
+});

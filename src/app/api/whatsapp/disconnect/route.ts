@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth/session";
 import { redisConnection } from "@/lib/redis";
 import { log } from "@/lib/logger";
+import { withAxiom } from "@/lib/axiom/server";
 
 const xlog = log("api:wa-disconnect");
 
@@ -10,7 +11,7 @@ const xlog = log("api:wa-disconnect");
  * process, so we publish a command on the "wa-control" channel and let the
  * worker perform the actual logout + reconnect (see src/worker/index.ts).
  */
-export async function POST() {
+export const POST = withAxiom(async () => {
   const session = await getSession();
   if (!session?.user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -45,4 +46,4 @@ export async function POST() {
       { status: 500 },
     );
   }
-}
+});
