@@ -14,6 +14,7 @@
 
 services:
   worker:
+    container_name: salamdesk-worker
     build:
       context: .
       dockerfile: Dockerfile.worker
@@ -27,6 +28,25 @@ services:
       - wa-auth:/app/wa_auth
     # First boot prints a QR in the logs — scan it with WhatsApp:
     #   docker compose -f docker-compose.worker.yml logs -f worker
+
+  # -------------------------------------------------------------------------
+  # Vector — tails the worker container and forwards its Pino JSON logs to
+  # Axiom. Config lives in ./vector.toml. Reads logs via the Docker socket;
+  # the worker itself is untouched. Set AXIOM_TOKEN / AXIOM_DATASET in
+  # .env.worker (use the SAME dataset as the Vercel drain so web + worker
+  # logs pool together — filter by the `service` field).
+  # -------------------------------------------------------------------------
+  vector:
+    image: timberio/vector:latest-debian
+    container_name: salamdesk-vector
+    restart: unless-stopped
+    depends_on:
+      - worker
+    env_file:
+      - .env.worker
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./vector.toml:/etc/vector/vector.toml:ro
 
 volumes:
   wa-auth:

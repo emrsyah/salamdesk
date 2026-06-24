@@ -1,0 +1,31 @@
+# ---------------------------------------------------------------------------
+# Vector — ships the worker container's logs to Axiom.
+#
+# Flow:  worker → stdout (Pino JSON) → Docker → this Vector instance → Axiom
+#
+# Run as a sidecar via docker-compose.worker.yml. Reads container logs through
+# the Docker socket; no change to the worker is needed (it already emits JSON
+# to stdout in production).
+# ---------------------------------------------------------------------------
+
+[sources.worker]
+type = "docker_logs"
+# Matches `container_name: salamdesk-worker` in docker-compose.worker.yml.
+include_containers = ["salamdesk-worker"]
+
+[transforms.parse]
+type = "remap"
+inputs = ["worker"]
+# Each stdout line is itself a JSON string from Pino. Parse it so Axiom sees
+# real fields (service, module, jobId, level, …) instead of one opaque
+# `message` blob. If a line isn't JSON (e.g. a native stack dump), leave it.
+source = '''
+  parsed, err = parse_json(.message)
+  if err == null { . = merge(., parsed) }
+'''
+
+[sinks.axiom]
+type = "axiom"
+inputs = ["parse"]
+token = "${AXIOM_TOKEN}"
+dataset = "${AXIOM_DATASET}"
