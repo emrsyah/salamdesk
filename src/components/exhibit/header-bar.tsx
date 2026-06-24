@@ -43,14 +43,14 @@ export function HeaderBar() {
       : 0;
 
   return (
-    <header className="flex items-center justify-between border-b border-border/60 bg-background/70 px-8 py-4 backdrop-blur-md">
-      <div className="flex items-center gap-3">
+    <header className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-border/60 bg-background/70 px-4 py-3 backdrop-blur-md sm:px-8 sm:py-4">
+      <div className="flex items-center gap-2 sm:gap-3">
         <img
           src="/android-chrome-512x512.png"
           alt="SalamDesk"
-          className="size-8 rounded-lg"
+          className="size-7 rounded-lg sm:size-8"
         />
-        <span className="text-xl font-bold tracking-tight text-foreground">
+        <span className="text-lg font-bold tracking-tight text-foreground sm:text-xl">
           SalamDesk
         </span>
         <span
@@ -70,10 +70,10 @@ export function HeaderBar() {
           {connected ? "LIVE" : "OFFLINE"}
         </span>
       </div>
-      <div className="flex items-center gap-8 font-mono text-sm">
+      <div className="flex flex-wrap items-center justify-end gap-x-4 gap-y-1 font-mono text-xs sm:gap-x-8 sm:text-sm">
         <span className="flex items-baseline gap-1.5 text-amber-600">
-          <span className="text-base">⚡</span>
-          <span className="text-lg font-bold tabular-nums">
+          <span className="text-sm sm:text-base">⚡</span>
+          <span className="text-base font-bold tabular-nums sm:text-lg">
             {metrics.lastReplyMs != null ? formatDuration(metrics.lastReplyMs) : "—"}
           </span>
           <span className="text-zinc-500">waktu jawab</span>
@@ -82,14 +82,14 @@ export function HeaderBar() {
           {metrics.resolved}
           <span className="ml-1 text-zinc-500">selesai</span>
         </span>
-        <span className="text-sky-600 tabular-nums">
+        <span className="hidden text-sky-600 tabular-nums sm:inline">
           {metrics.ticketsPerMin}
           <span className="ml-1 text-zinc-500">tiket/mnt</span>
         </span>
-        <span className="text-emerald-600 tabular-nums">
+        <span className="hidden text-emerald-600 tabular-nums sm:inline">
           {autoRate}%<span className="ml-1 text-zinc-500">otomatis</span>
         </span>
-        <span className="text-zinc-600">{now}</span>
+        <span className="hidden text-zinc-600 sm:inline">{now}</span>
         <DemoButton />
       </div>
     </header>

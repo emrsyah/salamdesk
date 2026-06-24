@@ -18,12 +18,12 @@ const STEPS = [
  */
 export function AttractScreen({ waLink }: { waLink: string | null }) {
   return (
-    <div className="flex min-h-full items-center justify-center px-12 py-10">
+    <div className="flex min-h-full items-center justify-center px-5 py-8 sm:px-12 sm:py-10">
       <motion.div
         initial={{ opacity: 0, y: 14 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5 }}
-        className="grid w-full max-w-6xl items-center gap-10 lg:grid-cols-[1.1fr_0.9fr]"
+        className="grid w-full max-w-6xl items-center gap-8 lg:grid-cols-[1.1fr_0.9fr] lg:gap-10"
       >
         {/* Left — message */}
         <div className="text-left">
@@ -32,7 +32,7 @@ export function AttractScreen({ waLink }: { waLink: string | null }) {
             AI Helpdesk untuk SIMRS &amp; Rumah Sakit
           </span>
 
-          <h1 className="mt-4 max-w-xl text-balance text-4xl font-bold leading-[1.05] tracking-tight text-foreground xl:text-5xl">
+          <h1 className="mt-4 max-w-xl text-balance text-3xl font-bold leading-[1.05] tracking-tight text-foreground sm:text-4xl xl:text-5xl">
             AI yang menjawab keluhan WhatsApp Anda dalam{" "}
             <span className="text-primary">hitungan detik</span>
           </h1>
@@ -42,7 +42,7 @@ export function AttractScreen({ waLink }: { waLink: string | null }) {
             bekerja langsung di layar ini.
           </p>
 
-          <div className="mt-6 grid max-w-xl grid-cols-3 gap-3">
+          <div className="mt-6 grid max-w-xl grid-cols-1 gap-3 sm:grid-cols-3">
             {STEPS.map((s, i) => (
               <motion.div
                 key={s.n}

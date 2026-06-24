@@ -88,7 +88,7 @@ function SpotlightCard({ pipeline }: { pipeline: PipelineState }) {
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       transition={{ duration: 0.4 }}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-white/75 backdrop-blur-md"
+      className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-white/75 p-4 backdrop-blur-md sm:p-6"
     >
       {pipeline.done && <Confetti />}
       <motion.div
@@ -96,14 +96,14 @@ function SpotlightCard({ pipeline }: { pipeline: PipelineState }) {
         animate={{ scale: 1, y: 0, opacity: 1 }}
         exit={{ scale: 0.96, opacity: 0 }}
         transition={{ type: "spring", stiffness: 220, damping: 24 }}
-        className="relative mx-6 w-full max-w-2xl rounded-3xl border border-amber-200 bg-white p-8 shadow-2xl ring-1 ring-amber-100"
+        className="relative my-auto max-h-full w-full max-w-2xl overflow-y-auto rounded-3xl border border-amber-200 bg-white p-5 shadow-2xl ring-1 ring-amber-100 sm:p-8"
       >
         <div className="mb-6 flex items-center justify-between gap-3">
           <div className="min-w-0">
             <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 font-mono text-[11px] font-semibold text-amber-700">
               👋 PENGUNJUNG BOOTH
             </span>
-            <h2 className="mt-3 truncate text-3xl font-bold tracking-tight text-zinc-950">
+            <h2 className="mt-3 truncate text-2xl font-bold tracking-tight text-zinc-950 sm:text-3xl">
               Halo, {name}!
             </h2>
             <p className="mt-1 text-base text-zinc-500">
@@ -117,7 +117,7 @@ function SpotlightCard({ pipeline }: { pipeline: PipelineState }) {
               <p className="font-mono text-[10px] uppercase tracking-wider text-zinc-500">
                 Waktu jawab
               </p>
-              <p className="text-4xl font-bold tabular-nums text-amber-600">
+              <p className="text-3xl font-bold tabular-nums text-amber-600 sm:text-4xl">
                 {formatDuration(summary.latencyMs)}
               </p>
             </div>

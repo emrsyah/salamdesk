@@ -133,7 +133,7 @@ export function WallFooter({ waLink }: { waLink: string | null }) {
       : 0;
 
   return (
-    <footer className="flex shrink-0 items-center gap-5 border-t border-border/60 bg-background/70 px-6 py-2.5 backdrop-blur-md">
+    <footer className="flex shrink-0 flex-wrap items-center gap-x-5 gap-y-2 border-t border-border/60 bg-background/70 px-3 py-2.5 backdrop-blur-md sm:px-6">
       {/* Module mix */}
       <div className="flex items-center gap-2.5">
         <div className="size-11 shrink-0">

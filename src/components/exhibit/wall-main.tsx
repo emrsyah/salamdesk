@@ -28,9 +28,10 @@ export function WallMain({ waLink }: { waLink: string | null }) {
 
   return (
     <main className="flex min-h-0 flex-1 flex-col overflow-hidden">
-      <div className="grid min-h-0 flex-1 grid-cols-[15rem_1fr] gap-4 overflow-hidden p-4">
-        {/* Left — narrow activity ticker (secondary) */}
-        <section className="overflow-hidden">
+      <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 overflow-hidden p-2 md:grid-cols-[15rem_1fr] md:gap-4 md:p-4">
+        {/* Left — narrow activity ticker (secondary). Hidden on phones, where the
+            engine is the whole story and screen space is scarce. */}
+        <section className="hidden overflow-hidden md:block">
           <LiveFeed />
         </section>
 
