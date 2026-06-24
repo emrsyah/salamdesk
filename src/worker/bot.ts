@@ -89,13 +89,19 @@ export async function processInboundWaMessage(job: WaInboundJob): Promise<{
 
   // 3. Create a fresh ticket
   // Title: first 100 chars of the message (WA messages are often short
-  // descriptions); an image-only message falls back to a placeholder title.
+  // descriptions); a media-only message falls back to a type-aware placeholder.
+  const mediaMime = attachments?.[0]?.mimeType ?? "";
+  const mediaPlaceholder = mediaMime.startsWith("audio/")
+    ? "[Pesan suara]"
+    : mediaMime === "application/pdf"
+      ? "[Dokumen]"
+      : "[Gambar]";
   const title = text.trim()
     ? text.length > 100
       ? `${text.slice(0, 97)}…`
       : text
     : attachments?.length
-      ? "[Gambar]"
+      ? mediaPlaceholder
       : text;
 
   const { id: ticketId } = await createTicket({

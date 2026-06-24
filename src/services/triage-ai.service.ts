@@ -1,8 +1,23 @@
 import { generateObject, generateText, type ModelMessage } from "ai";
 import { z } from "zod";
-import { getAiModel, aiTelemetry } from "@/lib/ai";
+import { getAiModel, aiTelemetry, AI_MODEL } from "@/lib/ai";
 import { withTrailingUser, stripImages, type Img } from "@/services/conversation-context.service";
 import type { ProcedureBehavior } from "@/services/procedure-execution.service";
+
+/**
+ * Best-effort fetch of an attachment's raw bytes. buildTicketConversation
+ * normally pre-fetches these onto `Img.data`; this is the fallback when a
+ * pre-pass is called with an Img that wasn't pre-fetched.
+ */
+async function fetchBytes(url: string): Promise<Uint8Array | null> {
+  try {
+    const res = await fetch(url);
+    if (!res.ok) return null;
+    return new Uint8Array(await res.arrayBuffer());
+  } catch {
+    return null;
+  }
+}
 
 /**
  * Vision pre-pass: turn one or more inbound images into a short factual
@@ -28,11 +43,13 @@ export async function describeImages(images: Img[], contextText?: string): Promi
             }. Deskripsikan isi gambar secara RINGKAS dan FAKTUAL dalam Bahasa Indonesia (1–2 kalimat), fokus pada hal yang relevan untuk dukungan teknis: pesan error, nama menu/modul, angka, atau kondisi layar. Jangan menebak hal yang tidak terlihat.`,
           },
           ...images.map((img) => ({
-            type: "file" as const,
+            // Vision input must use an `image` part — OpenRouter routes `file`
+            // parts to the (unconfigured) file-parser plugin, so the model never
+            // sees them. Prefer inline bytes (fetched by buildTicketConversation);
+            // fall back to the URL only if the fetch failed.
+            type: "image" as const,
+            image: img.data ?? new URL(img.url),
             mediaType: img.mediaType,
-            // Prefer inline bytes (fetched by buildTicketConversation); fall back
-            // to the URL only if the fetch failed.
-            data: img.data ?? new URL(img.url),
           })),
         ],
       },
@@ -40,6 +57,122 @@ export async function describeImages(images: Img[], contextText?: string): Promi
   });
 
   return text.trim();
+}
+
+/**
+ * PDF pre-pass: extract the document's text layer LOCALLY (unpdf — a serverless
+ * pdf.js build, no native deps or OCR cost), then ask the LLM for a short,
+ * factual Indonesian summary focused on what matters for support. Returns "" if
+ * the PDF has no extractable text (e.g. a scanned/image-only document — those
+ * would need OCR, which we deliberately don't pay for here).
+ */
+export async function describePdf(pdfs: Img[], contextText?: string): Promise<string> {
+  if (pdfs.length === 0) return "";
+
+  // Lazy import so the pdf.js bundle only loads in workers that hit a PDF.
+  const { extractText, getDocumentProxy } = await import("unpdf");
+
+  const extracted: string[] = [];
+  for (const pdf of pdfs) {
+    const bytes = pdf.data ?? (await fetchBytes(pdf.url));
+    if (!bytes) continue;
+    try {
+      const doc = await getDocumentProxy(bytes);
+      const { text } = await extractText(doc, { mergePages: true });
+      if (text.trim()) extracted.push(text.trim());
+    } catch (err) {
+      console.error(`[AI] PDF text extraction failed for ${pdf.url}:`, err);
+    }
+  }
+
+  const raw = extracted.join("\n\n").trim();
+  if (!raw) return "";
+
+  // Bound the prompt: KB retrieval/classifiers only need the gist, and a 40-page
+  // PDF would blow the context. Keep the head where support-relevant info lives.
+  const clipped = raw.slice(0, 8000);
+
+  const { text } = await generateText({
+    model: getAiModel(),
+    experimental_telemetry: aiTelemetry("describe-pdf", { count: pdfs.length }),
+    messages: [
+      {
+        role: "user",
+        content:
+          `Pengguna mengirim dokumen PDF ke helpdesk SIMRS RSUD Karawang${
+            contextText ? ` dengan keterangan: "${contextText}"` : ""
+          }. Berikut teks yang diekstrak dari dokumen:\n\n"""\n${clipped}\n"""\n\n` +
+          `Ringkas isi dokumen secara FAKTUAL dalam Bahasa Indonesia (2–4 kalimat), fokus pada hal yang relevan untuk dukungan teknis: pesan error, nama menu/modul, instruksi, angka, atau permintaan. Jangan menebak hal yang tidak ada di teks.`,
+      },
+    ],
+  });
+
+  return text.trim();
+}
+
+/**
+ * Voice-note pre-pass: transcribe an audio attachment to text so the text-only
+ * classifiers, KB retrieval, and reply generators have something to work with.
+ *
+ * Sent via a DIRECT OpenRouter call using the `input_audio` content type — the
+ * AI SDK provider doesn't expose audio parts, and OpenRouter requires audio as
+ * base64 (URLs aren't accepted). Returns "" on failure so a bad note never
+ * breaks triage.
+ */
+export async function transcribeVoice(audios: Img[], contextText?: string): Promise<string> {
+  if (audios.length === 0) return "";
+  const apiKey = process.env.OPENROUTER_API_KEY;
+  if (!apiKey) {
+    console.error("[AI] transcribeVoice: OPENROUTER_API_KEY not set");
+    return "";
+  }
+
+  // OpenRouter wants a bare format token (wav/mp3/ogg/...), not the full MIME.
+  // WhatsApp voice notes are "audio/ogg; codecs=opus" → "ogg" (Gemini accepts it).
+  const audio = audios[0];
+  const bytes = audio.data ?? (await fetchBytes(audio.url));
+  if (!bytes) return "";
+  const format =
+    audio.mediaType.split("/")[1]?.split(";")[0]?.trim().toLowerCase() || "ogg";
+  const base64 = Buffer.from(bytes).toString("base64");
+
+  const prompt =
+    `Audio ini adalah pesan suara dari pengguna ke helpdesk SIMRS RSUD Karawang${
+      contextText ? ` dengan keterangan: "${contextText}"` : ""
+    }. Transkripsikan ucapannya secara verbatim dalam Bahasa Indonesia. Jika tidak ada ucapan yang jelas, jawab dengan "".`;
+
+  try {
+    const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: AI_MODEL,
+        messages: [
+          {
+            role: "user",
+            content: [
+              { type: "text", text: prompt },
+              { type: "input_audio", input_audio: { data: base64, format } },
+            ],
+          },
+        ],
+      }),
+    });
+    if (!res.ok) {
+      console.error(`[AI] transcribeVoice failed (${res.status}):`, await res.text());
+      return "";
+    }
+    const json = (await res.json()) as {
+      choices?: { message?: { content?: string } }[];
+    };
+    return (json.choices?.[0]?.message?.content ?? "").trim();
+  } catch (err) {
+    console.error("[AI] transcribeVoice error:", err);
+    return "";
+  }
 }
 
 /**

@@ -24,12 +24,30 @@ export type TicketConversation = {
   latestUserText: string;
   /** Images on the most recent requester message (for the vision pre-pass). */
   latestImages: Img[];
+  /** PDF documents on the most recent requester message (for the PDF pre-pass). */
+  latestPdfs: Img[];
+  /** Voice notes / audio on the most recent requester message (transcription pre-pass). */
+  latestAudios: Img[];
   /** Recent requester-only text (last few), used by the lightweight classifiers. */
   requesterText: string;
 };
 
 export type Img = { url: string; mediaType: string; data?: Uint8Array };
-type Turn = { role: "user" | "assistant"; text: string; images: Img[] };
+type Turn = {
+  role: "user" | "assistant";
+  text: string;
+  images: Img[];
+  pdfs: Img[];
+  audios: Img[];
+};
+
+/** Bucket an attachment by MIME type. PDFs and audio ride a non-vision pre-pass. */
+function isPdf(mime?: string | null) {
+  return mime === "application/pdf";
+}
+function isAudio(mime?: string | null) {
+  return !!mime?.startsWith("audio/");
+}
 
 /**
  * Fetch image bytes so we can send them INLINE to the LLM rather than as a URL.
@@ -74,20 +92,29 @@ export async function buildTicketConversation(
   const turns: Turn[] = rows
     .map((r) => {
       const role: Turn["role"] = r.senderType === "requester" ? "user" : "assistant";
-      const images: Img[] = (r.attachments ?? [])
+      const atts = r.attachments ?? [];
+      const images: Img[] = atts
         .filter((a) => a.mimeType?.startsWith("image/"))
         .map((a) => ({ url: a.fileUrl, mediaType: a.mimeType }));
+      const pdfs: Img[] = atts
+        .filter((a) => isPdf(a.mimeType))
+        .map((a) => ({ url: a.fileUrl, mediaType: a.mimeType }));
+      const audios: Img[] = atts
+        .filter((a) => isAudio(a.mimeType))
+        .map((a) => ({ url: a.fileUrl, mediaType: a.mimeType }));
       let text = (r.content ?? "").trim();
-      // Drop the "[Gambar]" placeholder when the real image is attached — the
-      // image part already conveys it.
-      if (images.length > 0 && text === "[Gambar]") text = "";
-      return { role, text, images };
+      // Drop placeholder captions when the real media is attached — the
+      // pre-pass / image part already conveys it.
+      if (text === "[Gambar]" && (images.length > 0 || pdfs.length > 0 || audios.length > 0)) {
+        text = "";
+      }
+      return { role, text, images, pdfs, audios };
     })
-    .filter((t) => t.text.length > 0 || t.images.length > 0);
+    .filter((t) => t.text.length > 0 || t.images.length > 0 || t.pdfs.length > 0 || t.audios.length > 0);
 
   // Seed from the ticket body when there are no message rows yet (fresh intake).
   if (turns.length === 0 && opts?.fallbackText?.trim()) {
-    turns.push({ role: "user", text: opts.fallbackText.trim(), images: [] });
+    turns.push({ role: "user", text: opts.fallbackText.trim(), images: [], pdfs: [], audios: [] });
   }
 
   // Keep the most recent turns within the character budget (images count as 0).
@@ -107,19 +134,38 @@ export async function buildTicketConversation(
     if (last && last.role === turn.role) {
       last.text = last.text ? `${last.text}\n${turn.text}`.trim() : turn.text;
       last.images.push(...turn.images);
+      last.pdfs.push(...turn.pdfs);
+      last.audios.push(...turn.audios);
     } else {
-      merged.push({ role: turn.role, text: turn.text, images: [...turn.images] });
+      merged.push({
+        role: turn.role,
+        text: turn.text,
+        images: [...turn.images],
+        pdfs: [...turn.pdfs],
+        audios: [...turn.audios],
+      });
     }
   }
 
-  // Fetch bytes for every in-budget image once, in parallel, and attach them to
-  // the shared Img objects (so latestImages/describeImages reuse them — no
-  // re-fetch across the 3+ LLM calls a triage makes).
+  // Identify the latest user turn now so we only fetch PDF/audio bytes for the
+  // current message — those pre-passes (describePdf / transcribeVoice) caption
+  // the latest media only, unlike images which ride the whole budgeted history.
+  const lastUserTurnMerged = [...merged].reverse().find((t) => t.role === "user");
+
+  // Fetch bytes once, in parallel, and attach them to the shared Img objects
+  // (so latestImages/describeImages/etc reuse them — no re-fetch across the 3+
+  // LLM calls a triage makes). Images: every in-budget user image (they ride the
+  // conversation for vision). PDFs/audio: only the latest user turn's.
   const imagesInBudget = merged.flatMap((t) => (t.role === "user" ? t.images : []));
+  const filesToFetch: Img[] = [
+    ...imagesInBudget,
+    ...(lastUserTurnMerged?.pdfs ?? []),
+    ...(lastUserTurnMerged?.audios ?? []),
+  ];
   await Promise.all(
-    [...new Set(imagesInBudget.map((i) => i.url))].map(async (url) => {
+    [...new Set(filesToFetch.map((i) => i.url))].map(async (url) => {
       const bytes = await fetchImageBytes(url);
-      if (bytes) for (const img of imagesInBudget) if (img.url === url) img.data = bytes;
+      if (bytes) for (const f of filesToFetch) if (f.url === url) f.data = bytes;
     }),
   );
 
@@ -132,19 +178,31 @@ export async function buildTicketConversation(
         content: [
           ...(turn.text ? [{ type: "text" as const, text: turn.text }] : []),
           ...turn.images.map((img) => ({
-            type: "file" as const,
+            // Vision input must use an `image` part — OpenRouter routes `file`
+            // parts to the (unconfigured) file-parser plugin, so the model never
+            // sees them.
+            type: "image" as const,
+            image: img.data ?? new URL(img.url),
             mediaType: img.mediaType,
-            data: img.data ?? new URL(img.url),
           })),
         ],
       };
     }
-    return { role: turn.role, content: turn.text || "[Gambar]" };
+    // Media-only turns (no text) get a placeholder so the turn survives and the
+    // PDF/audio pre-pass can append the extracted text via withTrailingUser.
+    const placeholder = turn.pdfs.length > 0
+      ? "[Dokumen]"
+      : turn.audios.length > 0
+        ? "[Pesan suara]"
+        : "[Gambar]";
+    return { role: turn.role, content: turn.text || placeholder };
   });
 
   const lastUserTurn = [...turns].reverse().find((t) => t.role === "user");
   const latestUserText = lastUserTurn?.text ?? opts?.fallbackText?.trim() ?? "";
   const latestImages = lastUserTurn?.images ?? [];
+  const latestPdfs = lastUserTurn?.pdfs ?? [];
+  const latestAudios = lastUserTurn?.audios ?? [];
 
   const requesterText =
     turns
@@ -155,7 +213,7 @@ export async function buildTicketConversation(
       .join("\n")
       .trim() || (opts?.fallbackText?.trim() ?? "");
 
-  return { messages, latestUserText, latestImages, requesterText };
+  return { messages, latestUserText, latestImages, latestPdfs, latestAudios, requesterText };
 }
 
 /**

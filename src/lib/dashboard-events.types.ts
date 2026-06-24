@@ -46,6 +46,8 @@ export type DashboardEvent = DashboardEventBase &
       }
     | { type: "requester.firsttime"; requesterName: string | null }
     | { type: "vision.captioned"; caption: string }
+    | { type: "doc.read"; summary: string }
+    | { type: "voice.transcribed"; transcript: string }
     | {
         type: "classify.module";
         moduleId: string | null;

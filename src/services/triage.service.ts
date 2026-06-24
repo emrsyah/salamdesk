@@ -14,9 +14,11 @@ import {
   classifyOnTopic,
   generateClarifyingReply,
   describeImages,
+  describePdf,
+  transcribeVoice,
 } from "@/services/triage-ai.service";
 import { searchKnowledgeBase } from "@/services/knowledge.service";
-import { buildTicketConversation } from "@/services/conversation-context.service";
+import { buildTicketConversation, withTrailingUser } from "@/services/conversation-context.service";
 import { getAllModules } from "@/services/module.service";
 import { tryProcedure } from "@/services/procedure-runtime.service";
 import type { TicketPriority } from "@/services/ticket.service";
@@ -192,6 +194,10 @@ export async function triageTicket(
     });
     let conversationText = conversation.requesterText;
     let latestMessage = conversation.latestUserText || ticket.title;
+    // Reply generators (KB eval, clarifier, procedure) work off this thread.
+    // The PDF/audio pre-passes append their extracted text here so the reply
+    // step can answer document/voice-only messages, not just the classifiers.
+    let convoMessages = conversation.messages;
 
     // Vision pre-pass: when the requester sent image(s) with little/no text,
     // caption them so the text-only KB retrieval + classifiers have something to
@@ -221,6 +227,58 @@ export async function triageTicket(
         }
       } catch (err) {
         console.error(`[AI] Image description failed for ticket ${ticketId}:`, err);
+      }
+    }
+
+    // PDF pre-pass: extract the document text locally and summarise it, then feed
+    // the summary into the text-keyed steps AND the reply thread (so a PDF-only
+    // message can be answered, not just classified).
+    if (conversation.latestPdfs.length > 0) {
+      try {
+        const summary = await describePdf(conversation.latestPdfs, conversation.latestUserText);
+        if (summary) {
+          const tagged = `[Dokumen] ${summary}`;
+          latestMessage = latestMessage.trim() && latestMessage !== ticket.title
+            ? `${latestMessage}\n${tagged}`
+            : tagged;
+          conversationText = [conversationText.trim(), tagged].filter(Boolean).join("\n") || tagged;
+          convoMessages = withTrailingUser(convoMessages, tagged);
+          void publishDashboardEvent({
+            type: "doc.read",
+            ticketId,
+            label: `Membaca dokumen: ${summary.slice(0, 80)}`,
+            summary,
+          });
+        }
+      } catch (err) {
+        console.error(`[AI] PDF description failed for ticket ${ticketId}:`, err);
+      }
+    }
+
+    // Voice-note pre-pass: transcribe and treat the transcript as the requester's
+    // actual message (voice notes carry no text), wiring it into retrieval,
+    // classifiers, and the reply thread.
+    if (conversation.latestAudios.length > 0) {
+      try {
+        const transcript = await transcribeVoice(conversation.latestAudios, conversation.latestUserText);
+        if (transcript) {
+          const tagged = `[Pesan suara] ${transcript}`;
+          latestMessage = conversation.latestUserText.trim()
+            ? `${conversation.latestUserText}\n${tagged}`
+            : tagged;
+          conversationText = [conversationText.trim(), tagged]
+            .filter((t) => t && t !== "[Pesan suara]")
+            .join("\n") || tagged;
+          convoMessages = withTrailingUser(convoMessages, tagged);
+          void publishDashboardEvent({
+            type: "voice.transcribed",
+            ticketId,
+            label: `Mendengar pesan suara: ${transcript.slice(0, 80)}`,
+            transcript,
+          });
+        }
+      } catch (err) {
+        console.error(`[AI] Voice transcription failed for ticket ${ticketId}:`, err);
       }
     }
 
@@ -359,7 +417,7 @@ export async function triageTicket(
     if (kbMatches.length > 0) {
       const topMatch = kbMatches[0];
       const kbEval = await evaluateKbMatch({
-        conversation: conversation.messages,
+        conversation: convoMessages,
         ticketTitle: ticket.title,
         kbTitle: topMatch.title,
         kbContent: topMatch.content,
@@ -430,7 +488,7 @@ export async function triageTicket(
         ticketId,
         ticketText: searchQuery,
         moduleName: classifiedModuleName,
-        conversation: conversation.messages,
+        conversation: convoMessages,
         behavior: {
           agentName: config.agentName,
           persona: config.persona,
@@ -475,7 +533,7 @@ export async function triageTicket(
     if (config.aiFirstMode && !result.suggestedReply) {
       try {
         const clarifier = await generateClarifyingReply({
-          conversation: conversation.messages,
+          conversation: convoMessages,
           ticketTitle: ticket.title,
           behavior: {
             agentName: config.agentName,

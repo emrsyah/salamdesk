@@ -52,9 +52,10 @@ const logger = pino({ level: "silent" });
 const utapi = new UTApi({ token: process.env.UPLOADTHING_TOKEN });
 
 /**
- * Download an inbound image from WhatsApp and re-host it on UploadThing,
- * returning an attachment record ready to persist. Best-effort: returns null on
- * any failure so a media hiccup never blocks ticket creation.
+ * Download an inbound media attachment (image, voice note, or document) from
+ * WhatsApp and re-host it on UploadThing, returning an attachment record ready
+ * to persist. Best-effort: returns null on any failure so a media hiccup never
+ * blocks ticket creation.
  */
 async function downloadAndStoreWaMedia(
   msg: WAMessage,
@@ -68,10 +69,21 @@ async function downloadAndStoreWaMedia(
       { logger, reuploadRequest: sock!.updateMediaMessage },
     )) as Buffer;
 
-    const mimeType = msg.message?.imageMessage?.mimetype ?? "image/jpeg";
-    const rawExt = mimeType.split("/")[1]?.split(";")[0] || "jpg";
+    // Pull the MIME (and, for documents, the original filename) from whichever
+    // media node this message carries. WhatsApp voice notes are audio/ogg;opus.
+    const imageNode = msg.message?.imageMessage;
+    const audioNode = msg.message?.audioMessage;
+    const docNode = msg.message?.documentMessage;
+    const mimeType =
+      imageNode?.mimetype ??
+      audioNode?.mimetype ??
+      docNode?.mimetype ??
+      "application/octet-stream";
+    const rawExt = mimeType.split("/")[1]?.split(";")[0] || "bin";
     const ext = rawExt === "jpeg" ? "jpg" : rawExt;
-    const fileName = `wa-${messageId}.${ext}`;
+    // Keep the sender's original document name when available (helps staff in the
+    // thread); images/voice notes get a synthetic stable name.
+    const fileName = docNode?.fileName?.trim() || `wa-${messageId}.${ext}`;
 
     // Slice out a plain ArrayBuffer backing (a Node Buffer's ArrayBufferLike
     // isn't a valid BlobPart under strict lib types).
@@ -398,23 +410,29 @@ export async function connectToWhatsApp(): Promise<void> {
         // "@g.us") are noisy and not meant to become tickets.
         if (jid.endsWith("@g.us")) continue;
 
-        // Plain text, or an image caption. Only images are "understood" for now;
-        // other media (video/audio/document) is still skipped.
+        // Understood media: images (vision), voice notes (transcription), and
+        // PDF documents (text extraction). Other docs (xlsx/docx) and video are
+        // still skipped. Captions/quoted text ride alongside.
         const messageType = getContentType(msg.message ?? undefined);
         const isImage = messageType === "imageMessage";
+        const isAudio = messageType === "audioMessage";
+        const docMime = msg.message?.documentMessage?.mimetype ?? "";
+        const isPdfDoc = messageType === "documentMessage" && docMime === "application/pdf";
+        const hasMedia = isImage || isAudio || isPdfDoc;
         const text =
           msg.message?.conversation ||
           msg.message?.extendedTextMessage?.text ||
           msg.message?.imageMessage?.caption ||
+          msg.message?.documentMessage?.caption ||
           "";
 
-        if (!text.trim() && !isImage) continue; // nothing usable yet
+        if (!text.trim() && !hasMedia) continue; // nothing usable yet
 
         const messageId = msg.key.id ?? "";
 
-        // Re-host the image so it has a stable URL for the thread + vision calls.
+        // Re-host the media so it has a stable URL for the thread + AI pre-passes.
         let attachments: WaInboundAttachment[] | undefined;
-        if (isImage) {
+        if (hasMedia) {
           const stored = await downloadAndStoreWaMedia(msg, messageId);
           if (stored) attachments = [stored];
         }

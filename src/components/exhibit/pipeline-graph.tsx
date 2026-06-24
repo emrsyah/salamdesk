@@ -85,6 +85,8 @@ const NODE_OF: Record<string, string> = {
   "ticket.new": "intake",
   "requester.firsttime": "intake",
   "vision.captioned": "vision",
+  "doc.read": "vision",
+  "voice.transcribed": "vision",
   "classify.module": "module",
   "classify.priority": "priority",
   "guard.offtopic": "guard",
