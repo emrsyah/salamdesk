@@ -1,4 +1,7 @@
 import { redisConnection } from "./redis";
+import { log } from "@/lib/logger";
+
+const xlog = log("realtime");
 
 /**
  * Redis pub/sub channel that carries ticket activity to connected browsers.
@@ -36,6 +39,6 @@ export async function publishTicketEvent(event: TicketRealtimeEvent): Promise<vo
   try {
     await redisConnection.publish(TICKET_EVENTS_CHANNEL, JSON.stringify(event));
   } catch (err) {
-    console.error("[realtime] Failed to publish ticket event:", err);
+    xlog.error({ err }, "failed to publish ticket event");
   }
 }

@@ -7,6 +7,9 @@ import {
 } from "@/services/requester.service";
 import { auth } from "@/lib/auth/auth";
 import { headers } from "next/headers";
+import { log } from "@/lib/logger";
+
+const xlog = log("requesters-action");
 
 export async function updateRequesterProfileAction(id: string, data: RequesterProfileUpdate) {
   const session = await auth.api.getSession({ headers: await headers() });
@@ -20,7 +23,7 @@ export async function updateRequesterProfileAction(id: string, data: RequesterPr
     const requester = await updateRequesterProfile(id, data);
     return { success: true, requester };
   } catch (error) {
-    console.error("updateRequesterProfileAction error:", error);
+    xlog.error({ err: error }, "updateRequesterProfileAction failed");
     return { error: "Gagal memperbarui profil pelapor." };
   }
 }

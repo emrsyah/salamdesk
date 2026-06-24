@@ -21,6 +21,7 @@ initObservability();
 
 import IORedis from "ioredis";
 import { Worker, type ConnectionOptions } from "bullmq";
+import { log } from "@/lib/logger";
 import { connectToWhatsApp, disconnectWhatsApp, reconnectWhatsApp, getSocket } from "@/lib/whatsapp";
 import { processInboundWaMessage } from "./bot";
 import { createTriageWorker } from "./triage.worker";
@@ -34,13 +35,16 @@ import { ticketLifecycleQueue, TICKET_LIFECYCLE_JOBS, type WaInboundJob, type Wa
 // ---------------------------------------------------------------------------
 // Redis connection for workers (separate from the queue-producer connection)
 // ---------------------------------------------------------------------------
+const wlog = log("worker");
+const redisLog = log("ioredis");
+
 const workerRedis = new IORedis(
   process.env.REDIS_URL ?? "redis://localhost:6379",
   { maxRetriesPerRequest: null },
 );
 
 workerRedis.on("error", (err) => {
-  console.error("[ioredis] Worker connection error:", err.message);
+  redisLog.error({ err }, "worker connection error");
 });
 
 const connection = workerRedis as ConnectionOptions;
@@ -48,13 +52,16 @@ const connection = workerRedis as ConnectionOptions;
 // ---------------------------------------------------------------------------
 // wa-inbound worker: processes incoming WhatsApp messages
 // ---------------------------------------------------------------------------
+const inboundLog = log("wa-inbound");
 const inboundWorker = new Worker<WaInboundJob>(
   "wa-inbound",
   async (job) => {
-    console.log(`[WORKER] Processing inbound job ${job.id} from ${job.data.phone}`);
+    const jlog = inboundLog.child({ jobId: job.id, phone: job.data.phone });
+    jlog.info("processing inbound job");
     const result = await processInboundWaMessage(job.data);
-    console.log(
-      `[WORKER] Inbound job ${job.id} done — ${result.action} ticket ${result.ticketId}`,
+    jlog.info(
+      { action: result.action, ticketId: result.ticketId },
+      "inbound job done",
     );
     return result;
   },
@@ -66,15 +73,17 @@ const inboundWorker = new Worker<WaInboundJob>(
 );
 
 inboundWorker.on("failed", (job, err) => {
-  console.error(`[WORKER] Inbound job ${job?.id} failed:`, err.message);
+  inboundLog.error({ jobId: job?.id, err }, "inbound job failed");
 });
 
 // ---------------------------------------------------------------------------
 // wa-outbound worker: sends agent replies back to WhatsApp
 // ---------------------------------------------------------------------------
+const outboundLog = log("wa-outbound");
 const outboundWorker = new Worker<WaOutboundJob>(
   "wa-outbound",
   async (job) => {
+    const jlog = outboundLog.child({ jobId: job.id });
     const { jid, text, attachments = [], typing = false } = job.data;
     const sock = getSocket();
 
@@ -93,7 +102,7 @@ const outboundWorker = new Worker<WaOutboundJob>(
         await new Promise((r) => setTimeout(r, pauseMs));
         await sock.sendPresenceUpdate("paused", jid);
       } catch (err) {
-        console.error(`[WORKER] Typing presence failed for ${jid}:`, err);
+        jlog.warn({ jid, err }, "typing presence failed");
       }
     }
 
@@ -129,9 +138,9 @@ const outboundWorker = new Worker<WaOutboundJob>(
         await sock.sendMessage(jid, media);
       }
     }
-    console.log(
-      `[WORKER] Sent WA message to ${jid}: "${text.slice(0, 50)}"` +
-        (attachments.length ? ` (+${attachments.length} attachment(s))` : ""),
+    jlog.info(
+      { jid, attachments: attachments.length, preview: text.slice(0, 50) },
+      "sent WA message",
     );
   },
   {
@@ -142,23 +151,23 @@ const outboundWorker = new Worker<WaOutboundJob>(
 );
 
 outboundWorker.on("failed", (job, err) => {
-  console.error(`[WORKER] Outbound job ${job?.id} failed:`, err.message);
+  outboundLog.error({ jobId: job?.id, err }, "outbound job failed");
 });
 
 // ---------------------------------------------------------------------------
 // ai-triage worker: classifies tickets with AI after creation
 // ---------------------------------------------------------------------------
 const triageWorker = createTriageWorker(connection);
-console.log("[WORKER] AI triage worker started.");
+wlog.info("AI triage worker started");
 
 const autoReplyWorker = createAutoReplyWorker(connection);
-console.log("[WORKER] AI auto-reply (delayed) worker started.");
+wlog.info("AI auto-reply (delayed) worker started");
 
 const ticketLifecycleWorker = createTicketLifecycleWorker(connection);
-console.log("[WORKER] Ticket lifecycle worker started.");
+wlog.info("ticket lifecycle worker started");
 
 const knowledgeIngestionWorker = createKnowledgeIngestionWorker(connection);
-console.log("[WORKER] Knowledge ingestion worker started.");
+wlog.info("knowledge ingestion worker started");
 
 // Capture permanently-failed jobs from every queue into the dead-letter queue.
 registerDeadLetter(inboundWorker, "wa-inbound");
@@ -182,35 +191,36 @@ await ticketLifecycleQueue.add(TICKET_LIFECYCLE_JOBS.scanTicketSlas, {}, {
 // wa-control subscriber: receives commands from the web app (e.g. disconnect).
 // Needs its own connection because ioredis enters a dedicated subscriber mode.
 // ---------------------------------------------------------------------------
+const ctrlLog = log("wa-control");
 const controlRedis = new IORedis(
   process.env.REDIS_URL ?? "redis://localhost:6379",
   { maxRetriesPerRequest: null },
 );
 
 controlRedis.on("error", (err) => {
-  console.error("[ioredis] Control connection error:", err.message);
+  redisLog.error({ err }, "control connection error");
 });
 
 controlRedis.subscribe("wa-control", (err) => {
-  if (err) console.error("[WORKER] Failed to subscribe to wa-control:", err.message);
-  else console.log("[WORKER] Subscribed to wa-control channel.");
+  if (err) ctrlLog.error({ err }, "failed to subscribe to wa-control");
+  else ctrlLog.info("subscribed to wa-control channel");
 });
 
 controlRedis.on("message", async (channel, message) => {
   if (channel !== "wa-control") return;
   if (message === "disconnect") {
-    console.log("[WORKER] Received disconnect command.");
+    ctrlLog.info("received disconnect command");
     try {
       await disconnectWhatsApp();
     } catch (err) {
-      console.error("[WORKER] disconnectWhatsApp failed:", err);
+      ctrlLog.error({ err }, "disconnectWhatsApp failed");
     }
   } else if (message === "reconnect") {
-    console.log("[WORKER] Received reconnect command.");
+    ctrlLog.info("received reconnect command");
     try {
       await reconnectWhatsApp();
     } catch (err) {
-      console.error("[WORKER] reconnectWhatsApp failed:", err);
+      ctrlLog.error({ err }, "reconnectWhatsApp failed");
     }
   }
 });
@@ -218,11 +228,11 @@ controlRedis.on("message", async (channel, message) => {
 // ---------------------------------------------------------------------------
 // Boot WhatsApp connection
 // ---------------------------------------------------------------------------
-console.log("[WORKER] Starting SalamDesk worker process…");
-console.log("[WORKER] Connecting to WhatsApp via Baileys…");
+wlog.info("starting SalamDesk worker process");
+wlog.info("connecting to WhatsApp via Baileys");
 
 connectToWhatsApp().catch((err) => {
-  console.error("[WORKER] Failed to connect to WhatsApp:", err);
+  wlog.fatal({ err }, "failed to connect to WhatsApp");
   process.exit(1);
 });
 
@@ -230,7 +240,7 @@ connectToWhatsApp().catch((err) => {
 // Graceful shutdown
 // ---------------------------------------------------------------------------
 async function shutdown() {
-  console.log("\n[WORKER] Shutting down gracefully…");
+  wlog.info("shutting down gracefully");
   await Promise.all([
     inboundWorker.close(),
     outboundWorker.close(),

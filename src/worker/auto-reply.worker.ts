@@ -10,6 +10,9 @@ import { resolveReplyMode } from "@/lib/agent/business-hours";
 import { sendWhatsAppMessage } from "@/services/whatsapp.service";
 import { publishTicketEvent } from "@/lib/realtime";
 import { WORKER_TUNING } from "./worker-tuning";
+import { log } from "@/lib/logger";
+
+const xlog = log("auto-reply");
 
 /**
  * BullMQ worker for the "ai-auto-reply" queue (delayed sends).
@@ -113,7 +116,7 @@ async function processAutoReply(job: { data: AiAutoReplyJob }) {
 }
 
 async function cancel(ticketId: string, content: string, reason: string) {
-  console.log(`[AUTO-REPLY] Cancelled for ticket ${ticketId}: ${reason}`);
+  xlog.info({ ticketId, reason }, "cancelled");
   await db.insert(triageEvents).values({
     ticketId,
     trigger: "scheduled",
@@ -134,9 +137,9 @@ export function createAutoReplyWorker(connection: ConnectionOptions) {
   });
 
   worker.on("failed", (job, err) => {
-    console.error(
-      `[AUTO-REPLY] Job ${job?.id} failed for ticket ${job?.data?.ticketId}:`,
-      err.message,
+    xlog.error(
+      { jobId: job?.id, ticketId: job?.data?.ticketId, err },
+      "job failed",
     );
   });
 

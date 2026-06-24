@@ -13,6 +13,9 @@ import { aiTriageQueue } from "@/lib/queue";
 import { publishTicketEvent } from "@/lib/realtime";
 import { publishDashboardEvent } from "@/lib/dashboard-events";
 import type { WaInboundJob } from "@/lib/queue";
+import { log } from "@/lib/logger";
+
+const xlog = log("bot");
 
 /**
  * Process an inbound WhatsApp message.
@@ -56,12 +59,13 @@ export async function processInboundWaMessage(job: WaInboundJob): Promise<{
       attachments,
     });
 
-    console.log(
-      `[BOT] Appended message to ticket ${existingTicket.id} from ${phone}`,
+    xlog.info(
+      { ticketId: existingTicket.id, phone },
+      "appended message to ticket",
     );
 
     await aiTriageQueue.add("triage", { ticketId: existingTicket.id, trigger: "message_added" });
-    console.log(`[BOT] Enqueued AI triage (message_added) for ticket ${existingTicket.id}`);
+    xlog.info({ ticketId: existingTicket.id }, "enqueued AI triage (message_added)");
 
     await publishTicketEvent({ type: "ticket:updated", ticketId: existingTicket.id });
     return { action: "appended", ticketId: existingTicket.id };
@@ -78,7 +82,7 @@ export async function processInboundWaMessage(job: WaInboundJob): Promise<{
       });
 
       await aiTriageQueue.add("triage", { ticketId: existingTicket.id, trigger: "message_added" });
-      console.log(`[BOT] Enqueued AI triage (message_added) for reopened ticket ${existingTicket.id}`);
+      xlog.info({ ticketId: existingTicket.id }, "enqueued AI triage (message_added) for reopened ticket");
 
       await publishTicketEvent({ type: "ticket:updated", ticketId: existingTicket.id });
       return { action: "reopened", ticketId: existingTicket.id };
@@ -115,7 +119,7 @@ export async function processInboundWaMessage(job: WaInboundJob): Promise<{
     attachments,
   });
 
-  console.log(`[BOT] Created ticket ${ticketId} for ${jid} (${pushName ?? "unknown"})`);
+  xlog.info({ ticketId, jid, pushName: pushName ?? "unknown" }, "created ticket");
 
   // A booth visitor arrives via the exhibition QR, whose prefill seeds the first
   // message — flag those so the wall can spotlight them.
@@ -149,7 +153,7 @@ export async function processInboundWaMessage(job: WaInboundJob): Promise<{
 
   // Enqueue AI triage — classifies module, priority, and searches KB
   await aiTriageQueue.add("triage", { ticketId, trigger: "intake" });
-  console.log(`[BOT] Enqueued AI triage for ticket ${ticketId}`);
+  xlog.info({ ticketId }, "enqueued AI triage");
 
   if (existingTicket && (existingTicket.status === "closed" || existingTicket.status === "resolved")) {
     await createReopenedFromLink({

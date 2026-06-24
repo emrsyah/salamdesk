@@ -17,6 +17,9 @@ import { UTApi } from "uploadthing/server";
 import { waInboundQueue, type WaInboundAttachment, type WaInboundJob } from "./queue";
 import { normalisePhone } from "@/services/whatsapp.service";
 import { redisConnection } from "./redis";
+import { log } from "@/lib/logger";
+
+const xlog = log("wa");
 
 const AUTH_DIR = "./wa_auth";
 
@@ -94,7 +97,7 @@ async function downloadAndStoreWaMedia(
     const file = new File([bytes], fileName, { type: mimeType });
     const res = await utapi.uploadFiles(file);
     if (res.error || !res.data) {
-      console.error(`[WA] Media upload failed for ${messageId}:`, res.error);
+      xlog.error({ messageId, err: res.error }, "media upload failed");
       return null;
     }
 
@@ -106,7 +109,7 @@ async function downloadAndStoreWaMedia(
       fileSize: res.data.size ?? buffer.length,
     };
   } catch (err) {
-    console.error(`[WA] Failed to download/store media for ${messageId}:`, err);
+    xlog.error({ messageId, err }, "failed to download/store media");
     return null;
   }
 }
@@ -136,7 +139,7 @@ export async function markMessageRead(jid: string, messageId: string): Promise<v
   try {
     await sock.readMessages([{ remoteJid: jid, id: messageId, fromMe: false }]);
   } catch (err) {
-    console.error(`[WA] readMessages failed for ${jid}:`, err);
+    xlog.error({ jid, err }, "readMessages failed");
   }
 }
 
@@ -150,7 +153,7 @@ export async function sendTypingPresence(jid: string, typing: boolean): Promise<
   try {
     await sock.sendPresenceUpdate(typing ? "composing" : "paused", jid);
   } catch (err) {
-    console.error(`[WA] presence update failed for ${jid}:`, err);
+    xlog.error({ jid, err }, "presence update failed");
   }
 }
 
@@ -194,7 +197,7 @@ export async function resolvePhone(jid: string): Promise<string> {
       const pn = await sock.signalRepository.lidMapping.getPNForLID(jid);
       if (pn) return normalisePhone(pn);
     } catch (err) {
-      console.error(`[WA] Failed to resolve PN for LID ${jid}:`, err);
+      xlog.error({ jid, err }, "failed to resolve PN for LID");
     }
   }
   return normalisePhone(jid);
@@ -210,7 +213,7 @@ export async function resolvePhone(jid: string): Promise<string> {
  *   3. Reconnect, which produces a fresh QR for re-linking from the UI.
  */
 export async function disconnectWhatsApp(): Promise<void> {
-  console.log("[WA] Disconnect requested — logging out…");
+  xlog.info("disconnect requested — logging out");
   intentionalDisconnect = true;
   try {
     if (sock) {
@@ -219,7 +222,7 @@ export async function disconnectWhatsApp(): Promise<void> {
   } catch (err) {
     // Logout can throw if the socket is already half-closed; we still want to
     // continue clearing local state below.
-    console.error("[WA] Error during logout (continuing cleanup):", err);
+    xlog.error({ err }, "error during logout (continuing cleanup)");
   }
 
   sock = null;
@@ -229,7 +232,7 @@ export async function disconnectWhatsApp(): Promise<void> {
   try {
     await clearAuthState();
   } catch (err) {
-    console.error("[WA] Failed to clear auth directory:", err);
+    xlog.error({ err }, "failed to clear auth directory");
   }
 
   // Independent key resets — run them together.
@@ -242,7 +245,7 @@ export async function disconnectWhatsApp(): Promise<void> {
 
   // Reconnect with a clean slate so a new QR is generated for re-linking.
   connectToWhatsApp().catch((err) => {
-    console.error("[WA] Failed to reconnect after disconnect:", err);
+    xlog.error({ err }, "failed to reconnect after disconnect");
   });
 }
 
@@ -254,7 +257,7 @@ export async function disconnectWhatsApp(): Promise<void> {
  * to scan from the UI. Triggered cross-process via the "wa-control" channel.
  */
 export async function reconnectWhatsApp(): Promise<void> {
-  console.log("[WA] Reconnect requested — generating a fresh QR…");
+  xlog.info("reconnect requested — generating a fresh QR");
   intentionalDisconnect = false;
 
   // Defensive: ensure no stale creds survive if reconnect is triggered from a
@@ -262,7 +265,7 @@ export async function reconnectWhatsApp(): Promise<void> {
   try {
     await clearAuthState();
   } catch (err) {
-    console.error("[WA] Failed to clear auth directory before reconnect:", err);
+    xlog.error({ err }, "failed to clear auth directory before reconnect");
   }
 
   await Promise.all([
@@ -310,8 +313,8 @@ export async function connectToWhatsApp(): Promise<void> {
       if (qr) {
         // A fresh QR means the (possibly intentional) disconnect has completed.
         intentionalDisconnect = false;
-        console.log("\n[WA] Scan the QR code above to link your WhatsApp account.\n");
-        
+        xlog.info("scan the QR code above to link your WhatsApp account");
+
         // Print QR code in terminal using qrcode-terminal
         qrcode.generate(qr, { small: true });
 
@@ -323,7 +326,7 @@ export async function connectToWhatsApp(): Promise<void> {
       if (connection === "open") {
         intentionalDisconnect = false;
         isConnected = true;
-        console.log("[WA] Connected to WhatsApp ✓");
+        xlog.info("connected to WhatsApp");
         await redisConnection.del("wa-qr");
         await redisConnection.set("wa-status", "connected");
 
@@ -349,8 +352,9 @@ export async function connectToWhatsApp(): Promise<void> {
         const statusCode = (lastDisconnect?.error as Boom)?.output?.statusCode;
         const loggedOut = statusCode === DisconnectReason.loggedOut;
 
-        console.log(
-          `[WA] Connection closed (code: ${statusCode}). ${loggedOut ? "Logged out — clearing dead session…" : "Reconnecting…"}`,
+        xlog.info(
+          { statusCode, loggedOut },
+          loggedOut ? "connection closed — logged out, clearing dead session" : "connection closed — reconnecting",
         );
 
         // The linked account is gone the moment the socket closes; clear it so
@@ -366,9 +370,9 @@ export async function connectToWhatsApp(): Promise<void> {
           sock = null;
           try {
             await clearAuthState();
-            console.log("[WA] Cleared ./wa_auth. Open the WhatsApp page and click 'Hubungkan ulang' to re-link.");
+            xlog.info("cleared ./wa_auth — open the WhatsApp page and click 'Hubungkan ulang' to re-link");
           } catch (err) {
-            console.error("[WA] Failed to clear auth directory after logout:", err);
+            xlog.error({ err }, "failed to clear auth directory after logout");
           }
           await redisConnection.del("wa-qr");
 
@@ -453,7 +457,7 @@ export async function connectToWhatsApp(): Promise<void> {
           opts: { jobId: `wa-msg-${messageId}` },
         });
 
-        console.log(`[WA] Queued inbound message from ${jid}: "${text.slice(0, 50)}"`);
+        xlog.info({ jid, preview: text.slice(0, 50) }, "queued inbound message");
       }
 
       if (jobs.length > 0) {
@@ -462,7 +466,7 @@ export async function connectToWhatsApp(): Promise<void> {
     });
   } catch (err) {
     isConnecting = false;
-    console.error("[WA] Fatal error during connection setup:", err);
+    xlog.error({ err }, "fatal error during connection setup");
     throw err;
   }
 }

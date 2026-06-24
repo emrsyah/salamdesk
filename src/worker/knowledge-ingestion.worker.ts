@@ -13,6 +13,9 @@ import {
   markKnowledgeDocumentProcessing,
 } from "@/services/knowledge.service";
 import { publishDashboardEvent } from "@/lib/dashboard-events";
+import { log } from "@/lib/logger";
+
+const xlog = log("knowledge");
 
 function getTempDir() {
   // `||` (not `??`) — an empty KNOWLEDGE_INGESTION_TMP_DIR="" in .env must
@@ -46,8 +49,9 @@ export function createKnowledgeIngestionWorker(connection: ConnectionOptions) {
     async (job) => {
       const { documentId, fileName, mimeType } = job.data;
       let filePath: string | null = null;
+      const jlog = xlog.child({ jobId: job.id, documentId });
 
-      console.log(`[KNOWLEDGE] Ingesting document ${documentId}: ${fileName}`);
+      jlog.info({ fileName }, "ingesting document");
 
       try {
         await markKnowledgeDocumentProcessing(documentId);
@@ -94,7 +98,7 @@ export function createKnowledgeIngestionWorker(connection: ConnectionOptions) {
           embeddings,
         });
 
-        console.log(`[KNOWLEDGE] Document ${documentId} ingested with ${chunks.length} chunks`);
+        jlog.info({ chunks: chunks.length }, "document ingested");
         void publishDashboardEvent({
           type: "ingestion.progress",
           ticketId: null,
@@ -131,7 +135,7 @@ export function createKnowledgeIngestionWorker(connection: ConnectionOptions) {
   );
 
   worker.on("failed", (job, err) => {
-    console.error(`[KNOWLEDGE] Job ${job?.id} failed for document ${job?.data?.documentId}:`, err.message);
+    xlog.error({ jobId: job?.id, documentId: job?.data?.documentId, err }, "job failed");
   });
 
   return worker;

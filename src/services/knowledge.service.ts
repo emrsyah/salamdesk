@@ -3,6 +3,9 @@ import { knowledgeBase, knowledgeChunks } from "@/db/schema/knowledge-base";
 import { and, asc, count, desc, eq, ilike, isNotNull, isNull, or, sql } from "drizzle-orm";
 import { chunkKnowledgeContent, type KnowledgeChunk } from "./knowledge-chunking.service";
 import { embedKnowledgeQuery, formatPgVector } from "./knowledge-embedding.service";
+import { log } from "@/lib/logger";
+
+const xlog = log("kb");
 
 export type KbArticle = typeof knowledgeBase.$inferSelect;
 
@@ -142,7 +145,7 @@ export async function searchKnowledgeBase(
         return scored.slice(0, limit).map((s) => s.document);
       }
     } catch (error) {
-      console.warn("[KB] Vector search failed, falling back to keyword search:", error);
+      xlog.warn({ err: error }, "vector search failed, falling back to keyword search");
     }
   }
 

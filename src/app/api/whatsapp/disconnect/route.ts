@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth/session";
 import { redisConnection } from "@/lib/redis";
+import { log } from "@/lib/logger";
+
+const xlog = log("api:wa-disconnect");
 
 /**
  * Requests a WhatsApp disconnect. The Baileys socket lives in the worker
@@ -36,7 +39,7 @@ export async function POST() {
 
     return NextResponse.json({ ok: true });
   } catch (error) {
-    console.error("Failed to request WhatsApp disconnect:", error);
+    xlog.error({ err: error }, "failed to request whatsapp disconnect");
     return NextResponse.json(
       { error: "Gagal memutuskan koneksi." },
       { status: 500 },

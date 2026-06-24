@@ -1,6 +1,9 @@
 import { randomUUID } from "node:crypto";
 import { redisConnection } from "./redis";
 import type { DashboardEvent, DashboardEventInput } from "./dashboard-events.types";
+import { log } from "@/lib/logger";
+
+const xlog = log("dashboard-events");
 
 // Re-export the shapes so existing `@/lib/dashboard-events` imports keep working.
 // Client components should import from `./dashboard-events.types` directly to
@@ -45,6 +48,6 @@ export async function publishDashboardEvent(
     } as DashboardEvent;
     await redisConnection.publish(DASHBOARD_EVENTS_CHANNEL, JSON.stringify(full));
   } catch (err) {
-    console.error("[dashboard-events] Failed to publish event:", err);
+    xlog.error({ err }, "failed to publish event");
   }
 }

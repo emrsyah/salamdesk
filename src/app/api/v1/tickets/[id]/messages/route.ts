@@ -5,6 +5,9 @@ import {
   addSystemUpdateCommand,
   TicketLifecycleError,
 } from "@/services/ticket-lifecycle.service";
+import { log } from "@/lib/logger";
+
+const xlog = log("api:tickets-messages");
 
 async function verifyAuth(req: NextRequest) {
   const authHeader = req.headers.get("authorization");
@@ -49,7 +52,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
     return NextResponse.json({ success: true, message: newMessage }, { status: 201 });
   } catch (error: unknown) {
-    console.error("API Error:", error);
+    xlog.error({ err: error }, "post message failed");
     if (error instanceof TicketLifecycleError) {
       return NextResponse.json({ error: error.message }, { status: 409 });
     }

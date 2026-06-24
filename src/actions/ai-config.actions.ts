@@ -4,6 +4,9 @@ import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { auth } from "@/lib/auth/auth";
 import { getAiConfig, updateAiConfig, type AiConfig, type AiConfigUpdate } from "@/services/ai-config.service";
+import { log } from "@/lib/logger";
+
+const xlog = log("ai-config-action");
 
 async function requireAdmin() {
   const session = await auth.api.getSession({ headers: await headers() });
@@ -27,7 +30,7 @@ export async function updateAiConfigAction(
     revalidatePath("/app");
     return { success: true, config };
   } catch (error) {
-    console.error("[AI] Failed to update ai_config:", error);
+    xlog.error({ err: error }, "failed to update ai_config");
     return { error: "Gagal menyimpan pengaturan AI." };
   }
 }

@@ -1,5 +1,8 @@
 import { NextResponse } from "next/server";
 import { redisConnection } from "@/lib/redis";
+import { log } from "@/lib/logger";
+
+const xlog = log("api:wa-status");
 
 export async function GET() {
   try {
@@ -20,7 +23,7 @@ export async function GET() {
 
     return NextResponse.json({ status, qr, account, connectedAt });
   } catch (error) {
-    console.error("Failed to fetch WhatsApp status from Redis:", error);
+    xlog.error({ err: error }, "failed to fetch whatsapp status from redis");
     return NextResponse.json({ status: "error", error: "Failed to connect to Redis" }, { status: 500 });
   }
 }

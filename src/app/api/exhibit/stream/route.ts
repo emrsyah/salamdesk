@@ -1,5 +1,8 @@
 import IORedis from "ioredis";
 import { DASHBOARD_EVENTS_CHANNEL } from "@/lib/dashboard-events";
+import { log } from "@/lib/logger";
+
+const xlog = log("api:exhibit-stream");
 
 // Long-lived streaming connection — must run on the Node runtime (ioredis) and
 // never be statically cached.
@@ -33,7 +36,7 @@ export async function GET(request: Request) {
     maxRetriesPerRequest: null,
   });
   subscriber.on("error", (err) => {
-    console.error("[exhibit/stream] Redis subscriber error:", err.message);
+    xlog.error({ err }, "redis subscriber error");
   });
 
   const stream = new ReadableStream<Uint8Array>({
@@ -76,7 +79,7 @@ export async function GET(request: Request) {
       try {
         await subscriber.subscribe(DASHBOARD_EVENTS_CHANNEL);
       } catch (err) {
-        console.error("[exhibit/stream] Failed to subscribe:", err);
+        xlog.error({ err }, "failed to subscribe");
         cleanup();
         return;
       }

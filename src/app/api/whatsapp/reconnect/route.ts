@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth/session";
 import { redisConnection } from "@/lib/redis";
+import { log } from "@/lib/logger";
+
+const xlog = log("api:wa-reconnect");
 
 /**
  * Requests a WhatsApp reconnect after a logout (401). The Baileys socket lives
@@ -37,7 +40,7 @@ export async function POST() {
 
     return NextResponse.json({ ok: true });
   } catch (error) {
-    console.error("Failed to request WhatsApp reconnect:", error);
+    xlog.error({ err: error }, "failed to request whatsapp reconnect");
     return NextResponse.json(
       { error: "Gagal menghubungkan ulang." },
       { status: 500 },

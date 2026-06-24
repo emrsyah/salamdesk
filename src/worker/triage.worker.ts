@@ -3,7 +3,10 @@ import { startActiveObservation, propagateAttributes } from "@langfuse/tracing";
 import { triageTicket } from "@/services/ai.service";
 import { publishTicketEvent } from "@/lib/realtime";
 import { WORKER_TUNING } from "./worker-tuning";
+import { log } from "@/lib/logger";
 import type { AiTriageJob } from "@/lib/queue";
+
+const xlog = log("triage");
 
 /**
  * BullMQ worker for the "ai-triage" queue.
@@ -21,7 +24,8 @@ export function createTriageWorker(connection: ConnectionOptions) {
   const worker = new Worker<AiTriageJob>(
     "ai-triage",
     async (job) => {
-      console.log(`[TRIAGE] Processing job ${job.id} for ticket ${job.data.ticketId}`);
+      const jlog = xlog.child({ jobId: job.id, ticketId: job.data.ticketId });
+      jlog.info("processing job");
       const trigger = job.data.trigger ?? "intake";
       try {
         // Group every LLM call for this ticket (module, priority, on-topic, KB,
@@ -48,14 +52,14 @@ export function createTriageWorker(connection: ConnectionOptions) {
               return r;
             }),
         );
-        console.log(
-          `[TRIAGE] Job ${job.id} done — module: ${result.moduleName ?? "unclassified"}, ` +
-            `priority: ${result.priority}, autoReplied: ${result.autoReplied}` +
-            (result.autoReplied
-              ? result.autoReplyBlockedReason
-                ? ` (${result.autoReplyBlockedReason})`
-                : ""
-              : ` — reason: ${result.autoReplyBlockedReason ?? "no reply generated"}`)
+        jlog.info(
+          {
+            moduleName: result.moduleName ?? "unclassified",
+            priority: result.priority,
+            autoReplied: result.autoReplied,
+            autoReplyBlockedReason: result.autoReplyBlockedReason ?? null,
+          },
+          "job done",
         );
         // Clears the live "menganalisis…" state and pulls in the fresh
         // module/priority/AI suggestion on connected clients.
@@ -81,7 +85,7 @@ export function createTriageWorker(connection: ConnectionOptions) {
   );
 
   worker.on("failed", async (job, err) => {
-    console.error(`[TRIAGE] Job ${job?.id} failed for ticket ${job?.data?.ticketId}:`, err.message);
+    xlog.error({ jobId: job?.id, ticketId: job?.data?.ticketId, err }, "job failed");
     if (!job) return;
     // Only flip the inbox badge to "failed" once all retries are spent — until
     // then the ticket is still being worked, so the spinner should remain.

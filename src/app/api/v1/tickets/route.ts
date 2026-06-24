@@ -6,6 +6,9 @@ import { eq } from "drizzle-orm";
 import { createTicket } from "@/services/ticket.service";
 import { findOrCreateRequesterByIdentity } from "@/services/requester.service";
 import { findActiveTicketForRequester } from "@/services/ticket-lifecycle.service";
+import { log } from "@/lib/logger";
+
+const xlog = log("api:tickets");
 
 async function verifyAuth(req: NextRequest) {
   const authHeader = req.headers.get("authorization");
@@ -67,7 +70,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ success: true, ticket: newTicket }, { status: 201 });
   } catch (error: any) {
-    console.error("API Error:", error);
+    xlog.error({ err: error }, "create ticket failed");
     return NextResponse.json({ error: error.message || "Internal Server Error" }, { status: 500 });
   }
 }

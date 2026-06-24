@@ -1,5 +1,8 @@
 import { NextResponse } from "next/server";
 import { createUserAction } from "@/actions/users.actions";
+import { log } from "@/lib/logger";
+
+const xlog = log("api:users-create");
 
 export async function POST(request: Request) {
   try {
@@ -7,7 +10,7 @@ export async function POST(request: Request) {
     const result = await createUserAction(formData);
     return NextResponse.json(result);
   } catch (error) {
-    console.error("Error creating user:", error);
+    xlog.error({ err: error }, "failed to create user");
     return NextResponse.json(
       { error: "Terjadi kesalahan saat membuat user" },
       { status: 500 }

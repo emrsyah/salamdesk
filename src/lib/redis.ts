@@ -1,4 +1,7 @@
 import IORedis from "ioredis";
+import { log } from "@/lib/logger";
+
+const xlog = log("ioredis");
 
 /**
  * Shared IORedis connection used by BullMQ queues and workers.
@@ -15,7 +18,7 @@ export const redisConnection =
 redisConnection.on("error", (err) => {
   // Catch unhandled error events to prevent application crashes
   // Redis will still attempt to reconnect
-  console.error("[ioredis] Connection error:", err.message);
+  xlog.error({ err }, "connection error");
 });
 
 if (process.env.NODE_ENV !== "production") {

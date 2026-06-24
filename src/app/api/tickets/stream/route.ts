@@ -1,6 +1,9 @@
 import IORedis from "ioredis";
 import { getSession } from "@/lib/auth/session";
 import { TICKET_EVENTS_CHANNEL } from "@/lib/realtime";
+import { log } from "@/lib/logger";
+
+const xlog = log("api:tickets-stream");
 
 // Long-lived streaming connection — must run on the Node runtime (ioredis) and
 // never be statically cached.
@@ -29,7 +32,7 @@ export async function GET(request: Request) {
     maxRetriesPerRequest: null,
   });
   subscriber.on("error", (err) => {
-    console.error("[tickets/stream] Redis subscriber error:", err.message);
+    xlog.error({ err }, "redis subscriber error");
   });
 
   const stream = new ReadableStream<Uint8Array>({
@@ -72,7 +75,7 @@ export async function GET(request: Request) {
       try {
         await subscriber.subscribe(TICKET_EVENTS_CHANNEL);
       } catch (err) {
-        console.error("[tickets/stream] Failed to subscribe:", err);
+        xlog.error({ err }, "failed to subscribe");
         cleanup();
         return;
       }

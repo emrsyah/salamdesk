@@ -1,5 +1,8 @@
 import { Queue, type ConnectionOptions, type Worker } from "bullmq";
 import { redisConnection } from "@/lib/redis";
+import { log } from "@/lib/logger";
+
+const dlqLog = log("dlq");
 
 /**
  * Dead-letter queue: a holding pen for jobs that exhausted all retries.
@@ -49,11 +52,15 @@ export function registerDeadLetter(worker: Worker, queueName: string): void {
         attemptsMade: job.attemptsMade,
         timestamp: new Date().toISOString(),
       } satisfies DeadLetterRecord);
-      console.error(
-        `[DLQ] ${queueName} job ${job.id} dead-lettered after ${job.attemptsMade} attempts: ${err?.message}`,
+      dlqLog.error(
+        { queue: queueName, jobId: job.id, attemptsMade: job.attemptsMade, reason: err?.message },
+        "job dead-lettered",
       );
     } catch (dlqErr) {
-      console.error(`[DLQ] Failed to record dead letter for ${queueName} job ${job.id}:`, dlqErr);
+      dlqLog.error(
+        { queue: queueName, jobId: job.id, err: dlqErr },
+        "failed to record dead letter",
+      );
     }
   });
 }

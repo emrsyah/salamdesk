@@ -15,6 +15,9 @@
  */
 import { LangfuseSpanProcessor } from "@langfuse/otel";
 import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
+import { log } from "@/lib/logger";
+
+const xlog = log("langfuse");
 
 /**
  * Shared processor instance — exported so long-running/serverless callers can
@@ -33,9 +36,7 @@ export function initObservability(): void {
 
   if (!process.env.LANGFUSE_PUBLIC_KEY || !process.env.LANGFUSE_SECRET_KEY) {
     // Don't crash the app if Langfuse isn't configured — just skip tracing.
-    console.warn(
-      "[langfuse] LANGFUSE_PUBLIC_KEY/SECRET_KEY not set — tracing disabled.",
-    );
+    xlog.warn("LANGFUSE_PUBLIC_KEY/SECRET_KEY not set — tracing disabled");
     return;
   }
 
@@ -44,7 +45,7 @@ export function initObservability(): void {
   });
   provider.register();
   registered = true;
-  console.log("[langfuse] OpenTelemetry tracing enabled.");
+  xlog.info("OpenTelemetry tracing enabled");
 }
 
 /** Flush any buffered spans to Langfuse. Call before a process exits. */

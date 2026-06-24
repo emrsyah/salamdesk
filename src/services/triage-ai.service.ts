@@ -3,6 +3,9 @@ import { z } from "zod";
 import { getAiModel, aiTelemetry, AI_MODEL } from "@/lib/ai";
 import { withTrailingUser, stripImages, type Img } from "@/services/conversation-context.service";
 import type { ProcedureBehavior } from "@/services/procedure-execution.service";
+import { log } from "@/lib/logger";
+
+const xlog = log("ai");
 
 /**
  * Best-effort fetch of an attachment's raw bytes. buildTicketConversation
@@ -81,7 +84,7 @@ export async function describePdf(pdfs: Img[], contextText?: string): Promise<st
       const { text } = await extractText(doc, { mergePages: true });
       if (text.trim()) extracted.push(text.trim());
     } catch (err) {
-      console.error(`[AI] PDF text extraction failed for ${pdf.url}:`, err);
+      xlog.error({ err, url: pdf.url }, "pdf text extraction failed");
     }
   }
 
@@ -123,7 +126,7 @@ export async function transcribeVoice(audios: Img[], contextText?: string): Prom
   if (audios.length === 0) return "";
   const apiKey = process.env.OPENROUTER_API_KEY;
   if (!apiKey) {
-    console.error("[AI] transcribeVoice: OPENROUTER_API_KEY not set");
+    xlog.error("transcribeVoice: OPENROUTER_API_KEY not set");
     return "";
   }
 
@@ -162,7 +165,7 @@ export async function transcribeVoice(audios: Img[], contextText?: string): Prom
       }),
     });
     if (!res.ok) {
-      console.error(`[AI] transcribeVoice failed (${res.status}):`, await res.text());
+      xlog.error({ status: res.status, body: await res.text() }, "transcribeVoice failed");
       return "";
     }
     const json = (await res.json()) as {
@@ -170,7 +173,7 @@ export async function transcribeVoice(audios: Img[], contextText?: string): Prom
     };
     return (json.choices?.[0]?.message?.content ?? "").trim();
   } catch (err) {
-    console.error("[AI] transcribeVoice error:", err);
+    xlog.error({ err }, "transcribeVoice error");
     return "";
   }
 }

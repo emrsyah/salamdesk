@@ -5,6 +5,9 @@ import { tickets } from "@/db/schema/tickets";
 import { modules } from "@/db/schema/modules";
 import { requesters } from "@/db/schema/requesters";
 import { eq } from "drizzle-orm";
+import { log } from "@/lib/logger";
+
+const xlog = log("api:tickets-detail");
 
 async function verifyAuth(req: NextRequest) {
   const authHeader = req.headers.get("authorization");
@@ -48,7 +51,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
     return NextResponse.json({ success: true, ticket });
   } catch (error: any) {
-    console.error("API Error:", error);
+    xlog.error({ err: error }, "get ticket failed");
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
   }
 }

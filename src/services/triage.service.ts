@@ -26,6 +26,9 @@ import { sendWhatsAppMessage } from "@/services/whatsapp.service";
 import { getSlaDeadlines } from "@/services/ticket-sla.service";
 import { publishTicketEvent } from "@/lib/realtime";
 import { publishDashboardEvent, type GateBypass } from "@/lib/dashboard-events";
+import { log } from "@/lib/logger";
+
+const xlog = log("triage");
 
 /** Count AI auto-replies already sent on a ticket (public, non-internal). */
 async function countAutoReplies(ticketId: string): Promise<number> {
@@ -226,7 +229,7 @@ export async function triageTicket(
           });
         }
       } catch (err) {
-        console.error(`[AI] Image description failed for ticket ${ticketId}:`, err);
+        xlog.error({ err, ticketId }, "image description failed");
       }
     }
 
@@ -251,7 +254,7 @@ export async function triageTicket(
           });
         }
       } catch (err) {
-        console.error(`[AI] PDF description failed for ticket ${ticketId}:`, err);
+        xlog.error({ err, ticketId }, "pdf description failed");
       }
     }
 
@@ -278,7 +281,7 @@ export async function triageTicket(
           });
         }
       } catch (err) {
-        console.error(`[AI] Voice transcription failed for ticket ${ticketId}:`, err);
+        xlog.error({ err, ticketId }, "voice transcription failed");
       }
     }
 
@@ -473,8 +476,13 @@ export async function triageTicket(
           resolutionDueAt,
           slaDeadlineAt: resolutionDueAt,
         };
-        console.log(
-          `[TRIAGE] Backfilled SLA for ticket ${ticketId}: firstResponse=${firstResponseDueAt?.toISOString()}, resolution=${resolutionDueAt?.toISOString()}`,
+        xlog.info(
+          {
+            ticketId,
+            firstResponse: firstResponseDueAt?.toISOString(),
+            resolution: resolutionDueAt?.toISOString(),
+          },
+          "backfilled sla",
         );
       }
     }
@@ -517,7 +525,7 @@ export async function triageTicket(
       }
     } catch (procErr) {
       // Never let a procedure failure break triage — fall back to the KB suggestion.
-      console.error(`[AI] Procedure attempt failed for ticket ${ticketId}:`, procErr);
+      xlog.error({ err: procErr, ticketId }, "procedure attempt failed");
     }
 
     // --- AI-first fallback ---------------------------------------------------
@@ -551,7 +559,7 @@ export async function triageTicket(
           aiFirstReply = true;
         }
       } catch (clarErr) {
-        console.error(`[AI] Clarifying reply failed for ticket ${ticketId}:`, clarErr);
+        xlog.error({ err: clarErr, ticketId }, "clarifying reply failed");
       }
     }
 
@@ -768,10 +776,10 @@ export async function triageTicket(
         error: errorMessage(error),
       });
     } catch (logErr) {
-      console.error(`[AI] Failed to record triage failure for ticket ${ticketId}:`, logErr);
+      xlog.error({ err: logErr, ticketId }, "failed to record triage failure");
     }
 
-    console.error(`[AI] Triage failed for ticket ${ticketId}:`, error);
+    xlog.error({ err: error, ticketId }, "triage failed");
     // Re-throw so the BullMQ worker marks the job failed and retries it per the
     // queue's `attempts`/`backoff` config (transient DB/AI errors recover).
     throw error;

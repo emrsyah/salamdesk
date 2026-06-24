@@ -16,6 +16,9 @@ import { findOrCreateRequesterFromContact } from "@/services/requester.service";
 import { aiTriageQueue } from "@/lib/queue";
 import { auth } from "@/lib/auth/auth";
 import { headers } from "next/headers";
+import { log } from "@/lib/logger";
+
+const xlog = log("tickets-action");
 
 type RootCause = "bug" | "user_error" | "network" | "third_party" | "configuration" | "hardware" | "other";
 
@@ -87,7 +90,7 @@ export async function createTicketAction(formData: FormData) {
 
     return { success: true, ticketId: ticket.id };
   } catch (err) {
-    console.error("createTicketAction error:", err);
+    xlog.error({ err }, "createTicketAction failed");
     return { error: "Gagal membuat tiket. Silakan coba lagi." };
   }
 }
@@ -108,7 +111,7 @@ export async function updateTicketStatusAction(
     });
     return { success: true };
   } catch (err) {
-    console.error("updateTicketStatusAction error:", err);
+    xlog.error({ err }, "updateTicketStatusAction failed");
     return { error: "Gagal update status." };
   }
 }
@@ -126,7 +129,7 @@ export async function assignTicketAction(id: string, assigneeId: string | null) 
     });
     return { success: true };
   } catch (err) {
-    console.error("assignTicketAction error:", err);
+    xlog.error({ err }, "assignTicketAction failed");
     return { error: "Gagal assign tiket." };
   }
 }
@@ -148,7 +151,7 @@ export async function changeTicketModuleAction(
     });
     return { success: true };
   } catch (err) {
-    console.error("changeTicketModuleAction error:", err);
+    xlog.error({ err }, "changeTicketModuleAction failed");
     return { error: "Gagal mengubah modul tiket." };
   }
 }
@@ -169,7 +172,7 @@ export async function changeTicketPriorityAction(
     });
     return { success: true };
   } catch (err) {
-    console.error("changeTicketPriorityAction error:", err);
+    xlog.error({ err }, "changeTicketPriorityAction failed");
     return { error: "Gagal mengubah prioritas tiket." };
   }
 }
@@ -196,7 +199,7 @@ export async function configureTicketAction(
     });
     return { success: true };
   } catch (err) {
-    console.error("configureTicketAction error:", err);
+    xlog.error({ err }, "configureTicketAction failed");
     return { error: "Gagal menyimpan pengaturan tiket." };
   }
 }
@@ -226,7 +229,7 @@ export async function resolveTicketAction(
     });
     return { success: true };
   } catch (err) {
-    console.error("resolveTicketAction error:", err);
+    xlog.error({ err }, "resolveTicketAction failed");
     return { error: "Gagal resolve tiket." };
   }
 }
@@ -243,7 +246,7 @@ export async function reopenTicketAction(id: string) {
     });
     return { success: true };
   } catch (err) {
-    console.error("reopenTicketAction error:", err);
+    xlog.error({ err }, "reopenTicketAction failed");
     return { error: "Gagal membuka ulang tiket." };
   }
 }
@@ -261,7 +264,7 @@ export async function closeTicketAction(id: string) {
     });
     return { success: true };
   } catch (err) {
-    console.error("closeTicketAction error:", err);
+    xlog.error({ err }, "closeTicketAction failed");
     return { error: "Gagal menutup tiket." };
   }
 }

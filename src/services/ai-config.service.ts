@@ -2,6 +2,9 @@ import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { aiConfigs } from "@/db/schema/ai-config";
 import { DEFAULT_BUSINESS_HOURS, type BusinessHours } from "@/lib/agent/business-hours";
+import { log } from "@/lib/logger";
+
+const xlog = log("ai");
 
 /**
  * Runtime shape of the AI behaviour config, with numeric thresholds parsed from
@@ -140,7 +143,7 @@ export async function getAiConfig(): Promise<AiConfig> {
     cache = { config, at: Date.now() };
     return config;
   } catch (error) {
-    console.error("[AI] Failed to load ai_config, using defaults:", error);
+    xlog.error({ err: error }, "failed to load ai_config, using defaults");
     return DEFAULT_AI_CONFIG;
   }
 }
