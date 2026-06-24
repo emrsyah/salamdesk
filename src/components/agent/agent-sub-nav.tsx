@@ -9,6 +9,7 @@ const ITEMS = [
   { href: "/app/agent/automation", label: "Otomasi & Jadwal" },
   { href: "/app/agent/tools", label: "Tools" },
   { href: "/app/agent/procedures", label: "Prosedur" },
+  { href: "/app/agent/canvas", label: "Kanvas" },
 ];
 
 export function AgentSubNav() {
