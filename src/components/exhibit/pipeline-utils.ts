@@ -106,3 +106,23 @@ export function stepConfidence(e: DashboardEvent): number | null {
       return null;
   }
 }
+
+/**
+ * The AI's own reasoning for a step — the "why" behind a decision — pulled from
+ * the events that carry it. This is what turns a node from a status light into a
+ * glass box: the audience sees *why* it chose a module, flagged a topic, or held
+ * a reply at the gate. Returns null for steps that don't reason out loud.
+ */
+export function stepReason(e: DashboardEvent): string | null {
+  switch (e.type) {
+    case "classify.module":
+    case "classify.priority":
+    case "guard.offtopic":
+      return e.reason?.trim() || null;
+    case "gate.decision":
+      // Only the *block* carries a story worth telling; an allowed gate is silent.
+      return e.allowed ? null : e.blockedReason?.trim() || null;
+    default:
+      return null;
+  }
+}

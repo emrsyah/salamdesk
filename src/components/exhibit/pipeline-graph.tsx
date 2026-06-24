@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Background,
   BackgroundVariant,
@@ -17,6 +17,8 @@ import { motion, useReducedMotion } from "motion/react";
 import "@xyflow/react/dist/style.css";
 import type { PipelineState } from "@/app/exhibit/exhibit-stream-context";
 import type { DashboardEvent } from "@/lib/dashboard-events.types";
+import { NODE_DEFS, EDGE_DEFS, NODE_OF } from "@/lib/agent/pipeline-topology";
+import { stepConfidence, stepReason } from "./pipeline-utils";
 import { cn } from "@/lib/utils";
 
 /**
@@ -34,70 +36,20 @@ interface TriageNodeData {
   label: string;
   status: NodeStatus;
   detail: string | null;
+  /** The AI's reasoning for this step — rendered as the glass-box "why". */
+  reason: string | null;
+  /** 0–1 confidence for steps that score themselves; drives the meter. */
+  confidence: number | null;
   optional: boolean;
   reduceMotion: boolean;
   [key: string]: unknown;
 }
 
-/** Static topology — positions hand-laid for a clean left-to-right read. */
-const NODE_DEFS: {
-  id: string;
-  icon: string;
-  label: string;
-  x: number;
-  y: number;
-  optional?: boolean;
-}[] = [
-  { id: "intake", icon: "💬", label: "Pesan masuk", x: 0, y: 260 },
-  { id: "vision", icon: "🖼️", label: "Baca gambar", x: 150, y: 20, optional: true },
-  { id: "module", icon: "🎯", label: "Klasifikasi modul", x: 295, y: 110 },
-  { id: "priority", icon: "🚦", label: "Nilai prioritas", x: 295, y: 260 },
-  { id: "guard", icon: "🛡️", label: "Penjaga topik", x: 295, y: 410 },
-  { id: "kb", icon: "🔎", label: "Cari panduan", x: 510, y: 260 },
-  { id: "kbmatch", icon: "📖", label: "Susun jawaban", x: 715, y: 110, optional: true },
-  { id: "procedure", icon: "🧭", label: "Jalankan prosedur", x: 715, y: 260, optional: true },
-  { id: "tools", icon: "⚙️", label: "Panggil alat", x: 715, y: 410, optional: true },
-  { id: "gate", icon: "🚪", label: "Gerbang auto-reply", x: 930, y: 260 },
-  { id: "reply", icon: "✍️", label: "Balasan", x: 1145, y: 260 },
-];
-
-/** Directed edges; `optional` ones render faint until actually traversed. */
-const EDGE_DEFS: { from: string; to: string; optional?: boolean }[] = [
-  { from: "intake", to: "vision", optional: true },
-  { from: "vision", to: "module", optional: true },
-  { from: "intake", to: "module" },
-  { from: "intake", to: "priority" },
-  { from: "intake", to: "guard" },
-  { from: "module", to: "kb" },
-  { from: "kb", to: "kbmatch" },
-  { from: "kb", to: "procedure" },
-  { from: "procedure", to: "tools", optional: true },
-  { from: "kbmatch", to: "gate" },
-  { from: "procedure", to: "gate" },
-  { from: "tools", to: "gate", optional: true },
-  { from: "priority", to: "gate" },
-  { from: "guard", to: "gate" },
-  { from: "gate", to: "reply" },
-];
-
-/** Which engine node an event lights up. */
-const NODE_OF: Record<string, string> = {
-  "ticket.new": "intake",
-  "requester.firsttime": "intake",
-  "vision.captioned": "vision",
-  "doc.read": "vision",
-  "voice.transcribed": "vision",
-  "classify.module": "module",
-  "classify.priority": "priority",
-  "guard.offtopic": "guard",
-  "kb.searched": "kb",
-  "kb.matched": "kbmatch",
-  "procedure.picked": "procedure",
-  "tool.invoked": "tools",
-  "tool.result": "tools",
-  "gate.decision": "gate",
-  "reply.sent": "reply",
-};
+/**
+ * Topology (`NODE_DEFS`, `EDGE_DEFS`) and the event→node map (`NODE_OF`) now
+ * live in `@/lib/agent/pipeline-topology` so the exhibit monitor and the Agent
+ * Canvas editor share one definition.
+ */
 
 /** Per-status palette — kept in the DESIGN.md status spectrum. */
 const STATUS_STROKE: Record<NodeStatus, string> = {
@@ -121,6 +73,63 @@ const STATUS_WORD: Record<NodeStatus, string> = {
 
 /** Hidden handle styling shared by all nodes (edges still attach to it). */
 const HANDLE_CLASS = "!h-1.5 !w-1.5 !border-0 !bg-transparent !opacity-0";
+
+/**
+ * Types a string out character-by-character — the "thinking out loud" beat for
+ * the node the engine is working on right now. Keyed by `text`, so a new reason
+ * restarts the reveal; honours reduced-motion by showing the full text at once.
+ */
+function Typewriter({ text, reduceMotion }: { text: string; reduceMotion: boolean }) {
+  // Mounted fresh per reason (keyed at the call site), so initial state already
+  // reflects the right starting point — no synchronous setState in the effect.
+  const [count, setCount] = useState(reduceMotion ? text.length : 0);
+  useEffect(() => {
+    if (reduceMotion) return;
+    let i = 0;
+    const id = setInterval(() => {
+      i += 1;
+      setCount(i);
+      if (i >= text.length) clearInterval(id);
+    }, 22);
+    return () => clearInterval(id);
+  }, [text, reduceMotion]);
+  return (
+    <>
+      {text.slice(0, count)}
+      {count < text.length && (
+        <span className="ml-0.5 inline-block h-[1em] w-[2px] -translate-y-px animate-pulse bg-current align-middle" />
+      )}
+    </>
+  );
+}
+
+/** Confidence color tracks the node's status so the meter reads at a glance. */
+const CONFIDENCE_FILL: Partial<Record<NodeStatus, string>> = {
+  active: "bg-amber-400",
+  done: "bg-emerald-400",
+  sent: "bg-emerald-500",
+  draft: "bg-amber-400",
+};
+
+/** A thin meter showing how sure the AI was — the visual half of the glass box. */
+function ConfidenceMeter({ value, status }: { value: number; status: NodeStatus }) {
+  const pct = Math.round(Math.max(0, Math.min(1, value)) * 100);
+  return (
+    <div className="mt-1.5 flex items-center gap-1.5">
+      <div className="h-1 flex-1 overflow-hidden rounded-full bg-zinc-100">
+        <motion.div
+          className={cn("h-full rounded-full", CONFIDENCE_FILL[status] ?? "bg-zinc-300")}
+          initial={{ width: 0 }}
+          animate={{ width: `${pct}%` }}
+          transition={{ duration: 0.5, ease: "easeOut" }}
+        />
+      </div>
+      <span className="font-mono text-[9px] font-semibold tabular-nums text-zinc-400">
+        {pct}%
+      </span>
+    </div>
+  );
+}
 
 function TriageNode({ data }: NodeProps) {
   const d = data as TriageNodeData;
@@ -243,8 +252,27 @@ function TriageNode({ data }: NodeProps) {
         </span>
       </div>
       {d.detail && (
-        <p className="mt-0.5 truncate text-[11px] leading-snug text-zinc-500" title={d.detail}>
+        <p className="mt-0.5 truncate text-[11px] font-medium leading-snug text-zinc-600" title={d.detail}>
           {d.detail}
+        </p>
+      )}
+
+      {/* The glass box: how sure it was, and — typed out live while it thinks —
+          exactly why. A blocked gate tells its story in red. */}
+      {d.confidence != null && <ConfidenceMeter value={d.confidence} status={d.status} />}
+      {d.reason && (
+        <p
+          className={cn(
+            "mt-1 line-clamp-2 text-[10px] italic leading-snug",
+            blocked ? "font-medium text-red-600 not-italic" : "text-zinc-500",
+          )}
+          title={d.reason}
+        >
+          {active ? (
+            <Typewriter key={d.reason} text={d.reason} reduceMotion={d.reduceMotion} />
+          ) : (
+            d.reason
+          )}
         </p>
       )}
 
@@ -276,7 +304,12 @@ function FrameNode({ data }: NodeProps) {
 const NODE_TYPES = { triage: TriageNode, frame: FrameNode };
 
 /** Resolve every node's live status from the focused ticket's event stream. */
-function deriveStatuses(pipeline: PipelineState): Record<string, { status: NodeStatus; detail: string | null }> {
+function deriveStatuses(
+  pipeline: PipelineState,
+): Record<
+  string,
+  { status: NodeStatus; detail: string | null; reason: string | null; confidence: number | null }
+> {
   // Triage publishes events fire-and-forget, so they can arrive out of array
   // order (e.g. `kb.searched` landing AFTER `reply.sent`). Reason purely by `ts`
   // so the graph never freezes mid-pipeline after the answer already went out.
@@ -305,7 +338,10 @@ function deriveStatuses(pipeline: PipelineState): Record<string, { status: NodeS
     return found;
   };
 
-  const out: Record<string, { status: NodeStatus; detail: string | null }> = {};
+  const out: Record<
+    string,
+    { status: NodeStatus; detail: string | null; reason: string | null; confidence: number | null }
+  > = {};
   for (const def of NODE_DEFS) {
     const ev = lastFor(def.id);
     let status: NodeStatus;
@@ -327,7 +363,12 @@ function deriveStatuses(pipeline: PipelineState): Record<string, { status: NodeS
     } else {
       status = "done";
     }
-    out[def.id] = { status, detail: ev?.label ?? null };
+    out[def.id] = {
+      status,
+      detail: ev?.label ?? null,
+      reason: ev ? stepReason(ev) : null,
+      confidence: ev ? stepConfidence(ev) : null,
+    };
   }
   return out;
 }
@@ -365,6 +406,8 @@ export function TriageGraph({
           optional: def.optional ?? false,
           status: statuses[def.id].status,
           detail: statuses[def.id].detail,
+          reason: statuses[def.id].reason,
+          confidence: statuses[def.id].confidence,
           reduceMotion,
         } satisfies TriageNodeData,
         draggable: false,

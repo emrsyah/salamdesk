@@ -47,6 +47,7 @@ function revalidateAgent() {
   revalidatePath("/app/agent/automation");
   revalidatePath("/app/agent/tools");
   revalidatePath("/app/agent/procedures");
+  revalidatePath("/app/agent/canvas");
 }
 
 // ---- Behavior + Automation (both write the ai_configs singleton) ------------
