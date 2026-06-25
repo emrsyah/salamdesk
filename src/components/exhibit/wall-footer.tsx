@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { QRCodeSVG } from "qrcode.react";
 import { AnimatePresence, motion } from "motion/react";
 import { Cell, Pie, PieChart, ResponsiveContainer } from "recharts";
@@ -66,19 +67,21 @@ function ScanToTry({ waLink }: { waLink: string }) {
         </div>
       </button>
 
-      <AnimatePresence>
-        {open && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.2 }}
-            onClick={() => setOpen(false)}
-            className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-zinc-950/60 p-6 backdrop-blur-sm"
-            role="dialog"
-            aria-modal="true"
-            aria-label="Pindai untuk mencoba"
-          >
+      {typeof document !== "undefined" &&
+        createPortal(
+          <AnimatePresence>
+            {open && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.2 }}
+                onClick={() => setOpen(false)}
+                className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-zinc-950/60 p-6 backdrop-blur-sm"
+                role="dialog"
+                aria-modal="true"
+                aria-label="Pindai untuk mencoba"
+              >
             <motion.div
               initial={{ scale: 0.92, y: 16, opacity: 0 }}
               animate={{ scale: 1, y: 0, opacity: 1 }}
@@ -112,8 +115,10 @@ function ScanToTry({ waLink }: { waLink: string }) {
               </div>
             </motion.div>
           </motion.div>
+            )}
+          </AnimatePresence>,
+          document.body,
         )}
-      </AnimatePresence>
     </>
   );
 }

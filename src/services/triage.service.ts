@@ -202,14 +202,19 @@ export async function triageTicket(
     // step can answer document/voice-only messages, not just the classifiers.
     let convoMessages = conversation.messages;
 
-    // Vision pre-pass: when the requester sent image(s) with little/no text,
-    // caption them so the text-only KB retrieval + classifiers have something to
-    // match on. The reply generators (KB eval, clarifier, procedure) already see
-    // the image directly via `conversation.messages`, so this is text-keyed only.
-    if (
-      conversation.latestImages.length > 0 &&
-      conversation.latestUserText.trim().length < 15
-    ) {
+    // Vision pre-pass: caption inbound image(s) so the text-only KB retrieval +
+    // classifiers have something to match on. The reply generators (KB eval,
+    // clarifier) strip image parts before their structured-output calls (multimodal
+    // is rejected there), so they DON'T see the image directly — we must also fold
+    // the description into the reply thread (like the PDF/audio pre-passes below) or
+    // they answer blind ("I can't see what you mean"). The procedure path keeps the
+    // real image part too.
+    //
+    // Run for ANY image, even one sent with a long caption: a caption describes the
+    // requester's intent ("kenapa error ini muncul?") but only the vision pass turns
+    // the pixels into text the blind reply generators can use. Costs one extra
+    // Gemini-Flash call per image message — acceptable for not answering blind.
+    if (conversation.latestImages.length > 0) {
       try {
         const desc = await describeImages(conversation.latestImages, conversation.latestUserText);
         if (desc) {
@@ -221,6 +226,7 @@ export async function triageTicket(
             [conversation.requesterText.trim(), tagged]
               .filter((t) => t && t !== "[Gambar]")
               .join("\n") || tagged;
+          convoMessages = withTrailingUser(convoMessages, tagged);
           void publishDashboardEvent({
             type: "vision.captioned",
             ticketId,
@@ -301,6 +307,15 @@ export async function triageTicket(
       !moduleLockedByUser &&
       (!ticket.moduleId || isFollowUp);
 
+    // The off-topic guard must judge the requester's CURRENT need, not the frozen
+    // intake title. On a follow-up the title is stale: a ticket first opened as
+    // "mau request fitur baru" whose latest turn is a SIMRS screenshot question was
+    // being flagged off-topic, which held the (correct) reply back as a staff draft
+    // and the requester got nothing. Use the latest message (with the vision/PDF/
+    // voice description already folded in above) as the subject on follow-ups; keep
+    // the title for fresh intake, where it IS the current need.
+    const offTopicSubject = isFollowUp ? latestMessage : ticket.title;
+
     // Fire the three independent LLM classifiers concurrently. Each depends only
     // on the ticket text, not on one another, so running them in parallel cuts
     // two round-trips of wall-clock latency off the pipeline. KB retrieval below
@@ -313,7 +328,7 @@ export async function triageTicket(
         ? classifyPriority(ticket.title, conversationText, ticket.priority)
         : Promise.resolve(null),
       config.offTopicGuardEnabled
-        ? classifyOnTopic(ticket.title, conversationText, {
+        ? classifyOnTopic(offTopicSubject, conversationText, {
             persona: config.persona,
             guardrails: config.guardrails,
           })
